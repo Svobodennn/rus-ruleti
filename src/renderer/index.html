@@ -13,6 +13,12 @@
          registered before any element references the families. -->
     <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/base.css" />
+    <!--
+      CRT atmosphere overlay (Sprint 1 Phase 2 batch B — frontend-dev).
+      Loaded AFTER base.css so .crt-overlay rules win on the cascade. The
+      overlay element itself is the last child of <body> below.
+    -->
+    <link rel="stylesheet" href="./styles/crt.css" />
   </head>
   <body>
     <!--
@@ -36,5 +42,13 @@
     </main>
 
     <script type="module" src="./main.ts"></script>
+
+    <!--
+      CRT scanline + grain + vignette overlay. Pinned above all DOM at
+      z-index 9999 so it treats disclaimer, scene, future HUD, and future
+      OS-mimic dialogs uniformly. pointer-events: none and aria-hidden so
+      it never blocks interaction or screen-reader traversal.
+    -->
+    <div class="crt-overlay" aria-hidden="true"></div>
   </body>
 </html>

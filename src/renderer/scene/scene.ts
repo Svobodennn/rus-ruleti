@@ -1,10 +1,18 @@
 /**
  * Three.js scene + renderer + render-loop bootstrap.
  *
- * Composition root for Sprint 1 Phase 1. Each step is a single-purpose helper
+ * Composition root for Sprint 1 Phase 2. Each step is a single-purpose helper
  * so the function bodies stay under the 50-line ceiling. The public surface
  * is `bootstrapScene(container)` which returns the bag of resources the
  * higher-level mountScene() wires up.
+ *
+ * Phase 2 (kraken-shader) updates vs Phase 1:
+ *   - `createScene(quality)` now takes a QualityLevel and picks the matching
+ *     FogExp2 density (FOG_DENSITY_LOW / MEDIUM / HIGH) instead of the
+ *     deprecated single FOG.near/far tuple. Designer flagged this in
+ *     atmosphere-direction.md §6.1.
+ *   - Renderer clear-colour reads FOG_COLOR directly (per §6.3) instead
+ *     of the deprecated FOG.color alias.
  *
  * Render-loop notes:
  *   - We measure frame time in milliseconds using performance.now() deltas.
@@ -21,7 +29,14 @@ import {
   Scene,
   WebGLRenderer,
 } from 'three';
-import { FOG, RENDERER } from '../../shared/scene-constants';
+import {
+  FOG_COLOR,
+  FOG_DENSITY_HIGH,
+  FOG_DENSITY_LOW,
+  FOG_DENSITY_MEDIUM,
+  RENDERER,
+  type QualityLevel,
+} from '../../shared/scene-constants';
 import type { PostFxHandle } from './post-fx/pipeline';
 
 /** Per-frame callback. Receives elapsed seconds since clock start. */
@@ -42,27 +57,58 @@ export function createRenderer(container: HTMLElement): WebGLRenderer {
     Math.min(window.devicePixelRatio, RENDERER.pixelRatioMax),
   );
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setClearColor(new Color(FOG.color));
+  renderer.setClearColor(new Color(FOG_COLOR));
   return renderer;
 }
 
 /**
- * Build the Scene with claustrophobic exponential fog. Fog color matches
- * the shadow swatch so the room dissolves into black at the corners.
+ * Build the Scene with claustrophobic exponential fog. Fog colour matches
+ * the shadow swatch (FOG_COLOR === PALETTE.shadow) so the room dissolves
+ * into the same void the corners shade into.
+ *
+ * Density is picked per quality tier — see scene-constants.ts FOG_DENSITY_*
+ * comments for the visible-distance table. `low` gives the GPU breathing
+ * room; `medium` is the Sprint 1 default; `high` makes the cellar suffocate.
  */
-export function createScene(): Scene {
+export function createScene(quality: QualityLevel): Scene {
   const scene = new Scene();
-  scene.fog = buildFog();
-  scene.background = new Color(FOG.color);
+  scene.fog = buildFog(quality);
+  scene.background = new Color(FOG_COLOR);
   return scene;
 }
 
-/** Construct the FogExp2 instance from FOG constants. */
-function buildFog(): FogExp2 {
-  // FogExp2 takes a density. Convert the linear near/far hint into an
-  // approximate density that visibly fades the back wall (~3m away).
-  const density = 1 / Math.max(FOG.far - FOG.near, 1);
-  return new FogExp2(new Color(FOG.color), density);
+/** Pick the FogExp2 density that matches the active quality tier. */
+function buildFog(quality: QualityLevel): FogExp2 {
+  const density =
+    quality === 'low'
+      ? FOG_DENSITY_LOW
+      : quality === 'high'
+        ? FOG_DENSITY_HIGH
+        : FOG_DENSITY_MEDIUM;
+  return new FogExp2(new Color(FOG_COLOR), density);
+}
+
+/**
+ * Update the fog density on an existing scene without rebuilding it.
+ *
+ * Called by scene/index.ts when the quality controller fires onQualityChange.
+ * Cheaper than rebuilding the scene — just mutates the existing FogExp2's
+ * scalar density. Three.js picks up the change on the next render.
+ */
+export function applyFogDensityForQuality(
+  scene: Scene,
+  quality: QualityLevel,
+): void {
+  const fog = scene.fog;
+  if (fog === null || !(fog instanceof FogExp2)) {
+    return;
+  }
+  fog.density =
+    quality === 'low'
+      ? FOG_DENSITY_LOW
+      : quality === 'high'
+        ? FOG_DENSITY_HIGH
+        : FOG_DENSITY_MEDIUM;
 }
 
 /**

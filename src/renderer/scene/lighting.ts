@@ -1,34 +1,58 @@
 /**
- * Hanging bulb lighting.
+ * Hanging-bulb lighting + ambient floor.
  *
- * Single PointLight + a small emissive sphere standing in for the bulb's
- * porcelain housing. Sways subtly on x/z via a sin oscillation driven by the
- * scene's Clock — gives the basement the "almost-still" tension PLAN §2 asks
- * for ("hafifçe sallanır").
+ * The basement has exactly one light source: a single sodium-yellow bulb on
+ * a porcelain duy, swaying gently overhead (PLAN §2 "Işıklandırma"). This
+ * module owns that bulb's PointLight, its emissive sphere stand-in, and the
+ * very dim AmbientLight that prevents back-faces from being pure black.
  *
- * Designer (Phase 2) tunes intensity, color, sway amplitude via BULB_LIGHT
- * in scene-constants.ts. NO color/numeric literals belong in this file.
+ * Sway model: **Lissajous curve**. The bulb's x and z positions oscillate
+ * at *different* periods, so the light traces an open curve through the
+ * cone of motion instead of a closed circle. Visually this reads as an
+ * organic pendulum in a slight cross-draught — never settling, never
+ * repeating exactly. A pure-circle sway would read mechanical (the
+ * Sprint 0 mood-board reviewer flagged "circular sway = breaks tension").
+ *
+ * Intensity pulse: ~1% sinusoidal modulation at ~14Hz evokes the AC ripple
+ * of a tungsten filament under a weak transformer. The real 50Hz Soviet
+ * grid frequency is too fast to perceive as flicker — 10-20Hz reads as
+ * "old bulb, bad wiring" and that's what we want.
+ *
+ * Sprint 1 scope: the bulb MESH stays fixed at the bulb origin; only the
+ * cast LIGHT sways. Sprint 3 ties the porcelain duy mesh to the light so
+ * the visible bulb sways physically (cable on top, glass on bottom).
+ *
+ * Designer (Phase 2) tunes everything via BULB_LIGHT + AMBIENT_LIGHT in
+ * scene-constants.ts. NO color/numeric literals belong in this file.
  */
 
 import {
+  AmbientLight,
   Color,
   Mesh,
   MeshBasicMaterial,
   PointLight,
   SphereGeometry,
 } from 'three';
-import { BULB_LIGHT } from '../../shared/scene-constants';
+import { AMBIENT_LIGHT, BULB_LIGHT } from '../../shared/scene-constants';
+
+/** 2π — precomputed so the per-frame Lissajous math stays cheap. */
+const TWO_PI = Math.PI * 2;
 
 /**
  * Owns the bulb light + emissive sphere + the per-frame sway updater.
  *
- * Returned `update(elapsedSec)` MUST be called from the render loop. The
- * sway updates both the light's position and the mesh's position together
- * so the visible bulb tracks the cast shadow source.
+ * The AmbientLight is parented to the PointLight via Object3D.add, which
+ * keeps the scene-graph wire-up in index.ts simple (one scene.add call
+ * pulls both lights in). AmbientLight is position-independent so the
+ * parenting has no lighting consequence.
+ *
+ * Returned `update(elapsedSec)` MUST be called from the render loop.
  */
 export interface BulbLightHandle {
-  /** PointLight + emissive bulb mesh, both children of the same parent. */
+  /** PointLight (with AmbientLight parented as a child). */
   readonly light: PointLight;
+  /** Emissive sphere standing in for the bulb's glass envelope. */
   readonly bulbMesh: Mesh;
   /** Per-frame sway update. Receives Three.Clock.getElapsedTime(). */
   update: (elapsedSec: number) => void;
@@ -37,11 +61,30 @@ export interface BulbLightHandle {
 }
 
 /**
- * Create the hanging bulb. Position from BULB_LIGHT.posY; horizontal sway
- * is added per-frame by update(). The emissive sphere is small (0.04
- * radius) — the actual brightness sits in the PointLight color/intensity.
+ * Construct the hanging-bulb subsystem.
+ *
+ * Layout: the bulb origin sits at (0, BULB_LIGHT.posY, 0). The PointLight,
+ * the placeholder sphere mesh and the AmbientLight are all anchored here.
+ * Per-frame Lissajous sway is applied to the light's xy only (Sprint 1).
  */
 export function createBulbLight(): BulbLightHandle {
+  const light = createPointLight();
+  const bulbMesh = createBulbMesh(light);
+  const ambient = createAmbientLight();
+  light.add(ambient);
+
+  const update = buildSwayUpdater(light);
+  const dispose = buildDisposer(bulbMesh);
+
+  return { light, bulbMesh, update, dispose };
+}
+
+/* ------------------------------------------------------------------------ */
+/* Construction helpers                                                     */
+/* ------------------------------------------------------------------------ */
+
+/** PointLight at the bulb origin. Reads all params from BULB_LIGHT. */
+function createPointLight(): PointLight {
   const light = new PointLight(
     new Color(BULB_LIGHT.color),
     BULB_LIGHT.intensity,
@@ -49,29 +92,80 @@ export function createBulbLight(): BulbLightHandle {
     BULB_LIGHT.decay,
   );
   light.position.set(0, BULB_LIGHT.posY, 0);
+  light.name = 'bulb-light';
+  return light;
+}
 
-  const bulbGeo = new SphereGeometry(0.04, 12, 8);
-  const bulbMat = new MeshBasicMaterial({ color: new Color(BULB_LIGHT.color) });
-  const bulbMesh = new Mesh(bulbGeo, bulbMat);
-  bulbMesh.name = 'placeholder-bulb';
-  bulbMesh.position.copy(light.position);
+/**
+ * Emissive sphere standing in for the bulb's glass envelope. Sprint 1: the
+ * mesh sits at the bulb origin and does NOT track the swayed light position
+ * — only the cast light sways. Sprint 3 ties this mesh to a real GLB.
+ */
+function createBulbMesh(light: PointLight): Mesh {
+  const geo = new SphereGeometry(0.04, 12, 8);
+  const mat = new MeshBasicMaterial({ color: new Color(BULB_LIGHT.color) });
+  const mesh = new Mesh(geo, mat);
+  mesh.name = 'placeholder-bulb';
+  mesh.position.set(0, light.position.y, 0);
+  return mesh;
+}
 
-  const update = (elapsedSec: number): void => {
-    const phase = elapsedSec * BULB_LIGHT.swayFrequency;
-    const dx = Math.sin(phase) * BULB_LIGHT.swayAmplitude;
-    const dz = Math.cos(phase * 0.83) * BULB_LIGHT.swayAmplitude;
-    light.position.x = dx;
-    light.position.z = dz;
-    bulbMesh.position.x = dx;
-    bulbMesh.position.z = dz;
+/** Very-dim AmbientLight prevents unlit faces from being pure black. */
+function createAmbientLight(): AmbientLight {
+  const ambient = new AmbientLight(
+    new Color(AMBIENT_LIGHT.color),
+    AMBIENT_LIGHT.intensity,
+  );
+  ambient.name = 'ambient-floor';
+  return ambient;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Per-frame motion                                                         */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Build the per-frame Lissajous-sway + intensity-pulse updater.
+ *
+ * Capturing BULB_LIGHT into local consts at builder time keeps the per-frame
+ * hot path free of property-access overhead. The closure body stays under
+ * the 50-line ceiling.
+ */
+function buildSwayUpdater(light: PointLight): (elapsedSec: number) => void {
+  const baseIntensity = BULB_LIGHT.intensity;
+  const wX = TWO_PI / BULB_LIGHT.swayPeriodSecX;
+  const wZ = TWO_PI / BULB_LIGHT.swayPeriodSecZ;
+  const phaseX = BULB_LIGHT.swayPhaseX;
+  const phaseZ = BULB_LIGHT.swayPhaseZ;
+  const ampX = BULB_LIGHT.swayAmpX;
+  const ampZ = BULB_LIGHT.swayAmpZ;
+  const pulseW = TWO_PI * BULB_LIGHT.swayPulseHz;
+  const pulseA = BULB_LIGHT.swayPulseAmp;
+
+  return (elapsedSec: number): void => {
+    light.position.x = Math.sin(elapsedSec * wX + phaseX) * ampX;
+    light.position.z = Math.sin(elapsedSec * wZ + phaseZ) * ampZ;
+    const pulse = 1 + Math.sin(elapsedSec * pulseW) * pulseA;
+    light.intensity = baseIntensity * pulse;
   };
+}
 
-  const dispose = (): void => {
-    bulbGeo.dispose();
-    bulbMat.dispose();
-    // PointLight has no GPU resources to release explicitly; removal from
-    // the scene tree handles it.
+/**
+ * Build the dispose() callback. The PointLight + AmbientLight have no GPU
+ * resources to release explicitly — Three.js tears them down when removed
+ * from the scene tree. Only the bulb mesh's geometry + material need
+ * explicit disposal.
+ */
+function buildDisposer(bulbMesh: Mesh): () => void {
+  return (): void => {
+    bulbMesh.geometry.dispose();
+    const mat = bulbMesh.material;
+    if (Array.isArray(mat)) {
+      for (const m of mat) {
+        m.dispose();
+      }
+    } else {
+      mat.dispose();
+    }
   };
-
-  return { light, bulbMesh, update, dispose };
 }

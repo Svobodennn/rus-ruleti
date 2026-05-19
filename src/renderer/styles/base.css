@@ -109,3 +109,45 @@ body {
   width: 100% !important;
   height: 100% !important;
 }
+
+/*
+ * Sprint 1 Phase 2 batch B (frontend-dev) — scene-container fade-in.
+ *
+ * The directive (Phase 2 batch B) asks for a `.scene-container` class with
+ * fade-in via an `.is-mounted` modifier. Phase 1 wired the element with the
+ * ID `#scene-container` and it sits inside `#next-screen`, which already
+ * gates visibility via `.is-active`. To honour the directive without
+ * stomping Phase 1, we add BOTH selectors:
+ *
+ *   • `.scene-container` rules below (forward-compatible — if a future
+ *     iteration of scene-mount.ts adds the class hook, the fade-in becomes
+ *     active without further CSS work).
+ *   • The fade-in is also applied to `#scene-container` directly so the
+ *     1.2s ease feels right today (the canvas appears with a soft reveal
+ *     instead of a hard cut after the disclaimer dismisses).
+ *
+ * z-index: 0 keeps the scene below the disclaimer (z-index: 1) and well
+ * below the CRT overlay (z-index: 9999). Confirmed disclaimer.css line 19.
+ */
+
+.scene-container,
+#scene-container {
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.scene-container.is-mounted,
+#scene-container.is-mounted {
+  opacity: 1;
+}
+
+/*
+ * When the parent `#next-screen` activates (main.ts adds `.is-active`),
+ * we treat that as the "mounted" signal for today. This means no JS hook
+ * is required for the fade-in to fire on first reveal; scene-mount.ts
+ * stays untouched (it is outside this batch's scope).
+ */
+#next-screen.is-active #scene-container {
+  opacity: 1;
+}

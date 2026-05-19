@@ -8,6 +8,12 @@
  *
  * Every mesh is .name'd with a stable identifier so the Sprint 3 GLB swap
  * can target meshes by name without rewriting this file's structure.
+ *
+ * Phase 2 (kraken-shader): each mesh material is now produced by a factory
+ * passed in by the caller. On the `high` quality tier the factory returns
+ * the PS1 vertex-snap ShaderMaterial; on `low`/`medium` it returns plain
+ * MeshStandardMaterial. The room itself stays material-agnostic — it only
+ * specifies "make me an oak-coloured material", not "use a PBR shader".
  */
 
 import {
@@ -17,7 +23,9 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
 } from 'three';
+import type { Material } from 'three';
 import { PALETTE } from '../../shared/scene-constants';
+import type { Ps1MaterialFactory } from './shaders/ps1-material';
 
 /** Stable names. Sprint 3 GLB swap looks up by these. */
 export const PLACEHOLDER_MESH_NAMES = {
@@ -32,67 +40,76 @@ export const PLACEHOLDER_MESH_NAMES = {
 } as const;
 
 /**
+ * Default material factory — used when no factory is supplied. Mirrors
+ * Phase 1's behaviour so the function stays back-compatible with any
+ * test fixture or harness that calls createPlaceholderRoom() without args.
+ */
+const defaultFactory: Ps1MaterialFactory = (baseColor: string): Material =>
+  new MeshStandardMaterial({ color: baseColor });
+
+/**
  * Build the placeholder room group.
  *
  * Geometry is centered at origin; lighting in lighting.ts hangs above. The
  * floor is at y=0 and the camera (CAMERA.posY=1.6) sits at standing height.
+ *
+ * The `factory` parameter is optional for back-compat. When supplied (the
+ * normal case in scene/index.ts) it controls which material class every
+ * mesh receives, enabling the per-quality PS1 ShaderMaterial swap.
  */
-export function createPlaceholderRoom(): Group {
+export function createPlaceholderRoom(
+  factory: Ps1MaterialFactory = defaultFactory,
+): Group {
   const room = new Group();
   room.name = 'placeholder-room';
-  room.add(createTable());
-  room.add(createChair());
-  room.add(createRadiator());
-  room.add(createRadio());
-  room.add(createFloor());
-  room.add(createWalls());
+  room.add(createTable(factory));
+  room.add(createChair(factory));
+  room.add(createRadiator(factory));
+  room.add(createRadio(factory));
+  room.add(createFloor(factory));
+  room.add(createWalls(factory));
   return room;
 }
 
-function createTable(): Mesh {
+function createTable(factory: Ps1MaterialFactory): Mesh {
   // Oak table — center of the room, low and wide. Revolver lives on top.
   const geo = new BoxGeometry(1.4, 0.08, 0.9);
-  const mat = new MeshStandardMaterial({ color: PALETTE.oak });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.oak));
   mesh.name = PLACEHOLDER_MESH_NAMES.TABLE;
   mesh.position.set(0, 0.75, 0);
   return mesh;
 }
 
-function createChair(): Mesh {
+function createChair(factory: Ps1MaterialFactory): Mesh {
   // Single chair, just behind the table — folded shinel cloak hint.
   const geo = new BoxGeometry(0.5, 0.9, 0.45);
-  const mat = new MeshStandardMaterial({ color: PALETTE.oak });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.oak));
   mesh.name = PLACEHOLDER_MESH_NAMES.CHAIR;
   mesh.position.set(0, 0.45, -0.9);
   return mesh;
 }
 
-function createRadiator(): Mesh {
+function createRadiator(factory: Ps1MaterialFactory): Mesh {
   // Rust radiator against the left wall, vertical.
   const geo = new BoxGeometry(0.15, 1.1, 0.35);
-  const mat = new MeshStandardMaterial({ color: PALETTE.rust });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.rust));
   mesh.name = PLACEHOLDER_MESH_NAMES.RADIATOR;
   mesh.position.set(-1.9, 0.55, -0.3);
   return mesh;
 }
 
-function createRadio(): Mesh {
+function createRadio(factory: Ps1MaterialFactory): Mesh {
   // Lampovaya radio — corner cube. Sprint 3 replaces with VEF/Rekord GLB.
   const geo = new BoxGeometry(0.35, 0.2, 0.2);
-  const mat = new MeshStandardMaterial({ color: PALETTE.rust });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.rust));
   mesh.name = PLACEHOLDER_MESH_NAMES.RADIO;
   mesh.position.set(1.6, 0.1, -1.2);
   return mesh;
 }
 
-function createFloor(): Mesh {
+function createFloor(factory: Ps1MaterialFactory): Mesh {
   const geo = new PlaneGeometry(6, 6);
-  const mat = new MeshStandardMaterial({ color: PALETTE.shadow });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.shadow));
   mesh.name = PLACEHOLDER_MESH_NAMES.FLOOR;
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.y = 0;
@@ -100,28 +117,35 @@ function createFloor(): Mesh {
 }
 
 /** Three walls as a single group so room creation stays simple. */
-function createWalls(): Group {
+function createWalls(factory: Ps1MaterialFactory): Group {
   const wallsGroup = new Group();
   wallsGroup.name = 'placeholder-walls';
-  wallsGroup.add(createBackWall());
-  wallsGroup.add(createSideWall(-3, PLACEHOLDER_MESH_NAMES.WALL_LEFT, true));
-  wallsGroup.add(createSideWall(3, PLACEHOLDER_MESH_NAMES.WALL_RIGHT, false));
+  wallsGroup.add(createBackWall(factory));
+  wallsGroup.add(
+    createSideWall(-3, PLACEHOLDER_MESH_NAMES.WALL_LEFT, true, factory),
+  );
+  wallsGroup.add(
+    createSideWall(3, PLACEHOLDER_MESH_NAMES.WALL_RIGHT, false, factory),
+  );
   return wallsGroup;
 }
 
-function createBackWall(): Mesh {
+function createBackWall(factory: Ps1MaterialFactory): Mesh {
   const geo = new PlaneGeometry(6, 3);
-  const mat = new MeshStandardMaterial({ color: PALETTE.oak });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.oak));
   mesh.name = PLACEHOLDER_MESH_NAMES.WALL_BACK;
   mesh.position.set(0, 1.5, -3);
   return mesh;
 }
 
-function createSideWall(x: number, name: string, isLeft: boolean): Mesh {
+function createSideWall(
+  x: number,
+  name: string,
+  isLeft: boolean,
+  factory: Ps1MaterialFactory,
+): Mesh {
   const geo = new PlaneGeometry(6, 3);
-  const mat = new MeshStandardMaterial({ color: PALETTE.oak });
-  const mesh = new Mesh(geo, mat);
+  const mesh = new Mesh(geo, factory(PALETTE.oak));
   mesh.name = name;
   mesh.position.set(x, 1.5, 0);
   mesh.rotation.y = isLeft ? Math.PI / 2 : -Math.PI / 2;

@@ -4,21 +4,31 @@
  * Sprint 1 has NO real .ogg samples for the drone bed. This module generates
  * the four PLAN §2 layers procedurally:
  *
- *   bulb-hum     — 50Hz sine oscillator (Soviet/EU grid mains hum).
- *   wind         — band-pass-filtered white noise, drifting LFO on cutoff.
- *   radio-static — high-pass-filtered noise burst.
+ *   bulb-hum     — 50Hz sine + 2nd harmonic, lowpass-filtered, with a slow
+ *                  0.3Hz LFO on the gain for the "breathing" feel of an
+ *                  old Soviet tungsten bulb on a weak transformer.
+ *   wind         — looped white noise, lowpass at ~600Hz for distant howl,
+ *                  with a slow LFO on the cutoff so the wind drifts.
+ *   radio-static — looped white noise, bandpass at 1-3kHz for vacuum-tube
+ *                  radio character, with a slow LFO on the gain for the
+ *                  intermittent crackle pattern (PLAN §2 "AM static").
  *   water-drip   — silent in Sprint 1 (no realistic synth at low cost).
+ *                  Sprint 3 swaps in water-drip.ogg via Howler.
  *
- * Each layer returns a `LayerHandle` with start/stop/fade methods compatible
- * with what `audio-bed.ts` consumes. Sprint 3 swaps real .ogg-backed Howler
- * instances by changing the factory in audio-bed.ts; this synth file becomes
- * a dev fallback.
+ * Each layer returns a `SynthLayerHandle` with start/stop/fadeTo methods
+ * that `audio-bed.ts` consumes. The factory API is shared across all four
+ * layers so audio-bed can iterate AMBIENT_LAYERS uniformly.
  *
  * Constraints:
  *   - Audio context is owned by the caller (audio-bed.ts). Each factory
- *     receives an AudioContext + a master GainNode and wires nodes into it.
- *   - All nodes are disposed on stop() so the WebAudio graph doesn't leak.
- *   - 0 dB output is impossible — master gain is capped (MASTER_GAIN_CEILING).
+ *     receives an AudioContext + a destination GainNode + an initial gain
+ *     and wires its private node graph between them.
+ *   - All nodes are disposed on stop() so the WebAudio graph doesn't leak
+ *     when scene HMR re-mounts.
+ *   - Master gain is capped upstream in audio-bed (MASTER_GAIN_CEILING).
+ *   - LFOs are themselves OscillatorNodes feeding GainNode/AudioParam
+ *     modulations — Chromium's audio thread executes them at sample-rate
+ *     with effectively zero CPU cost.
  */
 
 import { AMBIENT_BULB_HUM_HZ } from '../../../shared/scene-constants';
@@ -41,72 +51,11 @@ export type SynthLayerFactory = (
 ) => SynthLayerHandle;
 
 /* ------------------------------------------------------------------------ */
-/* bulb-hum                                                                 */
+/* Shared helpers                                                           */
 /* ------------------------------------------------------------------------ */
 
-/**
- * 50Hz sine + 100Hz harmonic for fundamental + first harmonic (sounds more
- * "mains-y" than a single sine).
- */
-export const createBulbHum: SynthLayerFactory = (ctx, destination, gain) => {
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = 0;
-  masterGain.connect(destination);
-
-  const oscFundamental = ctx.createOscillator();
-  oscFundamental.type = 'sine';
-  oscFundamental.frequency.value = AMBIENT_BULB_HUM_HZ;
-  oscFundamental.connect(masterGain);
-
-  const oscHarmonic = ctx.createOscillator();
-  oscHarmonic.type = 'sine';
-  oscHarmonic.frequency.value = AMBIENT_BULB_HUM_HZ * 2;
-  const harmonicGain = ctx.createGain();
-  harmonicGain.gain.value = 0.35;
-  oscHarmonic.connect(harmonicGain).connect(masterGain);
-
-  let started = false;
-  const start = (): void => {
-    if (started) {
-      return;
-    }
-    started = true;
-    oscFundamental.start();
-    oscHarmonic.start();
-    masterGain.gain.linearRampToValueAtTime(
-      gain,
-      ctx.currentTime + 0.5,
-    );
-  };
-
-  const stop = (): void => {
-    try {
-      oscFundamental.stop();
-      oscHarmonic.stop();
-    } catch {
-      // Already stopped; safe to swallow.
-    }
-    oscFundamental.disconnect();
-    oscHarmonic.disconnect();
-    harmonicGain.disconnect();
-    masterGain.disconnect();
-  };
-
-  const fadeTo = (target: number, durationMs: number): void => {
-    const seconds = Math.max(durationMs, 0) / 1000;
-    masterGain.gain.cancelScheduledValues(ctx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(target, ctx.currentTime + seconds);
-  };
-
-  return { start, stop, fadeTo };
-};
-
-/* ------------------------------------------------------------------------ */
-/* wind — band-pass filtered noise                                          */
-/* ------------------------------------------------------------------------ */
-
-/** Buffer length for the noise source — 2 seconds of mono white noise. */
-const NOISE_BUFFER_SECONDS = 2;
+/** Buffer length for the noise source — 8 seconds of mono white noise. */
+const NOISE_BUFFER_SECONDS = 8;
 
 /** Generate a pre-filled noise buffer node. */
 function createNoiseBuffer(ctx: AudioContext): AudioBuffer {
@@ -119,93 +68,217 @@ function createNoiseBuffer(ctx: AudioContext): AudioBuffer {
   return buffer;
 }
 
-export const createWind: SynthLayerFactory = (ctx, destination, gain) => {
-  const noise = ctx.createBufferSource();
-  noise.buffer = createNoiseBuffer(ctx);
-  noise.loop = true;
-
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = 220;
-  filter.Q.value = 0.6;
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = 0;
-  noise.connect(filter).connect(masterGain).connect(destination);
-
-  let started = false;
-  const start = (): void => {
-    if (started) {
-      return;
-    }
-    started = true;
-    noise.start();
-    masterGain.gain.linearRampToValueAtTime(gain, ctx.currentTime + 1.2);
-  };
-  const stop = (): void => {
-    try {
-      noise.stop();
-    } catch {
-      // Already stopped.
-    }
-    noise.disconnect();
-    filter.disconnect();
-    masterGain.disconnect();
-  };
-  const fadeTo = (target: number, durationMs: number): void => {
-    const seconds = Math.max(durationMs, 0) / 1000;
-    masterGain.gain.cancelScheduledValues(ctx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(target, ctx.currentTime + seconds);
-  };
-  return { start, stop, fadeTo };
-};
+/** Linear-ramp a gain AudioParam to target over ms, cancelling any prior ramp. */
+function rampGain(param: AudioParam, target: number, durationMs: number, ctx: AudioContext): void {
+  const seconds = Math.max(durationMs, 0) / 1000;
+  param.cancelScheduledValues(ctx.currentTime);
+  param.linearRampToValueAtTime(target, ctx.currentTime + seconds);
+}
 
 /* ------------------------------------------------------------------------ */
-/* radio-static — high-pass noise                                           */
+/* bulb-hum                                                                 */
 /* ------------------------------------------------------------------------ */
 
-export const createRadioStatic: SynthLayerFactory = (
-  ctx,
-  destination,
-  gain,
-) => {
-  const noise = ctx.createBufferSource();
-  noise.buffer = createNoiseBuffer(ctx);
-  noise.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'highpass';
-  filter.frequency.value = 3500;
+/**
+ * 50Hz mains hum: fundamental + 2nd harmonic at 100Hz (sounds more "mains-y"
+ * than a pure sine), lowpass-filtered at 200Hz so only the deep bottom
+ * register comes through. A 0.3Hz LFO on the gain breathes ±20% — the
+ * subliminal "is the bulb dimming?" feel PLAN §2 asks for.
+ *
+ * Graph:
+ *   osc50 ─┐
+ *          ├──► lowpass(200Hz) ──► gain ──► (destination)
+ *   osc100─┘                            ▲
+ *                                  lfo ─┘ (modulates gain)
+ */
+export const createBulbHum: SynthLayerFactory = (ctx, destination, gain) => {
   const masterGain = ctx.createGain();
   masterGain.gain.value = 0;
-  noise.connect(filter).connect(masterGain).connect(destination);
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = 200;
+  lowpass.Q.value = 0.7;
+  masterGain.connect(destination);
+  lowpass.connect(masterGain);
+
+  const oscFundamental = ctx.createOscillator();
+  oscFundamental.type = 'sine';
+  oscFundamental.frequency.value = AMBIENT_BULB_HUM_HZ;
+  oscFundamental.connect(lowpass);
+
+  const oscHarmonic = ctx.createOscillator();
+  oscHarmonic.type = 'sine';
+  oscHarmonic.frequency.value = AMBIENT_BULB_HUM_HZ * 2;
+  const harmonicGain = ctx.createGain();
+  harmonicGain.gain.value = 0.35;
+  oscHarmonic.connect(harmonicGain).connect(lowpass);
+
+  // 0.3Hz LFO on master gain → ±20% breathing modulation around `gain`.
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.3;
+  const lfoDepth = ctx.createGain();
+  lfoDepth.gain.value = gain * 0.2;
+  lfo.connect(lfoDepth).connect(masterGain.gain);
 
   let started = false;
   return {
     start: (): void => {
-      if (started) {
-        return;
+      if (started) return;
+      started = true;
+      oscFundamental.start();
+      oscHarmonic.start();
+      lfo.start();
+      // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
+    },
+    stop: (): void => {
+      try {
+        oscFundamental.stop();
+        oscHarmonic.stop();
+        lfo.stop();
+      } catch {
+        // Already stopped; safe to swallow.
       }
+      oscFundamental.disconnect();
+      oscHarmonic.disconnect();
+      harmonicGain.disconnect();
+      lfo.disconnect();
+      lfoDepth.disconnect();
+      lowpass.disconnect();
+      masterGain.disconnect();
+    },
+    fadeTo: (target: number, durationMs: number): void => {
+      rampGain(masterGain.gain, target, durationMs, ctx);
+    },
+  };
+};
+
+/* ------------------------------------------------------------------------ */
+/* wind — lowpass-filtered noise with drifting cutoff                       */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Distant blizzard: looped white noise → lowpass at ~600Hz so only the
+ * sub-shoulder rumble comes through (no high-end "shhh"). A slow 0.12Hz
+ * LFO modulates the cutoff between 400Hz and 800Hz so the wind drifts
+ * the way a real outdoor draft does — never settling on one timbre.
+ *
+ * Graph:
+ *   noise ──► lowpass(600±200Hz) ──► gain ──► (destination)
+ *                     ▲
+ *                lfo ─┘ (modulates cutoff frequency)
+ */
+export const createWind: SynthLayerFactory = (ctx, destination, _gain) => {
+  const noise = ctx.createBufferSource();
+  noise.buffer = createNoiseBuffer(ctx);
+  noise.loop = true;
+
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = 600;
+  lowpass.Q.value = 0.4;
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = 0;
+  noise.connect(lowpass).connect(masterGain).connect(destination);
+
+  // 0.12Hz LFO drifts the cutoff ±200Hz around 600Hz.
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.12;
+  const lfoDepth = ctx.createGain();
+  lfoDepth.gain.value = 200;
+  lfo.connect(lfoDepth).connect(lowpass.frequency);
+
+  let started = false;
+  return {
+    start: (): void => {
+      if (started) return;
       started = true;
       noise.start();
-      masterGain.gain.linearRampToValueAtTime(gain, ctx.currentTime + 0.8);
+      lfo.start();
+      // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
     },
     stop: (): void => {
       try {
         noise.stop();
+        lfo.stop();
       } catch {
         // Already stopped.
       }
       noise.disconnect();
-      filter.disconnect();
+      lowpass.disconnect();
+      lfo.disconnect();
+      lfoDepth.disconnect();
       masterGain.disconnect();
     },
     fadeTo: (target: number, durationMs: number): void => {
-      const seconds = Math.max(durationMs, 0) / 1000;
-      masterGain.gain.cancelScheduledValues(ctx.currentTime);
-      masterGain.gain.linearRampToValueAtTime(
-        target,
-        ctx.currentTime + seconds,
-      );
+      rampGain(masterGain.gain, target, durationMs, ctx);
+    },
+  };
+};
+
+/* ------------------------------------------------------------------------ */
+/* radio-static — bandpass-filtered noise with crackle LFO                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Vacuum-tube radio static: looped white noise → bandpass at 1.5kHz (mid-
+ * range vacuum-tube AM character, not the high-end "tssh" of FM), with a
+ * slow 0.45Hz LFO modulating the gain by ±50% so the crackle waxes and
+ * wanes the way a misaligned tube radio actually does.
+ *
+ * Graph:
+ *   noise ──► bandpass(1.5kHz, Q=2) ──► gain ──► (destination)
+ *                                         ▲
+ *                                    lfo ─┘ (modulates gain — crackle)
+ */
+export const createRadioStatic: SynthLayerFactory = (ctx, destination, gain) => {
+  const noise = ctx.createBufferSource();
+  noise.buffer = createNoiseBuffer(ctx);
+  noise.loop = true;
+
+  const bandpass = ctx.createBiquadFilter();
+  bandpass.type = 'bandpass';
+  bandpass.frequency.value = 1500;
+  bandpass.Q.value = 2;
+
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = 0;
+  noise.connect(bandpass).connect(masterGain).connect(destination);
+
+  // 0.45Hz LFO modulates the gain by ±50% of `gain` for crackle pattern.
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = 0.45;
+  const lfoDepth = ctx.createGain();
+  lfoDepth.gain.value = gain * 0.5;
+  lfo.connect(lfoDepth).connect(masterGain.gain);
+
+  let started = false;
+  return {
+    start: (): void => {
+      if (started) return;
+      started = true;
+      noise.start();
+      lfo.start();
+      // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
+    },
+    stop: (): void => {
+      try {
+        noise.stop();
+        lfo.stop();
+      } catch {
+        // Already stopped.
+      }
+      noise.disconnect();
+      bandpass.disconnect();
+      lfo.disconnect();
+      lfoDepth.disconnect();
+      masterGain.disconnect();
+    },
+    fadeTo: (target: number, durationMs: number): void => {
+      rampGain(masterGain.gain, target, durationMs, ctx);
     },
   };
 };
@@ -215,9 +288,11 @@ export const createRadioStatic: SynthLayerFactory = (
 /* ------------------------------------------------------------------------ */
 
 /**
- * Water drip placeholder. Sprint 3 swaps in a real .ogg loop. Sprint 1
- * returns a no-op handle so the audio-bed scaffolding compiles cleanly
- * and the mixer table in audio-channels.ts has all four layers.
+ * Water drip placeholder. Sprint 3 will replace this with a real
+ * water-drip.ogg loaded via Howler.load() — a procedural synth would
+ * either sound fake (sine-blip) or cost too much (physical-modeling).
+ * Sprint 1 returns a no-op handle so the audio-bed scaffolding compiles
+ * cleanly and the mixer table in audio-channels.ts has all four layers.
  */
 export const createWaterDrip: SynthLayerFactory = () => ({
   start: (): void => undefined,
