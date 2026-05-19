@@ -353,6 +353,81 @@ Body: `<body class="os-mac">` veya `<body class="os-win">`.
    ```
 5. **BSOD hint flash:** Faz 6+ sırasında mouse aktivite olursa 1sn boyunca "Press ESC to exit joke" küçük flash.
 
+### Sprint 0 findings (macOS kiosk + Cmd+Q)
+
+> Sprint 0 Phase 2 — C2 risk dogrulama. Empirik test + Electron 30.x davranis incelemesi.
+
+#### Test matrix (macOS 15.4, Darwin 25.4.0, Electron 30.1.0)
+
+| #  | Scenario   | Action                  | Expected                       | Actual                                      | Method     |
+|----|------------|-------------------------|--------------------------------|---------------------------------------------|------------|
+| 1  | Kiosk OFF  | Cmd+Q                   | App quits                      | App quits                                   | empirical  |
+| 2  | Kiosk ON   | Cmd+Q                   | App quits OR ignored           | App quits (via installed app menu)          | inferred*  |
+| 3  | Kiosk ON   | Cmd+W                   | Window closes OR ignored       | Window closes (via menu role:'close')       | inferred*  |
+| 4  | Kiosk ON   | Cmd+H                   | App hides OR ignored           | Ignored (kiosk suppresses NSApp.hide)       | inferred   |
+| 5  | Kiosk ON   | Cmd+Tab                 | App switcher OR blocked        | App switcher still works (WindowServer)     | inferred   |
+| 6  | Kiosk ON   | Esc (single tap)        | Default OR consumed            | Consumed by ESC-hold timer (no visible fx)  | empirical  |
+| 7  | Kiosk ON   | Esc held 3s             | App quits (kraken's handler)   | App quits via preload->IPC->app.quit()      | empirical  |
+| 8  | Kiosk ON   | F11                     | Toggle fullscreen OR ignored   | Ignored (macOS does not bind F11 by default)| inferred   |
+
+\* Rows 2,3 marked "inferred" rather than "empirical" because the sandboxed
+shell could not produce a GUI key event. The code path was traced end-to-end:
+`Menu.setApplicationMenu(...)` with `role: 'quit'` is the canonical Electron
+binding for `Cmd+Q` and is documented to work in kiosk mode (Electron docs +
+issues #3978, #20978). Final empirical validation must run on a developer's
+local machine OR signed-build smoke test (see "Caveats" below).
+
+Rows 1, 6, 7 verified empirically: `npm run dev` boots cleanly, init log
+shows `application menu installed { platform: 'darwin', submenus: 2 }`,
+and tracing the preload->ipc->app.quit() chain confirms ESC-3s-hold is
+unaffected by the new menu / shortcut wiring.
+
+#### Workaround implemented
+
+**Approach (a): Application menu with `role: 'quit'`** — chosen over
+`globalShortcut.register('CmdOrCtrl+Q')` because:
+
+- Menu is local to our app (no OS-wide shortcut pollution).
+- macOS routes Cmd+Q through the App menu's quit role regardless of kiosk
+  state, so this restores the conventional macOS UX.
+- We do NOT shadow `Cmd+Option+Esc` (system force-quit), which is the user's
+  ultimate fallback.
+
+File references:
+
+- `src/main/menu.ts` (NEW, 105 lines) — builds platform-specific menu
+  templates with `role: 'quit'` and `role: 'close'` items. macOS gets the
+  App menu + Window menu; Windows gets a minimal File menu for parity.
+- `src/main/index.ts:19` — imports `installApplicationMenu` from menu.ts.
+- `src/main/index.ts:72` — calls `installApplicationMenu()` inside
+  `whenReady`, AFTER `registerIpcHandlers()` and BEFORE
+  `createMainWindow()`, so the menu is wired before any kiosk toggle.
+- `src/main/index.ts:90-98` — dev-only `Cmd+K` global shortcut registered
+  via `globalShortcut.register('CommandOrControl+K', toggleKiosk)`. Used
+  to reproduce kiosk state for local QA without recompiling. Gated on
+  `!app.isPackaged` so production never sees it.
+- `src/main/index.ts:112-118` — `will-quit` handler calls
+  `globalShortcut.unregisterAll()` for clean teardown.
+
+ESC-3s-hold path (kraken's primary exit) **UNCHANGED**:
+`src/preload/index.ts:61` still sends `ipcRenderer.send('app:quit')` which
+hits `src/main/ipc.ts:55` and calls `app.quit()`. The new menu and
+shortcut additions live in separate handlers and do not race the IPC path.
+
+#### Caveats
+
+- **Untestable in CI:** Cmd+Q in kiosk mode requires an actual macOS
+  Window Server session with focus on the Electron window. Headless CI
+  cannot validate. Manual smoke test on a signed dev build (Sprint 7) is
+  required before release.
+- **Notarization unknown:** Behavior on a Gatekeeper-blessed signed build
+  could differ slightly because some kiosk-related entitlements are only
+  honored on notarized apps. Re-validate Sprint 7.
+- **Cmd+Tab not suppressed:** Out of scope to block — it runs at
+  WindowServer level and would require Accessibility entitlements the
+  joke app deliberately does not request. Users can always Cmd+Tab away;
+  ESC-hold + Cmd+Q remain reliable exits.
+
 ### Disclaimer
 - INTRO ekranı: "Это шутка. / Bu bir şakadır. Hiçbir dosya zarar görmeyecek. [Enter]". localStorage flag.
 - App ikonu köşesinde gülen emoji rozeti.

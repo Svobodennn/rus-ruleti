@@ -1,0 +1,312 @@
+/*
+ * Sprint 0 — @font-face declarations for bundled self-hosted fonts.
+ *
+ * Wired by: babel (Phase 2, batch 1)
+ * Loaded via: <link> in index.html (BEFORE base.css)
+ *
+ * Fonts:
+ *   1. Old Standard TT — primary serif. OFL-licensed. Full Cyrillic coverage.
+ *      Used for: disclaimer headline (700), body (400), italic accent (400i).
+ *   2. PT Serif — fallback serif. OFL-licensed. Cyrillic coverage.
+ *      Used by browser when Old Standard TT is unavailable for a glyph or fails.
+ *      Listed AFTER 'Old Standard TT' in font-family stacks in disclaimer.css.
+ *
+ * Why two subsets per face?
+ *   Cyrillic glyphs and Latin glyphs are split into separate woff2 files
+ *   (Google Fonts convention). Browser only downloads the subset whose
+ *   unicode-range overlaps with actually-rendered glyphs. Saves bandwidth
+ *   for users who only see one script — but since our copy is bilingual
+ *   (Cyrillic + Turkish Latin), both will load. Total payload: ~304 KB.
+ *
+ * font-display: block
+ *   Sovyet-brutalist atmosphere first. We accept a brief invisible-text
+ *   flash over a flash-of-fallback-font (Georgia). The disclaimer copy
+ *   must read in the right typeface — atmosphere is the product.
+ *
+ * unicode-range
+ *   Helps the browser skip downloading subsets it doesn't need.
+ *   - cyrillic: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116
+ *   - latin: U+0000-00FF (covers Turkish ç ı ğ ö ş ü İ Ğ Ş Ç Ö Ü) + common punctuation
+ *
+ * Local paths
+ *   URLs are relative to THIS file's location (src/renderer/styles/fonts.css).
+ *   `../fonts/<family>/<subset>-<weight>.woff2`
+ *   Vite copies these into out/renderer/fonts/ at build time automatically
+ *   (it follows CSS url() references during the build).
+ */
+
+/* ─────────────────────────────────────────────────────────────
+   Old Standard TT — primary serif
+   Regular 400, Bold 700, Italic 400
+   Subsets: cyrillic, latin
+   ───────────────────────────────────────────────────────────── */
+
+/* Cyrillic Regular 400 */
+@font-face {
+  font-family: 'Old Standard TT';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/old-standard-tt/cyrillic-regular-400.woff2') format('woff2');
+  unicode-range:
+    U+0301,
+    U+0400-045F,
+    U+0490-0491,
+    U+04B0-04B1,
+    U+2116;
+}
+
+/* Latin Regular 400 */
+@font-face {
+  font-family: 'Old Standard TT';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/old-standard-tt/latin-regular-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF,
+    U+0131,
+    U+0152-0153,
+    U+02BB-02BC,
+    U+02C6,
+    U+02DA,
+    U+02DC,
+    U+0304,
+    U+0308,
+    U+0329,
+    U+2000-206F,
+    U+20AC,
+    U+2122,
+    U+2191,
+    U+2193,
+    U+2212,
+    U+2215,
+    U+FEFF,
+    U+FFFD;
+}
+
+/* Cyrillic Bold 700 */
+@font-face {
+  font-family: 'Old Standard TT';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('../fonts/old-standard-tt/cyrillic-bold-700.woff2') format('woff2');
+  unicode-range:
+    U+0301,
+    U+0400-045F,
+    U+0490-0491,
+    U+04B0-04B1,
+    U+2116;
+}
+
+/* Latin Bold 700 */
+@font-face {
+  font-family: 'Old Standard TT';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('../fonts/old-standard-tt/latin-bold-700.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF,
+    U+0131,
+    U+0152-0153,
+    U+02BB-02BC,
+    U+02C6,
+    U+02DA,
+    U+02DC,
+    U+0304,
+    U+0308,
+    U+0329,
+    U+2000-206F,
+    U+20AC,
+    U+2122,
+    U+2191,
+    U+2193,
+    U+2212,
+    U+2215,
+    U+FEFF,
+    U+FFFD;
+}
+
+/* Cyrillic Italic 400 */
+@font-face {
+  font-family: 'Old Standard TT';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/old-standard-tt/cyrillic-italic-400.woff2') format('woff2');
+  unicode-range:
+    U+0301,
+    U+0400-045F,
+    U+0490-0491,
+    U+04B0-04B1,
+    U+2116;
+}
+
+/* Latin Italic 400 */
+@font-face {
+  font-family: 'Old Standard TT';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/old-standard-tt/latin-italic-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF,
+    U+0131,
+    U+0152-0153,
+    U+02BB-02BC,
+    U+02C6,
+    U+02DA,
+    U+02DC,
+    U+0304,
+    U+0308,
+    U+0329,
+    U+2000-206F,
+    U+20AC,
+    U+2122,
+    U+2191,
+    U+2193,
+    U+2212,
+    U+2215,
+    U+FEFF,
+    U+FFFD;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PT Serif — secondary fallback serif
+   Regular 400, Bold 700, Italic 400
+   Subsets: cyrillic, latin
+   ───────────────────────────────────────────────────────────── */
+
+/* Cyrillic Regular 400 */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/pt-serif/cyrillic-regular-400.woff2') format('woff2');
+  unicode-range:
+    U+0301,
+    U+0400-045F,
+    U+0490-0491,
+    U+04B0-04B1,
+    U+2116;
+}
+
+/* Latin Regular 400 */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/pt-serif/latin-regular-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF,
+    U+0131,
+    U+0152-0153,
+    U+02BB-02BC,
+    U+02C6,
+    U+02DA,
+    U+02DC,
+    U+0304,
+    U+0308,
+    U+0329,
+    U+2000-206F,
+    U+20AC,
+    U+2122,
+    U+2191,
+    U+2193,
+    U+2212,
+    U+2215,
+    U+FEFF,
+    U+FFFD;
+}
+
+/* Cyrillic Bold 700 */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('../fonts/pt-serif/cyrillic-bold-700.woff2') format('woff2');
+  unicode-range:
+    U+0301,
+    U+0400-045F,
+    U+0490-0491,
+    U+04B0-04B1,
+    U+2116;
+}
+
+/* Latin Bold 700 */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('../fonts/pt-serif/latin-bold-700.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF,
+    U+0131,
+    U+0152-0153,
+    U+02BB-02BC,
+    U+02C6,
+    U+02DA,
+    U+02DC,
+    U+0304,
+    U+0308,
+    U+0329,
+    U+2000-206F,
+    U+20AC,
+    U+2122,
+    U+2191,
+    U+2193,
+    U+2212,
+    U+2215,
+    U+FEFF,
+    U+FFFD;
+}
+
+/* Cyrillic Italic 400 */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/pt-serif/cyrillic-italic-400.woff2') format('woff2');
+  unicode-range:
+    U+0301,
+    U+0400-045F,
+    U+0490-0491,
+    U+04B0-04B1,
+    U+2116;
+}
+
+/* Latin Italic 400 */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('../fonts/pt-serif/latin-italic-400.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF,
+    U+0131,
+    U+0152-0153,
+    U+02BB-02BC,
+    U+02C6,
+    U+02DA,
+    U+02DC,
+    U+0304,
+    U+0308,
+    U+0329,
+    U+2000-206F,
+    U+20AC,
+    U+2122,
+    U+2191,
+    U+2193,
+    U+2212,
+    U+2215,
+    U+FEFF,
+    U+FFFD;
+}

@@ -1,0 +1,215 @@
+/*
+ * Intro disclaimer — Sprint 0 placeholder atmosphere.
+ *
+ * Theme reference: BUCKSHOT_ROULETTE_THEME.md
+ *   - Soviet brutalism, sodium yellow lamp under coal-black ceiling
+ *   - PS1 / CRT broken-recording aesthetic (scanline + grain are placeholders
+ *     here; designer polishes in Sprint 1)
+ *
+ * Font contract with @babel:
+ *   - We reference 'Old Standard TT' (primary Cyrillic-capable slab)
+ *   - We reference 'PT Serif' as a graceful fallback for Cyrillic
+ *   - babel's fonts.css owns @font-face for woff2 loading
+ *   - Generic fallbacks (Georgia, serif) ensure the disclaimer renders even
+ *     if babel's font bundle hasn't loaded yet (FOUT acceptable for Sprint 0)
+ */
+
+#disclaimer {
+  /* Centered card — already positioned by base.css via flex parent. */
+  position: relative;
+  z-index: 1;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+
+  /* Atmospheric vignette: subtle sodium glow into coal black. */
+  background:
+    radial-gradient(
+      ellipse at center top,
+      rgba(200, 155, 60, 0.06) 0%,
+      rgba(10, 9, 8, 0) 60%
+    );
+}
+
+/*
+ * Cyrillic headline — large, wide tracking. This is the diegetic shout.
+ *
+ * Letter-spacing on Cyrillic should be generous; Old Standard TT's caps are
+ * narrow and benefit from breathing room. 0.25em is a placeholder; designer
+ * tunes per the propaganda-poster brief in Sprint 1.
+ */
+#disclaimer .headline-ru {
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  letter-spacing: 0.25em;
+  /* Padding-left compensates for the right-shift letter-spacing introduces. */
+  padding-left: 0.25em;
+  color: #c89b3c; /* sodyum sarısı */
+  text-transform: uppercase;
+  line-height: 1.1;
+  /* Soft bulb-bloom; placeholder — Sprint 1 designer adds real glow. */
+  text-shadow:
+    0 0 8px rgba(200, 155, 60, 0.35),
+    0 0 24px rgba(200, 155, 60, 0.18);
+}
+
+/*
+ * TR headline — smaller bilingual caption beneath the Cyrillic shout.
+ * Sits closer in colour to "dirty paper" so the eye reads RU first.
+ */
+#disclaimer .headline-tr {
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(1rem, 1.8vw, 1.4rem);
+  letter-spacing: 0.08em;
+  color: #7a6a4e; /* kirli kâğıt */
+  margin-top: -0.5rem;
+}
+
+/*
+ * Bilingual body block — RU left column / TR right column on wide screens,
+ * stacked on narrow. The "theatre" framing per the plan: each line short,
+ * max three lines per locale.
+ */
+#disclaimer .body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  max-width: 640px;
+  text-align: center;
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  line-height: 1.55;
+}
+
+#disclaimer .body-ru {
+  color: #c89b3c;
+  font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+  letter-spacing: 0.04em;
+}
+
+#disclaimer .body-tr {
+  color: #7a6a4e;
+  font-size: clamp(0.85rem, 1.2vw, 1rem);
+  letter-spacing: 0.02em;
+  font-style: italic;
+}
+
+/*
+ * Continue button — bilingual single button, sodium yellow outline.
+ * Keyboard-accessible (focus-visible); cursor switches to pointer.
+ */
+#disclaimer .continue {
+  margin-top: 2rem;
+  padding: 0.75rem 2rem;
+  background: transparent;
+  border: 1px solid #c89b3c;
+  color: #c89b3c;
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-weight: 700;
+  font-size: clamp(0.9rem, 1.3vw, 1.1rem);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color 200ms ease-out,
+    color 200ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
+#disclaimer .continue:hover,
+#disclaimer .continue:focus-visible {
+  background-color: rgba(200, 155, 60, 0.12);
+  outline: none;
+  box-shadow:
+    0 0 8px rgba(200, 155, 60, 0.4),
+    inset 0 0 12px rgba(200, 155, 60, 0.08);
+}
+
+#disclaimer .continue:active {
+  background-color: rgba(200, 155, 60, 0.22);
+}
+
+#disclaimer .continue-ru {
+  display: inline-block;
+}
+
+#disclaimer .continue-sep {
+  display: inline-block;
+  margin: 0 0.6em;
+  opacity: 0.5;
+}
+
+#disclaimer .continue-tr {
+  display: inline-block;
+}
+
+/*
+ * CRT scanline overlay — Sprint 0 placeholder. 1px repeating gradient pinned
+ * over the disclaimer card. Sprint 1 replaces this with a full-window
+ * post-FX layer (postprocessing pipeline).
+ *
+ * pointer-events: none so the underlying button stays clickable.
+ */
+#disclaimer::before {
+  content: '';
+  position: absolute;
+  inset: -2rem;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.18) 3px,
+    rgba(0, 0, 0, 0) 4px
+  );
+  mix-blend-mode: multiply;
+  z-index: 2;
+}
+
+/*
+ * Hidden-by-default state — main.ts toggles `.is-revealed` after hydration
+ * so the user never sees an untranslated flash if fonts swap late.
+ */
+#disclaimer {
+  opacity: 0;
+  transition: opacity 320ms ease-in;
+}
+
+#disclaimer.is-revealed {
+  opacity: 1;
+}
+
+/*
+ * Placeholder "next screen" slot — Sprint 0 outputs a console log + reveals
+ * an empty section. Sprint 2 onwards: lobby scene mounts here.
+ */
+#next-screen {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: #7a6a4e;
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+#next-screen.is-active {
+  display: flex;
+}
+
+/*
+ * When the user advances past the disclaimer we collapse it out of the
+ * flow so the next screen owns the viewport cleanly.
+ */
+#disclaimer.is-dismissed {
+  display: none;
+}

@@ -1,0 +1,86 @@
+/*
+ * Sprint 0 scaffold styles — placeholder.
+ * designer polishes per BUCKSHOT_ROULETTE_THEME.md in Sprint 1.
+ * i18n-expert may extend with disclaimer-specific styles in Phase 2.
+ *
+ * babel (Phase 2) adds a <link> to ./styles/fonts.css from index.html for
+ * @font-face declarations; this file references those families.
+ */
+
+@import './disclaimer.css';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: #0a0908; /* kömür siyahı */
+  color: #7a6a4e; /* kirli kâğıt */
+  font-family: 'Old Standard TT', Georgia, serif;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#disclaimer {
+  text-align: center;
+  max-width: 720px;
+  padding: 2rem;
+  /* i18n-expert fills content; designer adds CRT scanline + sodium glow. */
+}
+
+/* ESC-hold progress indicator — subtle bottom-right. */
+#esc-hold-indicator {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: #3d2817;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
+}
+
+#esc-hold-indicator.active {
+  opacity: 0.85;
+}
+
+#esc-hold-bar {
+  width: 80px;
+  height: 2px;
+  background: #1c1814;
+  position: relative;
+  overflow: hidden;
+}
+
+#esc-hold-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: var(--esc-progress, 0%);
+  background: #c89b3c; /* sodium yellow */
+  transition: width 60ms linear;
+}
+
+#esc-hold-label {
+  color: #7a6a4e;
+}

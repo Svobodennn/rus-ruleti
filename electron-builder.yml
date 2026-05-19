@@ -1,0 +1,123 @@
+# electron-builder config — Sprint 0 Phase 2 (@devops).
+#
+# Targets:
+#   - macOS DMG (Intel + Apple Silicon → universal binary handled at build time
+#     by --arch flags or a top-level matrix; here we just declare the dmg target).
+#   - Windows NSIS installer with consent screen (oneClick: false per PLAN section 6
+#     — joke app MUST surface a disclaimer on install).
+#
+# Signing/notarization:
+#   - Placeholders only. Real certs + notarization stretch to Sprint 7/8 (Mac polish,
+#     Win polish) once the team has Apple Developer ID + Windows code-signing cert.
+#   - hardenedRuntime: true now so we don't have to rebuild later when notarization arrives.
+#   - gatekeeperAssess: false because we don't run `spctl --assess` in CI yet.
+#
+# Crash dumps / logs:
+#   - electron-log writes to ~/Library/Logs/Rus Ruleti/ (mac) or %APPDATA%/Rus Ruleti/logs/ (win).
+#     Both resolved at runtime via app.getPath('userData') — NOT bundled into the package.
+#   - crashReporter dumps go to userData/crashes — also runtime-only, NOT shipped.
+#   - submitURL is intentionally blank (see src/main/index.ts comment + PLAN section 14).
+
+appId: app.famelink.rusruleti
+productName: Rus Ruleti
+copyright: Copyright (C) 2026 famelink
+
+directories:
+  output: dist
+  buildResources: resources
+
+# What goes into the asar archive shipped to users.
+# - out/**/* is the electron-vite build output (main, preload, renderer bundles).
+# - package.json is required by electron at runtime.
+# - LICENSE/LEGAL/README will live at repo root once Sprint 9 docs land; include
+#   them eagerly so we don't forget on release day.
+# Exclude source maps from production (they leak source paths AND bloat the DMG;
+# kept for dev via electron-vite sourcemap:true but stripped from packaged build).
+files:
+  - out/**/*
+  - package.json
+  - LICENSE*
+  - LEGAL*
+  - README*
+  - '!**/*.map'
+  - '!**/*.ts'
+  - '!**/*.tsx'
+  - '!**/__tests__/**'
+  - '!**/__specs__/**'
+  - '!**/*.test.*'
+  - '!**/*.spec.*'
+
+# Node modules pruning — electron-builder already prunes devDependencies, but
+# explicitly excluding common dev cruft keeps the asar tight.
+asarUnpack: []
+
+extraResources: []
+
+# -----------------------------------------------------------------------------
+# macOS
+# -----------------------------------------------------------------------------
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  category: public.app-category.entertainment
+  # hardenedRuntime: required for notarization (Sprint 7). Setting it now means
+  # the entitlements file is the only thing we add later.
+  hardenedRuntime: true
+  # gatekeeperAssess: false — we don't run spctl in CI. README will document the
+  # `xattr -dr com.apple.quarantine` workaround for unsigned local installs
+  # (PLAN section 12 risk row).
+  gatekeeperAssess: false
+  # Signing placeholders. Empty identity = "don't sign" so local dev builds work.
+  # Sprint 7 fills these from env vars (CSC_LINK, CSC_KEY_PASSWORD).
+  identity: null
+  # Notarization placeholder — Sprint 7 wires APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD.
+  notarize: false
+  # Entitlements file path is conventional even if absent now; electron-builder
+  # falls back to its bundled default-mac entitlements until we add a real one.
+  # entitlements: build/entitlements.mac.plist
+  # entitlementsInherit: build/entitlements.mac.plist
+
+dmg:
+  # DMG title shown in Finder when mounted. Latin-only to avoid Finder quirks
+  # with Cyrillic in the volume label.
+  title: Rus Ruleti ${version}
+  # Single-window installer layout. Real icon work lands Sprint 7.
+  iconSize: 96
+
+# -----------------------------------------------------------------------------
+# Windows
+# -----------------------------------------------------------------------------
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # Signing placeholder. Empty => unsigned local builds. Sprint 8 fills cert.
+  # signingHashAlgorithms: ['sha256']
+  # certificateFile, certificatePassword come from env in Sprint 8.
+
+nsis:
+  # oneClick: false REQUIRED by PLAN section 6 — joke app must present a consent
+  # screen on install so the victim has a paper trail of "yes I asked for this".
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # Keep the legal disclaimer surfaced in the installer chrome. Sprint 9 wires
+  # the actual license/disclaimer file via license path once technical-writer
+  # finalises LEGAL.md.
+  # license: LEGAL.md
+  deleteAppDataOnUninstall: true
+  # Run the app after install with the consent dialog already shown.
+  runAfterFinish: false
+  # Installer artifact name. Default electron-builder template is fine; pin
+  # explicit name so CI doesn't surprise us with version-string drift.
+  artifactName: ${productName} Setup ${version}.${ext}
+
+# -----------------------------------------------------------------------------
+# Publishing
+# -----------------------------------------------------------------------------
+# No auto-publish. PLAN section 14: GitHub Releases manual (private + disclaimer).
+publish: null

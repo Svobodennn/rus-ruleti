@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- CSP: no remote resources, no inline eval. Sprint 0 scaffold posture. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rus Ruleti</title>
+    <!-- Fonts MUST load before base.css so @font-face declarations are
+         registered before any element references the families. -->
+    <link rel="stylesheet" href="./styles/fonts.css" />
+    <link rel="stylesheet" href="./styles/base.css" />
+  </head>
+  <body>
+    <!--
+      OS class (os-mac | os-win) is injected by main.ts on load.
+      Placeholder disclaimer div: i18n-expert + babel fill content in Phase 2.
+    -->
+    <main id="app">
+      <section id="disclaimer" data-i18n-slot="intro">
+        <!-- Phase 2 (i18n-expert): inject Cyrillic + TR disclaimer copy here. -->
+      </section>
+
+      <!--
+        ESC-hold progress indicator. Subtle, placeholder. designer will polish
+        in a later sprint; for Sprint 0 we only need visual feedback that the
+        hold is being detected.
+      -->
+      <div id="esc-hold-indicator" aria-hidden="true">
+        <div id="esc-hold-bar"></div>
+        <span id="esc-hold-label">ESC</span>
+      </div>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
