@@ -8,16 +8,27 @@
  * (where backed by IPC) registered in src/main/ipc.ts.
  */
 
-import type { OsFamily } from './ipc-channels';
+import type { FrameStatsPayload, OsFamily } from './ipc-channels';
+
+export type { FrameStatsPayload };
 
 export type EscapeHoldProgressCallback = (progress: number) => void;
 export type EscapeHoldCompleteCallback = () => void;
 
 /**
- * Subset of NodeJS.Platform we actually care about. Renderer tsconfig does
- * not pull in @types/node, so we narrow here to a portable union.
+ * Runtime-supported platforms.
+ *
+ * Sprint 0 retro L.4 narrowed this union from the full NodeJS.Platform set
+ * to the two platforms we actually ship. macOS (Intel + Apple Silicon) and
+ * Windows 10/11 x64 are the PLAN §1 targets. Any other platform throws in
+ * src/main/ipc.ts:getOsFamily(), so renderer code that depends on a 3rd
+ * value would be dead at runtime.
+ *
+ * Preload casts `process.platform` to this via an `as` cast — the cast is
+ * safe because the main process refuses to start on platforms outside this
+ * set (see ipc.ts).
  */
-export type PlatformId = 'darwin' | 'win32' | 'linux' | 'freebsd' | 'sunos' | 'openbsd' | 'aix' | 'android' | 'haiku' | 'netbsd' | 'cygwin';
+export type PlatformId = 'darwin' | 'win32';
 
 export interface RusRuletiApi {
   /** Returns the OS family, resolved via IPC 'os:get'. */
@@ -35,6 +46,13 @@ export interface RusRuletiApi {
   ) => () => void;
   /** Debug only — swift-expert Phase 2. Returns new kiosk state, null if no window. */
   toggleKiosk: () => Promise<boolean | null>;
-  /** node platform identifier ('darwin' | 'win32' | ...). Read-only. */
+  /** node platform identifier ('darwin' | 'win32'). Read-only. */
   readonly platform: PlatformId;
+  /**
+   * Fire a frame-time summary to main via IPC 'frame:stats'.
+   *
+   * Scene's frame-logger drains its ring buffer periodically and calls this.
+   * Fire-and-forget — main writes to electron-log and never replies.
+   */
+  sendFrameStats: (payload: FrameStatsPayload) => void;
 }

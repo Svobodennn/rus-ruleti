@@ -13,7 +13,13 @@
  *   - Sentry DSN wiring (PLAN section 14 — Sprint 9, opt-in)
  */
 
-import { app, BrowserWindow, crashReporter, globalShortcut } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  crashReporter,
+  globalShortcut,
+  session,
+} from 'electron';
 import { createMainWindow, toggleKiosk } from './window-manager';
 import { registerIpcHandlers, unregisterIpcHandlers } from './ipc';
 import { installApplicationMenu } from './menu';
@@ -60,6 +66,16 @@ app.on('second-instance', () => {
 app
   .whenReady()
   .then(() => {
+    // Defence-in-depth (Sprint 0 retro L.1). Sandbox + contextIsolation
+    // already block direct Node access from renderer, but the renderer can
+    // still ask Chromium for camera/mic/geo/notifications via WebAPIs.
+    // The joke app needs none of these. Deny everything globally — there
+    // is no UI surface to grant a permission and the renderer should not
+    // be silently allowed to use any of them in a packaged build.
+    session.defaultSession.setPermissionRequestHandler(
+      (_wc, _permission, callback) => callback(false),
+    );
+
     registerIpcHandlers();
 
     // C2 workaround (Sprint 0 Phase 2): install the application menu so

@@ -6,9 +6,6 @@
 /** ESC must be held this many milliseconds to fire the emergency quit. */
 export const ESC_HOLD_DURATION_MS = 3000;
 
-/** UI tick frequency for the ESC-hold progress indicator. */
-export const ESC_HOLD_TICK_MS = 50;
-
 /** Default window dimensions (used only in non-fullscreen dev modes). */
 export const DEFAULT_WINDOW_WIDTH = 1280;
 export const DEFAULT_WINDOW_HEIGHT = 800;

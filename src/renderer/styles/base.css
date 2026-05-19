@@ -84,3 +84,28 @@ body {
 #esc-hold-label {
   color: #7a6a4e;
 }
+
+/*
+ * Sprint 1 Phase 1 scene container.
+ *
+ * The Three.js canvas is appended into `#scene-container` by scene-mount.ts.
+ * Sized to fill its parent (which is `#next-screen`, which is sized 100%
+ * via disclaimer.css `.is-active` rules). The CRT scanline + grain overlay
+ * is Phase 2 work — frontend-dev owns CSS additions for that, NOT base.css
+ * here. Keep this block disjoint from disclaimer.css so designer and
+ * frontend-dev can extend without merge conflicts.
+ */
+#scene-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0908;
+}
+
+#scene-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}

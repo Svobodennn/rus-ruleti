@@ -6,6 +6,11 @@
  *
  * NOTE: The actual quit IPC is fired inside preload when progress reaches 1.0
  * (see src/preload/index.ts). The renderer's role is purely cosmetic feedback.
+ *
+ * Lifetime: the returned disposer is wired to `beforeunload` by main.ts so
+ * dev HMR doesn't accumulate keyboard listeners across reloads. Production
+ * lifetime equals the renderer process, so missing the call there is
+ * harmless — listeners die with the page.
  */
 
 import type { RusRuletiApi } from '../shared/api-types';

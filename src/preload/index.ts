@@ -29,7 +29,11 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import { ESC_HOLD_DURATION_MS } from '../shared/constants';
-import { IPC_CHANNELS, type OsFamily } from '../shared/ipc-channels';
+import {
+  IPC_CHANNELS,
+  type FrameStatsPayload,
+  type OsFamily,
+} from '../shared/ipc-channels';
 import type {
   EscapeHoldCompleteCallback,
   EscapeHoldProgressCallback,
@@ -121,6 +125,9 @@ const api: RusRuletiApi = {
     return result;
   },
   platform: process.platform as PlatformId,
+  sendFrameStats: (payload: FrameStatsPayload): void => {
+    ipcRenderer.send(IPC_CHANNELS.FRAME_STATS, payload);
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

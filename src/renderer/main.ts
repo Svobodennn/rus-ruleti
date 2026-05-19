@@ -10,6 +10,7 @@
 
 import type { RusRuletiApi } from '../shared/api-types';
 import { mountEscapeHatch } from './escape-hatch';
+import { activateScene, deactivateScene } from './scene-mount';
 import { t } from './i18n/strings';
 
 declare global {
@@ -35,8 +36,16 @@ async function bootstrap(): Promise<void> {
     document.body.dataset.osError = String(err);
   }
 
-  // ESC-hold visual feedback.
-  mountEscapeHatch(api);
+  // ESC-hold visual feedback. Disposer is wired to beforeunload below so
+  // dev HMR doesn't accumulate keyboard listeners across reloads.
+  const disposeEscapeHatch = mountEscapeHatch(api);
+
+  // Wire scene + escape-hatch teardown to beforeunload so dev HMR / window
+  // close doesn't leak WebGL contexts, audio nodes, or keyboard listeners.
+  window.addEventListener('beforeunload', () => {
+    disposeEscapeHatch();
+    void deactivateScene();
+  });
 
   // i18n: hydrate the disclaimer placeholder with bilingual copy.
   hydrateDisclaimer();
@@ -149,21 +158,19 @@ function hydrateDisclaimer(): void {
 }
 
 /**
- * Advance past the intro disclaimer. Sprint 0 stub: collapse the disclaimer,
- * reveal an empty placeholder next-screen, and emit a single dev breadcrumb.
+ * Advance past the intro disclaimer. Sprint 1: collapse the disclaimer,
+ * reveal the scene container, and kick off the Three.js mount.
  *
- * Sprint 2 will replace `#next-screen` with the lobby scene mount.
+ * The user-click that fires this is also the user gesture the AudioContext
+ * needs to come out of suspended state — see scene/audio/audio-bed.ts.
  */
 function advancePastDisclaimer(disclaimer: HTMLElement): void {
   disclaimer.classList.add('is-dismissed');
 
-  // Build (or reveal) the placeholder next screen. We create it lazily here
-  // so Sprint 2 can swap in the lobby without touching index.html.
+  // Build (or reveal) the next-screen section. We create it lazily here
+  // so HTML doesn't need to know about Sprint-specific mounts.
   let next = document.querySelector<HTMLElement>('#next-screen');
   if (next === null) {
-    // Sprint 0: empty placeholder section. Sprint 2 mounts the lobby scene
-    // here (3D canvas, HUD, revolver). Intentionally no copy here — any
-    // visible text must route through i18n/strings.ts.
     next = document.createElement('section');
     next.id = 'next-screen';
     next.setAttribute('aria-hidden', 'true');
@@ -176,9 +183,13 @@ function advancePastDisclaimer(disclaimer: HTMLElement): void {
   }
   next.classList.add('is-active');
 
-  // A breadcrumb for devtools / main-process log scraping. Console is banned
-  // by eslint in renderer source, so we use a DOM dataset marker instead.
-  document.body.dataset.scene = 'next-screen';
+  // Breadcrumb for devtools.
+  document.body.dataset.scene = 'scene';
+
+  // Mount the Three.js scene. Errors are swallowed by activateScene() —
+  // they go to document.body.dataset.sceneError for inspection. The promise
+  // is discarded; Sprint 2 will await this to add a loading indicator.
+  void activateScene(next);
 }
 
 // `document.readyState` may already be 'interactive' or 'complete' by the time
