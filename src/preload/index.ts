@@ -28,6 +28,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import { ESC_HOLD_DURATION_MS } from '../shared/constants';
 import { IPC_CHANNELS, type OsFamily } from '../shared/ipc-channels';
 import type {
   EscapeHoldCompleteCallback,
@@ -36,7 +37,6 @@ import type {
   RusRuletiApi,
 } from '../shared/api-types';
 
-const ESC_HOLD_DURATION_MS = 3000;
 const ESC_KEY = 'Escape';
 
 function createEscHoldHandler(

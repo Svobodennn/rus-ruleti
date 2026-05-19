@@ -42,38 +42,23 @@ async function bootstrap(): Promise<void> {
   hydrateDisclaimer();
 }
 
-/**
- * Build the intro disclaimer DOM and wire the continue button.
- *
- * The `<section id="disclaimer" data-i18n-slot="intro">` placeholder is
- * authored in index.html; we fill it imperatively so all visible copy stays
- * in `i18n/strings.ts` (no Cyrillic hardcoded in HTML).
- *
- * After the user clicks Continue we mark the disclaimer dismissed and reveal
- * a placeholder `#next-screen` — Sprint 2 replaces this with the lobby.
- */
-function hydrateDisclaimer(): void {
-  const slot = document.querySelector<HTMLElement>('#disclaimer[data-i18n-slot="intro"]');
-  if (slot === null) {
-    // Index.html is the source of truth; if the placeholder is gone we want
-    // to know about it loudly during development. In production a missing
-    // disclaimer is also a bug — log via DOM so it shows in devtools.
-    document.body.dataset.disclaimerError = 'missing-slot';
-    return;
-  }
+/** Build the RU primary headline and TR caption-size sibling. */
+function buildHeadline(): { ru: HTMLElement; tr: HTMLElement } {
+  const ru = document.createElement('h1');
+  ru.className = 'headline-ru';
+  ru.lang = 'ru';
+  ru.textContent = t('disclaimer.headline', 'ru');
 
-  // Build subtree. Using createElement (not innerHTML) so we never have to
-  // worry about CSP / sanitization of localised strings.
-  const headlineRu = document.createElement('h1');
-  headlineRu.className = 'headline-ru';
-  headlineRu.lang = 'ru';
-  headlineRu.textContent = t('disclaimer.headline', 'ru');
+  const tr = document.createElement('p');
+  tr.className = 'headline-tr';
+  tr.lang = 'tr';
+  tr.textContent = t('disclaimer.headline', 'tr');
 
-  const headlineTr = document.createElement('p');
-  headlineTr.className = 'headline-tr';
-  headlineTr.lang = 'tr';
-  headlineTr.textContent = t('disclaimer.headline', 'tr');
+  return { ru, tr };
+}
 
+/** Build the bilingual body block (3 lines each locale). */
+function buildBody(): HTMLElement {
   const body = document.createElement('div');
   body.className = 'body';
 
@@ -96,34 +81,62 @@ function hydrateDisclaimer(): void {
   ].join(' ');
 
   body.append(bodyRu, bodyTr);
+  return body;
+}
 
-  const continueButton = document.createElement('button');
-  continueButton.className = 'continue';
-  continueButton.type = 'button';
+/** Build the continue button with RU + TR text and click handler. */
+function buildContinueButton(onClick: () => void): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.className = 'continue';
+  button.type = 'button';
   // aria-label is the TR label only (screen-reader friendly for the operator).
-  continueButton.setAttribute('aria-label', t('disclaimer.continueButton', 'tr'));
+  button.setAttribute('aria-label', t('disclaimer.continueButton', 'tr'));
 
-  const continueRu = document.createElement('span');
-  continueRu.className = 'continue-ru';
-  continueRu.lang = 'ru';
-  continueRu.textContent = t('disclaimer.continueButton', 'ru');
+  const ruSpan = document.createElement('span');
+  ruSpan.className = 'continue-ru';
+  ruSpan.lang = 'ru';
+  ruSpan.textContent = t('disclaimer.continueButton', 'ru');
 
-  const continueSep = document.createElement('span');
-  continueSep.className = 'continue-sep';
-  continueSep.setAttribute('aria-hidden', 'true');
-  continueSep.textContent = '/';
+  const sep = document.createElement('span');
+  sep.className = 'continue-sep';
+  sep.setAttribute('aria-hidden', 'true');
+  sep.textContent = '/';
 
-  const continueTr = document.createElement('span');
-  continueTr.className = 'continue-tr';
-  continueTr.lang = 'tr';
-  continueTr.textContent = t('disclaimer.continueButton', 'tr');
+  const trSpan = document.createElement('span');
+  trSpan.className = 'continue-tr';
+  trSpan.lang = 'tr';
+  trSpan.textContent = t('disclaimer.continueButton', 'tr');
 
-  continueButton.append(continueRu, continueSep, continueTr);
-  continueButton.addEventListener('click', () => {
-    advancePastDisclaimer(slot);
-  });
+  button.append(ruSpan, sep, trSpan);
+  button.addEventListener('click', onClick);
+  return button;
+}
 
-  slot.replaceChildren(headlineRu, headlineTr, body, continueButton);
+/**
+ * Build the intro disclaimer DOM and wire the continue button.
+ *
+ * The `<section id="disclaimer" data-i18n-slot="intro">` placeholder is
+ * authored in index.html; we fill it imperatively so all visible copy stays
+ * in `i18n/strings.ts` (no Cyrillic hardcoded in HTML).
+ *
+ * After the user clicks Continue we mark the disclaimer dismissed and reveal
+ * a placeholder `#next-screen` — Sprint 2 replaces this with the lobby.
+ */
+function hydrateDisclaimer(): void {
+  const slot = document.querySelector<HTMLElement>('#disclaimer[data-i18n-slot="intro"]');
+  if (slot === null) {
+    // Index.html is the source of truth; if the placeholder is gone we want
+    // to know about it loudly during development. In production a missing
+    // disclaimer is also a bug — log via DOM so it shows in devtools.
+    document.body.dataset.disclaimerError = 'missing-slot';
+    return;
+  }
+
+  const { ru: hRu, tr: hTr } = buildHeadline();
+  const body = buildBody();
+  const button = buildContinueButton(() => { advancePastDisclaimer(slot); });
+
+  slot.replaceChildren(hRu, hTr, body, button);
 
   // Reveal — the CSS fades from 0 to 1.
   // Use rAF so the browser definitely sees the class transition.
@@ -131,7 +144,7 @@ function hydrateDisclaimer(): void {
     slot.classList.add('is-revealed');
     // Focus the button so Enter / Space advance the user (and screen readers
     // hear the bilingual content immediately).
-    continueButton.focus();
+    button.focus();
   });
 }
 

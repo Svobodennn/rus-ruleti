@@ -939,3 +939,140 @@ Quality gate: build green, sandbox true, kiosk+Cmd+Q davranış belgelendi.
 ```
 
 Onayınızı bekliyorum.
+
+---
+
+## Sprint 0 Security Audit
+
+> **Auditor:** @security-reviewer (Phase 3 QA gate, parallel with @code-reviewer + @verifier).
+> **Commit reviewed:** `d94db6d` (Sprint 0 — Electron scaffold + bilingual disclaimer + macOS kiosk).
+> **Mandate:** Prove this joke app performs **zero** real system operations. This audit is the cornerstone of the marketing/distribution defense (Mac notarization, Win SmartScreen).
+> **Read-only.** No source changes. Findings route to Phase 4 if any BLOCKERS.
+
+### 1. BrowserWindow webPreferences (`src/main/window-manager.ts:48-56`)
+
+| Setting | Required | Actual | Evidence | Result |
+| --- | --- | --- | --- | --- |
+| `sandbox` | `true` | `true` | `window-manager.ts:50` | PASS |
+| `contextIsolation` | `true` | `true` | `window-manager.ts:51` | PASS |
+| `nodeIntegration` | `false` | `false` | `window-manager.ts:52` | PASS |
+| `webSecurity` | `true` | `true` | `window-manager.ts:53` | PASS |
+| `allowRunningInsecureContent` | `false` | `false` | `window-manager.ts:54` | PASS |
+| `enableRemoteModule` | absent/false | not present (deprecated; never referenced) | grep src/ → 0 hits | PASS |
+| `setWindowOpenHandler` denies new windows | required | denies all (logged) on the window; app-level guard denies all on `web-contents-created` | `window-manager.ts:65-70`, `index.ts:128-130` | PASS |
+| `will-navigate` blocks off-bundle navigation | best-practice | event.preventDefault() unless URL matches dev server | `window-manager.ts:73-80` | PASS |
+| `devTools` only in dev | best-practice | `devTools: isDev` | `window-manager.ts:55` | PASS |
+
+### 2. Preload audit (`src/preload/index.ts`)
+
+Banned-module grep: `grep -rn -E "(require|import).*(fs|child_process|shell|net|http|https|dgram|cluster|vm|^os|node:os)" src/preload/` returned **zero hits**.
+
+| Forbidden module | Imported in preload? | Result |
+| --- | --- | --- |
+| `fs` / `fs/promises` | No | PASS |
+| `child_process` / `exec` / `spawn` | No | PASS |
+| `shell` (especially `shell.openExternal`) | No (only a comment at `window-manager.ts:68` referring to a *future* sprint — no code reference) | PASS |
+| `net` / `http` / `https` | No | PASS |
+| `os` (raw module — `process.platform` allowed) | No (only `process.platform` at `preload/index.ts:123`) | PASS |
+| `dgram` / `cluster` / `vm` | No | PASS |
+
+`contextBridge.exposeInMainWorld('api', api)` at `preload/index.ts:126` exposes a small typed surface (`RusRuletiApi` in `shared/api-types.ts:22-40`): `getOS`, `quit`, `onEscapeHold`, `toggleKiosk`, `platform`. All read-only-ish and gated through whitelisted IPC channels.
+
+The ESLint override at `.eslintrc.cjs:46-69` HARD-BANS the same module list in the preload layer — defense-in-depth at lint time.
+
+Result: PASS
+
+### 3. IPC channel whitelist (`src/main/ipc.ts`, `src/shared/ipc-channels.ts`)
+
+Documented whitelist (`shared/ipc-channels.ts:17-21`):
+
+```
+APP_QUIT     = 'app:quit'
+OS_GET       = 'os:get'
+KIOSK_TOGGLE = 'kiosk:toggle'
+```
+
+| Handler | File:Line | In whitelist? | Sender check? | Result |
+| --- | --- | --- | --- | --- |
+| `ipcMain.on(APP_QUIT)` | `ipc.ts:55` | Yes | `isAllowedSender(event)` line 56 | PASS |
+| `ipcMain.handle(OS_GET)` | `ipc.ts:65` | Yes | `isAllowedSender(event)` line 66 | PASS |
+| `ipcMain.handle(KIOSK_TOGGLE)` | `ipc.ts:74` | Yes | `isAllowedSender(event)` line 77 | PASS |
+
+No wildcard handlers (`ipcMain.on('*', ...)` patterns) — grep returned zero hits. Every handler validates the `senderFrame.url` (file:// in packaged, localhost in dev) before doing work (`ipc.ts:38-51`). Sprint 0 has no payloads, so shape-validation is N/A; the directive should be re-asserted in Sprint 1+ when payloads are introduced.
+
+Result: PASS
+
+### 4. Renderer audit (`src/renderer/main.ts`, `escape-hatch.ts`, `index.html`, `i18n/strings.ts`)
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| No `window.require` references | grep → 0 hits | PASS |
+| No `eval` / `new Function` | grep → only a comment reference at `index.html:5` (CSP description); no actual call | PASS |
+| No remote `<script src="http(s)://...">` | grep → 0 hits; only `<script type="module" src="./main.ts">` at `index.html:38` | PASS |
+| CSP restrictive | `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self';` at `index.html:6-9` | PASS (1 advisory below) |
+| No `innerHTML` with external content | `main.ts:65` explicitly comments "Using createElement (not innerHTML)". All DOM built via `createElement` + `textContent`; i18n strings come from a typed, in-source `STRINGS` const (`i18n/strings.ts:31-50`). | PASS |
+| No network calls (`fetch`, `XMLHttpRequest`, `axios`) | grep → 0 hits in src/ | PASS |
+
+**Advisory (non-blocking):** CSP allows `style-src 'unsafe-inline'`. For Sprint 0 (scaffold) this is acceptable, but as 3D/Three.js arrives we should plan to drop `unsafe-inline` and use nonce-based styles or extracted stylesheets only. Logged for Sprint 6/7 polish. Not a Sprint 0 blocker.
+
+Result: PASS
+
+### 5. Static asset audit
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| No bundled `.exe` / `.dll` / `.sh` / `.ps1` / `.bat` / `.cmd` / `.so` / `.dylib` in repo | `find src/ resources/` excluding `node_modules dist out` → 0 hits | PASS |
+| Hardcoded credentials / API keys / tokens | grep across `src/`, `package.json`, `electron-builder.yml`, `electron.vite.config.ts` for `sk-/ghp_/gho_/AKIA/Bearer /JWT/password/secret/api[_-]?key` → only comment references at `electron-builder.yml:74` and `:100` to *future env vars* (`CSC_KEY_PASSWORD`, `certificatePassword`); no actual secrets. | PASS |
+| Fonts in `src/renderer/fonts/**` | `file` command confirms `.woff2` Web Open Font Format, NOT executables; OFL license files present in both font directories. | PASS |
+| `electron-builder.yml` file-include list ships dev deps? | `files:` list at `electron-builder.yml:36-48` ships only `out/**/*` + manifest + LICENSE/LEGAL/README, and explicitly excludes `*.map`, `*.ts`, `*.tsx`, test/spec patterns. Source-map exclusion prevents source-path leakage. electron-builder auto-prunes devDependencies. | PASS |
+| `.env` file present in repo? | `ls .env*` → no matches. `.gitignore` lines 6-7 cover `.env` and `.env.local`. | PASS |
+
+Result: PASS
+
+### 6. crashReporter + log audit
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| `crashReporter.start()` uses `uploadToServer: false` and empty `submitURL` | `index.ts:36-43`: `submitURL: ''`, `uploadToServer: false` | PASS |
+| Crash dumps stay local | `app.getPath('crashDumps')` logged for transparency at `index.ts:45` — userData/crashes, never uploaded. Documented in `electron-builder.yml:18` and PLAN section 14 (Sentry opt-in / Sprint 9). | PASS |
+| electron-log writes only locally (file + console transports) | `logger.ts:43-44`: `transports.file.level='info'`, `transports.console.level='debug'`. No `transports.remote`/`transports.http` configured — grep confirms zero remote-transport refs. | PASS |
+| No telemetry / analytics SDKs | grep for `sentry/amplitude/mixpanel/tracking/pixel/telemetry/analytics` → only comment references in `index.ts:13` and `logger.ts:22` describing Sprint 9 *future* Sentry as opt-in. No SDK imported. | PASS |
+| Production dependency surface minimal | `package.json` ships only one runtime dep: `electron-log@^5.4.4`. The package's own `dependencies` field is empty (verified). | PASS |
+| `npm audit --omit=dev` | "found 0 vulnerabilities" | PASS |
+
+Result: PASS
+
+### Summary Table
+
+| Section | Result |
+| --- | --- |
+| 1. BrowserWindow webPreferences | PASS |
+| 2. Preload audit | PASS |
+| 3. IPC channel whitelist | PASS |
+| 4. Renderer audit | PASS (1 non-blocking advisory: CSP `style-src 'unsafe-inline'` to tighten in Sprint 6/7) |
+| 5. Static asset audit | PASS |
+| 6. crashReporter + log audit | PASS |
+
+### Forward-Looking Advisories (NOT Sprint 0 blockers)
+
+These are deferred items the auditor recommends for later sprints — they do NOT gate Sprint 0:
+
+1. **CSP `style-src 'unsafe-inline'`** — acceptable for scaffold, tighten before Three.js arrives (Sprint 6/7).
+2. **`session.setPermissionRequestHandler`** — not configured. Sandbox already blocks Node, and `webSecurity:true` blocks most permission requests, but explicitly denying camera/mic/geolocation/notifications via a `setPermissionRequestHandler(...false)` is defense-in-depth. Add in Sprint 1 alongside the next IPC channel.
+3. **IPC payload shape validation** — Sprint 0 has no payloads (all three channels are zero-arg). Re-assert the directive (`zod`/`io-ts`/runtime guards) the moment Sprint 1+ introduces typed payloads.
+4. **Code signing + notarization** — placeholders in `electron-builder.yml:73-77, 98-100`. Sprint 7 (Mac) and Sprint 8 (Win). The auditor confirms the *placeholders* are correct (empty identity = "don't sign", which is the safe default for local dev builds).
+
+### Final Verdict
+
+**PASS — all six sections green.**
+
+This app performs zero real system operations.
+Audit confirmed.
+
+The marketing/distribution defense rests on three load-bearing facts established by this audit:
+
+1. The preload bridge — the ONLY surface between renderer and OS — imports zero modules capable of touching the filesystem, shelling out, opening network sockets, or running arbitrary code (audited at `src/preload/index.ts`, enforced at lint time by `.eslintrc.cjs:46-69`).
+2. The Electron main process exposes exactly three IPC channels (`app:quit`, `os:get`, `kiosk:toggle`), each origin-checked, each strictly scoped — none of them invoke filesystem, child_process, shell, or network APIs (audited at `src/main/ipc.ts`).
+3. crashReporter and electron-log are configured local-only; there is no telemetry SDK, no analytics, no fetch/XHR, no remote log transport, no submitURL. Nothing leaves the user's machine (audited at `src/main/index.ts:36-46`, `src/main/logger.ts:43-50`).
+
+If a notarization reviewer or SmartScreen analyst asks "what could this app possibly do that's dangerous?" — the honest, evidence-backed answer is: *nothing the sandbox and the three-channel IPC contract don't already prevent.*
