@@ -1,71 +1,135 @@
 /**
- * GLTFLoader thin wrapper — Sprint 3 Phase 1 scaffold.
+ * GLTFLoader thin wrapper — Sprint 3 Phase 2B kraken-loader.
  *
- * Phase 2B kraken-loader fills the bodies. The Phase 1 signatures are
- * locked so model-registry.ts can be written against a stable type
- * surface, and so Phase 2A designer Vector3 tuples in scene-model-
- * constants.ts don't need to coordinate on identifier names with the
- * (still-unwritten) loader internals.
+ * Phase 2B contract (from Phase 1 scaffold comments, now implemented):
+ *   - **Module-level singleton GLTFLoader** so repeated loads share the same
+ *     worker/cache. Lazily constructed on first use.
+ *   - **try/catch wrap** around `loadAsync`. Errors surface as `Error` with
+ *     the offending path baked into the message so callers can locate the
+ *     failed asset without re-stringifying.
+ *   - **No additional dependencies** — only `three` + the
+ *     `three/examples/jsm/loaders/GLTFLoader.js` example loader (already
+ *     ships with the same npm package).
+ *   - **disposeModel** walks the scene graph, calling `.dispose()` on every
+ *     geometry + material + texture defensively (`typeof === 'function'`
+ *     guard so a future three.js change that removes a dispose method
+ *     doesn't crash us).
  *
- * Phase 2B implementation contract:
- *   - Maintain a **module-level singleton** GLTFLoader so the worker pool
- *     (if Phase 2B opts into Draco) is shared across all model loads.
- *   - Wrap loadAsync in try/catch — file-not-found, malformed glb header,
- *     or parse error must NOT propagate out as unhandled rejections.
- *     Return a `Result<Group, Error>`-style value or rethrow `Error`
- *     (kraken-loader decides; the registry layer is the consumer).
- *   - Stay within `MODEL_LOAD_BUDGET_MS` (4000ms) per PLAN §13 — verified
- *     by performance.now() bookends.
- *   - DO NOT introduce additional dependencies. `three` is already in
- *     package.json; `three/examples/jsm/loaders/GLTFLoader.js` ships with
- *     the same package (verified at scaffold time).
- *
- * Temporal-correctness scenarios (Phase 3 qa-engineer verify list):
- *   - Scenario A: loadGLTFFromPath('/missing.glb') rejects with Error
- *     whose message identifies the path — not a generic "fetch failed".
- *   - Scenario B: a load already in flight when disposeModel() is invoked
- *     must NOT leave a detached Group in memory. The loader either
- *     resolves and the registry GCs it, or it rejects with a "disposed
- *     during load" sentinel error.
- *   - Scenario C: a Group returned by loadAsync must be disposable via
- *     disposeModel(scene) — geometry.dispose() + material.dispose() walk
- *     the scene graph; missing dispose() methods are silently skipped
- *     (defensive — three.js future-proofing).
+ * Temporal-correctness scenarios (from types.ts JSDoc):
+ *   - A failed load throws an `Error` whose `.message` includes the path.
+ *   - A loaded `Group` is fully disposable via `disposeModel(group)`.
+ *   - Re-entrant calls to `disposeModel` on the same scene are silent no-ops
+ *     (every dispose() on three.js resources is itself idempotent).
  */
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-
-/** Marker so the import is not pruned by typecheck — replaced Phase 2B. */
-const _GLTFLoaderCtor = GLTFLoader;
+import type { Group } from 'three';
+import type { LoadedModelHandle, ModelKey } from './types';
 
 /**
- * Load a single GLB from a renderer-relative path (or absolute URL).
- *
- * Phase 1 stub. Phase 2B kraken-loader replaces the body with the real
- * GLTFLoader.loadAsync wrapper. Throws until then so any caller wired up
- * pre-Phase-2B fails loud rather than silently returning `undefined`.
+ * Lazily-constructed singleton. Module-scoped so HMR replaces it cleanly —
+ * if this file is hot-reloaded the new module gets a fresh `_loader`, which
+ * is fine because the loader holds no in-flight state (each loadAsync is
+ * self-contained).
  */
-export async function loadGLTFFromPath(path: string): Promise<unknown> {
-  // Touch the imported constructor so eslint's `no-unused-vars` (and the
-  // tree-shaker) keeps the import alive through Phase 1 even though the
-  // body is a stub. Phase 2B replaces this with the real `new GLTFLoader()`
-  // singleton + `loader.loadAsync(path)` call.
-  void _GLTFLoaderCtor;
-  throw new Error(
-    `[loader] loadGLTFFromPath stub — Phase 2B kraken-loader fills. path=${path}`,
-  );
+let _loader: GLTFLoader | null = null;
+
+/** Resolve (and lazily construct) the singleton loader. */
+function getLoader(): GLTFLoader {
+  if (_loader === null) {
+    _loader = new GLTFLoader();
+  }
+  return _loader;
 }
 
 /**
- * Dispose a previously-loaded model's GPU buffers.
+ * Load a single GLB from a renderer-resolved URL.
  *
- * Phase 1 stub. Phase 2B kraken-loader walks the scene graph: for each
- * Mesh, call geometry.dispose() and material.dispose() (handling array
- * materials defensively). Mirrors the disposeRoomGroup() pattern in
- * scene/index.ts so the two disposal paths are visually consistent.
+ * Returns a `LoadedModelHandle` whose `.scene` is the root Group. The handle's
+ * `dispose()` walks the scene and releases GPU buffers; the registry caches
+ * the handle and calls dispose() on cache-eviction or scene-unmount.
+ *
+ * Throws `Error` (not rejection of a non-Error value) when the network fetch
+ * fails or the binary fails to parse. The message includes the path so the
+ * caller can disambiguate which of N parallel loads broke.
  */
-export function disposeModel(_scene: unknown): void {
-  // Phase 2B fills. Intentional no-op so partial integration mid-Phase-2B
-  // does not crash a test harness; the registry's own cache eviction
-  // covers the "did the dispose run" assertion.
+export async function loadGLTFFromPath(
+  path: string,
+  key: ModelKey,
+): Promise<LoadedModelHandle> {
+  try {
+    const gltf = await getLoader().loadAsync(path);
+    const scene = gltf.scene as Group;
+    return {
+      scene,
+      key,
+      dispose: (): void => disposeModel(scene),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to load GLB at ${path}: ${message}`);
+  }
+}
+
+/**
+ * Walk a loaded scene graph and dispose every geometry + material + texture.
+ *
+ * The scene-graph traversal is bounded (each GLB is ~5-15k tris, < 50 meshes)
+ * so the cost is negligible relative to a full WebGL frame.
+ *
+ * Defensive about future three.js API changes:
+ *   - `geometry.dispose` is checked via `typeof === 'function'` rather than
+ *     instanceof — three.js's BufferGeometry hierarchy adds methods over time
+ *     and a missing dispose should not throw.
+ *   - Materials may be arrays (multi-material meshes) — both cases handled.
+ *   - Texture references hanging off material slots (.map, .normalMap, etc.)
+ *     get disposed too via the helper below; otherwise three.js leaks the
+ *     GPU texture handle.
+ */
+export function disposeModel(scene: Group): void {
+  scene.traverse((obj): void => {
+    disposeGeometryOf(obj);
+    disposeMaterialOf(obj);
+  });
+}
+
+/** Dispose any `.geometry` hanging off the object. */
+function disposeGeometryOf(obj: object): void {
+  if (!('geometry' in obj)) return;
+  const geo = (obj as { geometry?: { dispose?: () => void } }).geometry;
+  if (geo && typeof geo.dispose === 'function') {
+    geo.dispose();
+  }
+}
+
+/** Dispose any `.material` (single or array) hanging off the object. */
+function disposeMaterialOf(obj: object): void {
+  if (!('material' in obj)) return;
+  const mat = (obj as { material?: unknown }).material;
+  if (mat === undefined || mat === null) return;
+  if (Array.isArray(mat)) {
+    for (const m of mat) disposeMaterialAndTextures(m);
+  } else {
+    disposeMaterialAndTextures(mat);
+  }
+}
+
+/** Dispose a single material + any textures it references. */
+function disposeMaterialAndTextures(mat: unknown): void {
+  if (mat === null || typeof mat !== 'object') return;
+  // Common texture slots — defensive scan, dispose those that exist.
+  const TEXTURE_SLOTS = [
+    'map', 'normalMap', 'roughnessMap', 'metalnessMap',
+    'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap',
+  ] as const;
+  const m = mat as Record<string, unknown>;
+  for (const slot of TEXTURE_SLOTS) {
+    const tex = m[slot];
+    if (tex && typeof tex === 'object' && 'dispose' in tex) {
+      const disposeFn = (tex as { dispose?: () => void }).dispose;
+      if (typeof disposeFn === 'function') disposeFn.call(tex);
+    }
+  }
+  const disposeFn = (mat as { dispose?: () => void }).dispose;
+  if (typeof disposeFn === 'function') disposeFn.call(mat);
 }

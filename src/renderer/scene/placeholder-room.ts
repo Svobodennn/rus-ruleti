@@ -15,18 +15,19 @@
  * MeshStandardMaterial. The room itself stays material-agnostic — it only
  * specifies "make me an oak-coloured material", not "use a PBR shader".
  *
- * Sprint 3 Phase 1 (scaffold) adds the `useGlbs` flag — the call site in
- * `scene/index.ts` opts in (defaults true). When `useGlbs === false`, the
- * Sprint 1 primitive-cube fallback fires; this is the diagnostic mode for
- * the case where a GLB load fails (e.g. CI without the asset present) or
- * a designer wants to A/B the placement against the GLBs.
+ * Sprint 3 Phase 2B (kraken-loader) adds `createRoomFromGlbs`:
+ *   - Takes a Map of preloaded `LoadedModelHandle` (from model-registry).
+ *   - Instances each GLB (clone, scale, position, rotation per model-freeze).
+ *   - Applies material color override per MATERIAL_COLOR_OVERRIDE_BY_KEY.
+ *   - Optionally rewraps materials in the PS1 ShaderMaterial at 'high' tier
+ *     for the 5 textured meshes (chair/radio/bottle/table/ashtray) — the
+ *     revolver and lightbulb are exempted (revolver is the focal point,
+ *     lightbulb is the light anchor).
+ *   - Returns a Group that the scene composes alongside the floor/walls
+ *     (those stay as primitive planes — the GLB pack doesn't cover them).
  *
- * Sprint 3 Phase 2B (kraken-loader) will: read MODEL_POSITION_*,
- * MODEL_SCALE_*, MODEL_ROTATION_* from `scene-model-constants.ts`; call
- * `modelRegistry.load(key)` for each of `table | chair | radio | bottle |
- * ashtray | lightbulb` (revolver lives in revolver-mount.ts); set each
- * Group's transform; add to the room. The revolver is NOT placed here —
- * `revolver-mount.ts` owns that subtree.
+ * The legacy `createPlaceholderRoom(factory, useGlbs=false)` path stays
+ * intact as the diagnostic fallback per model-freeze §8.4.
  */
 
 import {
@@ -38,7 +39,26 @@ import {
 } from 'three';
 import type { Material } from 'three';
 import { PALETTE } from '../../shared/scene-constants';
+import {
+  MATERIAL_COLOR_OVERRIDE_BY_KEY,
+  MODEL_POSITION_ASHTRAY,
+  MODEL_POSITION_BOTTLE,
+  MODEL_POSITION_CHAIR,
+  MODEL_POSITION_RADIO,
+  MODEL_POSITION_TABLE,
+  MODEL_ROTATION_ASHTRAY,
+  MODEL_ROTATION_BOTTLE,
+  MODEL_ROTATION_CHAIR,
+  MODEL_ROTATION_RADIO,
+  MODEL_ROTATION_TABLE,
+  MODEL_SCALE_ASHTRAY,
+  MODEL_SCALE_BOTTLE,
+  MODEL_SCALE_CHAIR,
+  MODEL_SCALE_RADIO,
+  MODEL_SCALE_TABLE,
+} from '../../shared/scene-model-constants';
 import type { Ps1MaterialFactory } from './shaders/ps1-material';
+import type { LoadedModelHandle, ModelKey } from '../loader';
 
 /** Stable names. Sprint 3 GLB swap looks up by these. */
 export const PLACEHOLDER_MESH_NAMES = {
@@ -52,59 +72,23 @@ export const PLACEHOLDER_MESH_NAMES = {
   WALL_RIGHT: 'placeholder-wall-right',
 } as const;
 
-/**
- * Default material factory — used when no factory is supplied. Mirrors
- * Phase 1's behaviour so the function stays back-compatible with any
- * test fixture or harness that calls createPlaceholderRoom() without args.
- */
+/** Default material factory — fallback when no factory is supplied. */
 const defaultFactory: Ps1MaterialFactory = (baseColor: string): Material =>
   new MeshStandardMaterial({ color: baseColor });
 
 /**
- * Build the placeholder room group.
+ * Build the placeholder room group (Sprint 1 cube fallback path).
  *
- * Geometry is centered at origin; lighting in lighting.ts hangs above. The
- * floor is at y=0 and the camera (CAMERA.posY=1.6) sits at standing height.
- *
- * The `factory` parameter is optional for back-compat. When supplied (the
- * normal case in scene/index.ts) it controls which material class every
- * mesh receives, enabling the per-quality PS1 ShaderMaterial swap.
- *
- * Sprint 3 Phase 1 (scaffold): the `useGlbs` flag defaults to `true` for
- * forward-compat with Phase 2B. Phase 1 itself ignores the flag because
- * the GLB swap is not yet implemented; the cubes always render. Phase 2B
- * kraken-loader replaces the body of this function (or extracts a
- * `createPlaceholderRoomFromGlbs(factory)` sibling) so that:
- *
- *   useGlbs === true  → load + place table, chair, radio, bottle, ashtray,
- *                       lightbulb GLBs at MODEL_POSITION_* / MODEL_SCALE_* /
- *                       MODEL_ROTATION_*. Revolver NOT here (revolver-mount.ts).
- *   useGlbs === false → Sprint 1 primitive-cube fallback (current code path).
- *                       Diagnostic mode for "GLB failed to load" or A/B
- *                       placement debugging.
- *
- * TODO Sprint 3 Phase 2B (kraken-loader): replace primitive cubes with GLB
- * instances via model-registry.
- *   - table.glb at MODEL_POSITION_TABLE / MODEL_SCALE_TABLE / MODEL_ROTATION_TABLE
- *   - chair.glb at MODEL_POSITION_CHAIR / MODEL_SCALE_CHAIR / MODEL_ROTATION_CHAIR
- *   - radio.glb at MODEL_POSITION_RADIO / MODEL_SCALE_RADIO / MODEL_ROTATION_RADIO
- *   - bottle.glb at MODEL_POSITION_BOTTLE / MODEL_SCALE_BOTTLE / MODEL_ROTATION_BOTTLE
- *   - ashtray.glb at MODEL_POSITION_ASHTRAY / MODEL_SCALE_ASHTRAY / MODEL_ROTATION_ASHTRAY
- *   - lightbulb.glb at MODEL_POSITION_LIGHTBULB (replaces the primitive
- *     PointLight visual anchor — coordinate with lighting.ts BulbLightHandle
- *     attachment so the swaying bulb mesh follows the sodium PointLight pivot)
- *   - revolver NOT here (revolver-mount.ts owns it)
- *
- * Existing cube logic stays Phase 1; Phase 2B kraken-loader replaces.
+ * Kept intact as the diagnostic mode (`useGlbs=false`) per model-freeze §8.4.
+ * The Phase 2B production path is `createRoomFromGlbs` below — scene/index.ts
+ * picks which to mount based on whether the loader handed back GLBs.
  */
 export function createPlaceholderRoom(
   factory: Ps1MaterialFactory = defaultFactory,
-  useGlbs: boolean = true,
+  useGlbs: boolean = false,
 ): Group {
-  // Phase 1: GLB swap not yet implemented — always render primitive cubes.
-  // Phase 2B will branch on `useGlbs` and load GLBs from model-registry
-  // when true. We touch the flag here so eslint's no-unused-vars passes
-  // and the parameter shape is locked at scaffold time.
+  // The Phase 2B production path lives in createRoomFromGlbs. The cube path
+  // remains as Sprint 1 + diagnostic fallback.
   void useGlbs;
   const room = new Group();
   room.name = 'placeholder-room';
@@ -117,8 +101,11 @@ export function createPlaceholderRoom(
   return room;
 }
 
+/* ------------------------------------------------------------------------ */
+/* Sprint 1 cube primitives — diagnostic fallback                            */
+/* ------------------------------------------------------------------------ */
+
 function createTable(factory: Ps1MaterialFactory): Mesh {
-  // Oak table — center of the room, low and wide. Revolver lives on top.
   const geo = new BoxGeometry(1.4, 0.08, 0.9);
   const mesh = new Mesh(geo, factory(PALETTE.oak));
   mesh.name = PLACEHOLDER_MESH_NAMES.TABLE;
@@ -127,7 +114,6 @@ function createTable(factory: Ps1MaterialFactory): Mesh {
 }
 
 function createChair(factory: Ps1MaterialFactory): Mesh {
-  // Single chair, just behind the table — folded shinel cloak hint.
   const geo = new BoxGeometry(0.5, 0.9, 0.45);
   const mesh = new Mesh(geo, factory(PALETTE.oak));
   mesh.name = PLACEHOLDER_MESH_NAMES.CHAIR;
@@ -136,7 +122,6 @@ function createChair(factory: Ps1MaterialFactory): Mesh {
 }
 
 function createRadiator(factory: Ps1MaterialFactory): Mesh {
-  // Rust radiator against the left wall, vertical.
   const geo = new BoxGeometry(0.15, 1.1, 0.35);
   const mesh = new Mesh(geo, factory(PALETTE.rust));
   mesh.name = PLACEHOLDER_MESH_NAMES.RADIATOR;
@@ -145,7 +130,6 @@ function createRadiator(factory: Ps1MaterialFactory): Mesh {
 }
 
 function createRadio(factory: Ps1MaterialFactory): Mesh {
-  // Lampovaya radio — corner cube. Sprint 3 replaces with VEF/Rekord GLB.
   const geo = new BoxGeometry(0.35, 0.2, 0.2);
   const mesh = new Mesh(geo, factory(PALETTE.rust));
   mesh.name = PLACEHOLDER_MESH_NAMES.RADIO;
@@ -162,7 +146,6 @@ function createFloor(factory: Ps1MaterialFactory): Mesh {
   return mesh;
 }
 
-/** Three walls as a single group so room creation stays simple. */
 function createWalls(factory: Ps1MaterialFactory): Group {
   const wallsGroup = new Group();
   wallsGroup.name = 'placeholder-walls';
@@ -196,4 +179,162 @@ function createSideWall(
   mesh.position.set(x, 1.5, 0);
   mesh.rotation.y = isLeft ? Math.PI / 2 : -Math.PI / 2;
   return mesh;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 3 Phase 2B — GLB instance branch                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Per-key placement record. Looked up via a small const map so the GLB
+ * placement loop has zero branching on the per-model constants.
+ */
+interface GlbPlacement {
+  readonly scale: number;
+  readonly position: readonly [number, number, number];
+  readonly rotation: readonly [number, number, number];
+}
+
+/** Placements for the 5 GLBs that live inside the room (revolver mounted separately). */
+const ROOM_GLB_PLACEMENTS: Readonly<Record<RoomGlbKey, GlbPlacement>> = {
+  table: { scale: MODEL_SCALE_TABLE, position: MODEL_POSITION_TABLE, rotation: MODEL_ROTATION_TABLE },
+  chair: { scale: MODEL_SCALE_CHAIR, position: MODEL_POSITION_CHAIR, rotation: MODEL_ROTATION_CHAIR },
+  radio: { scale: MODEL_SCALE_RADIO, position: MODEL_POSITION_RADIO, rotation: MODEL_ROTATION_RADIO },
+  bottle: { scale: MODEL_SCALE_BOTTLE, position: MODEL_POSITION_BOTTLE, rotation: MODEL_ROTATION_BOTTLE },
+  ashtray: { scale: MODEL_SCALE_ASHTRAY, position: MODEL_POSITION_ASHTRAY, rotation: MODEL_ROTATION_ASHTRAY },
+} as const;
+
+/** Subset of ModelKey that lives in the room (excludes revolver + lightbulb). */
+export type RoomGlbKey = 'table' | 'chair' | 'radio' | 'bottle' | 'ashtray';
+
+/** Iteration order for the GLB room — kept stable so dispose runs in reverse. */
+const ROOM_GLB_KEYS: readonly RoomGlbKey[] = [
+  'table', 'chair', 'radio', 'bottle', 'ashtray',
+];
+
+/**
+ * Build the room from preloaded GLB handles.
+ *
+ * The `handles` map MUST contain every key the room expects (table, chair,
+ * radio, bottle, ashtray) — call sites resolve this via `model-registry`
+ * before calling. Missing keys cause that mesh to be skipped (graceful
+ * degradation per model-freeze §8.1: one bad GLB doesn't blank the scene).
+ *
+ * Floor + walls + radiator stay as primitive planes/cubes (no GLB) — the
+ * vendored pack doesn't cover them. Composing them as siblings keeps the
+ * scene whole.
+ */
+export function createRoomFromGlbs(
+  handles: ReadonlyMap<ModelKey, LoadedModelHandle>,
+  factory: Ps1MaterialFactory = defaultFactory,
+  activatePs1: boolean = false,
+): Group {
+  const room = new Group();
+  room.name = 'placeholder-room';
+  for (const key of ROOM_GLB_KEYS) {
+    const handle = handles.get(key);
+    if (handle === undefined) continue;
+    const instance = instantiateRoomGlb(handle, key, factory, activatePs1);
+    room.add(instance);
+  }
+  // Floor + walls + radiator stay as primitives (no GLB available).
+  room.add(createRadiator(factory));
+  room.add(createFloor(factory));
+  room.add(createWalls(factory));
+  return room;
+}
+
+/**
+ * Clone a loaded GLB, apply placement transforms, override material color,
+ * optionally replace materials with the PS1 ShaderMaterial at 'high' tier
+ * (designer model-freeze §6 affine-UV activation list), and tag the instance
+ * with the room mesh name so existing lookups (e.g. revolver-mount's "find
+ * the table top") continue to work.
+ */
+function instantiateRoomGlb(
+  handle: LoadedModelHandle,
+  key: RoomGlbKey,
+  factory: Ps1MaterialFactory,
+  activatePs1: boolean,
+): Group {
+  const placement = ROOM_GLB_PLACEMENTS[key];
+  const instance = handle.scene.clone(true);
+  instance.scale.setScalar(placement.scale);
+  instance.position.set(...placement.position);
+  instance.rotation.set(...placement.rotation);
+  instance.name = roomMeshNameFor(key);
+  applyMaterialColorOverride(instance, key);
+  if (activatePs1) {
+    replaceGlbMaterialsWithPs1(instance, key, factory);
+  }
+  return instance;
+}
+
+/**
+ * Replace every Mesh material on the cloned GLB with a fresh material from
+ * the PS1 factory (high tier: ShaderMaterial w/ vertex snap; low/medium:
+ * plain MeshStandardMaterial). Original materials are disposed before the
+ * swap — leaving them in place would leak the GPU buffers.
+ *
+ * Designer model-freeze §6 activates PS1 affine-UV on these 5 GLB surfaces
+ * at 'high' tier; revolver + lightbulb are exempted (focal point + light
+ * anchor respectively, per designer §6 exemption list).
+ */
+function replaceGlbMaterialsWithPs1(
+  instance: Group,
+  key: ModelKey,
+  factory: Ps1MaterialFactory,
+): void {
+  const hex = MATERIAL_COLOR_OVERRIDE_BY_KEY[key];
+  instance.traverse((obj): void => {
+    if (!(obj instanceof Mesh)) return;
+    disposeMeshMaterial(obj);
+    obj.material = factory(hex);
+  });
+}
+
+/** Dispose the existing material (single or array) before replacing it. */
+function disposeMeshMaterial(mesh: Mesh): void {
+  const mat = mesh.material;
+  if (Array.isArray(mat)) {
+    for (const m of mat) m.dispose();
+  } else {
+    mat.dispose();
+  }
+}
+
+/** Lookup the placeholder mesh name for a GLB key — preserves legacy lookups. */
+function roomMeshNameFor(key: RoomGlbKey): string {
+  switch (key) {
+    case 'table':   return PLACEHOLDER_MESH_NAMES.TABLE;
+    case 'chair':   return PLACEHOLDER_MESH_NAMES.CHAIR;
+    case 'radio':   return PLACEHOLDER_MESH_NAMES.RADIO;
+    case 'bottle':  return 'placeholder-bottle';
+    case 'ashtray': return 'placeholder-ashtray';
+  }
+}
+
+/**
+ * Walk the cloned GLB and override every MeshStandardMaterial's `.color`
+ * with the per-model hex from MATERIAL_COLOR_OVERRIDE_BY_KEY. Model-freeze
+ * §2.1: the Poly Pizza CC0 albedos are too bright/colourful for the
+ * brutalist cellar — the override darkens them to the curated palette.
+ */
+function applyMaterialColorOverride(instance: Group, key: ModelKey): void {
+  const colorHex = MATERIAL_COLOR_OVERRIDE_BY_KEY[key];
+  instance.traverse((obj): void => {
+    if (!(obj instanceof Mesh)) return;
+    const mat = obj.material;
+    if (Array.isArray(mat)) {
+      mat.forEach((m): void => overrideColorOnMaterial(m, colorHex));
+    } else {
+      overrideColorOnMaterial(mat, colorHex);
+    }
+  });
+}
+
+/** Override the `.color` on a single material if it carries one. */
+function overrideColorOnMaterial(mat: unknown, hex: string): void {
+  if (!(mat instanceof MeshStandardMaterial)) return;
+  mat.color.set(hex);
 }
