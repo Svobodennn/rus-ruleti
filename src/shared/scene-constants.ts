@@ -6,10 +6,14 @@
  * READS from here. They MAY add new exports but MUST NOT inline literals in
  * scene code (Sprint 0 retro lesson: every magic number gets a name).
  *
- * Split in Sprint 1 Phase 4:
+ * Split in Sprint 1 Phase 4 + Sprint 3 Phase 1:
  *   - scene-palette.ts          — PALETTE, BULB_LIGHT, AMBIENT_LIGHT, CAMERA, FOG_*,  RENDERER
  *   - scene-audio-constants.ts  — AUDIO_VOLUME_*, AUDIO_FADE_*, synth tuning
  *   - scene-shader-constants.ts — PS1_*, DITHER_*, SCANLINE_*, GRAIN_*, CHROMATIC_*, COMPOSER_*
+ *   - scene-revolver-constants.ts — FSM timing, hold-state ramps, animation curves
+ *   - scene-model-constants.ts  — Sprint 3: MODEL_SCALE_*, MODEL_POSITION_*,
+ *                                  MODEL_ROTATION_*, SMOKE_*, MODEL_LOAD_BUDGET_MS,
+ *                                  PROC_TEXTURE_BUDGET_MS, PROC_TEXTURE_DIMENSIONS
  *
  * This file keeps the Phase 1 base (QualityLevel, frame budgets, AMBIENT_LAYERS,
  * AMBIENT_BULB_HUM_HZ) and re-exports everything else so existing consumers
@@ -20,6 +24,9 @@
  *   - designer (Phase 2): edits scene-palette.ts.
  *   - kraken-shader (Phase 2): edits scene-shader-constants.ts.
  *   - kraken-audio (Phase 2): edits scene-audio-constants.ts.
+ *   - designer (Sprint 3 Phase 2A): fills MODEL_SCALE/POSITION/ROTATION
+ *     in scene-model-constants.ts; kraken-particles + kraken-loader own
+ *     the remaining Sprint 3 knobs there.
  */
 
 import type { OsFamily as _OsFamily } from './ipc-channels';
@@ -116,3 +123,4 @@ export * from './scene-palette';
 export * from './scene-audio-constants';
 export * from './scene-shader-constants';
 export * from './scene-revolver-constants';
+export * from './scene-model-constants';

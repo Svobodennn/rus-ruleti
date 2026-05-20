@@ -82,6 +82,49 @@ export interface RevolverMeshHandle {
  * revolver lands on the table top. Falls back to a sensible default (table
  * at y=0.79) when the table mesh is missing — useful for unit-test fixtures
  * that pass an empty Group.
+ *
+ * TODO Sprint 3 Phase 2B GLB swap (kraken-revolver):
+ *   1. Load revolver.glb via `modelRegistry.load('revolver')` from
+ *      `../../loader`. The handle's Group becomes the new mesh root.
+ *   2. Discover named pivots:
+ *      `group.getObjectByName(MODEL_REVOLVER_HAMMER_PIVOT_KEY)`,
+ *      `... _CYLINDER_PIVOT_KEY`,
+ *      `... _BODY_PIVOT_KEY`
+ *      (constants in `scene-model-constants.ts`).
+ *      - If found: use directly as rotation pivots for AnimationMixer
+ *        clip targets (cock, spin, fall, kick).
+ *      - If NOT FOUND (monolithic mesh — Poly Pizza Quaternius revolver
+ *        is suspected monolithic; verify by inspecting `group.children`
+ *        after load): wrap the loaded mesh in three Object3D pivots
+ *        programmatically. Sketch:
+ *
+ *           const hammerPivot = new Object3D();
+ *           hammerPivot.name = MODEL_REVOLVER_HAMMER_PIVOT_KEY;
+ *           hammerPivot.position.copy(approxHammerLocalOrigin);
+ *           hammerPivot.add(hammerMeshExtract);
+ *           group.add(hammerPivot);
+ *
+ *        The five procedural AnimationClips currently target
+ *        `${REVOLVER_PART_NAMES.HAMMER}.rotation[z]` etc.; the named-child
+ *        contract carries through — `revolver-anim.ts:buildClipMap()`
+ *        finds the pivots via `getObjectByName` regardless of whether
+ *        they were authored as separate meshes or wrapped programmatically.
+ *   3. Rebind the 5 procedural clips (idle / cock / spin / fall / kick) to
+ *      the new Object3Ds; verify clips animate correctly with the new GLB
+ *      structure (designer revolver-direction.md §6 anti-cause-and-effect
+ *      spin remains: cylinder ends at SPIN_TURNS · 2π modulo 2π).
+ *   4. Apply MODEL_SCALE_REVOLVER, MODEL_POSITION_REVOLVER (over the table
+ *      anchor — these placements may compose, designer Phase 2A decides),
+ *      MODEL_ROTATION_REVOLVER.
+ *
+ * Fallback path: if step 2 cannot establish the three rotation pivots
+ * (mesh is truly monolithic AND programmatic pivot extraction fails because
+ * the model's geometry is fused), keep the Sprint 2 primitive Group and
+ * file a PLAN.md §18 ticket (TH-S3-NN) for Sprint 4 — kick/recoil tests
+ * can run against the primitive rig until the GLB swap unblocks.
+ *
+ * Phase 1 (scaffold) preserves the Sprint 2 primitive implementation
+ * unchanged below this comment block.
  */
 export function mountRevolverMesh(room: Group): RevolverMeshHandle {
   const group = buildRevolverGroup();

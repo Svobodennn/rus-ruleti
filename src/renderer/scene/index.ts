@@ -54,6 +54,7 @@ import { mountAudioBed } from './audio/audio-bed';
 import type { AudioBedHandle } from './audio/audio-bed';
 import { mountRevolver, type RevolverHandle } from './revolver';
 import { resolveUserLocale } from '../i18n/strings';
+import type { LoaderHandle } from '../loader';
 
 /** Public handle returned from mountScene. */
 export interface SceneHandle {
@@ -75,6 +76,15 @@ export interface SceneHandle {
    * Phase 2 kraken-revolver fleshes out FSM + animations + HUD updates.
    */
   revolver: RevolverHandle;
+  /**
+   * Loader subsystem handle — Sprint 3 Phase 1 scaffolds the field.
+   * Phase 2B kraken-loader wires `mountLoader()` (TBD) into buildResources
+   * and assigns the result here so callers can `await sceneHandle.loader?.preload()`
+   * during the disclaimer→scene boot. Optional so Phase 1 builds (where the
+   * loader is not yet allocated) typecheck without forcing a non-null at
+   * every call site.
+   */
+  loader?: LoaderHandle;
 }
 
 /** Internal bag of resources mountScene needs to track for disposal. */
@@ -142,6 +152,15 @@ async function buildResources(
 
   const { frameLogger, quality } = buildTelemetry();
   const initialQuality = quality.getQualityLevel();
+  // TODO Sprint 3 Phase 2B (kraken-loader): preload all 7 GLBs via
+  // `import('../loader').preload()` before `buildSceneGraph()` so the room
+  // can compose its meshes from the cached handles instead of primitive
+  // cubes. Budget: MODEL_LOAD_BUDGET_MS=4000ms per PLAN §13. Surface
+  // over-budget runs via `document.body.dataset['modelBudget']` (console
+  // is banned). Pass the resulting LoaderHandle into the room builder +
+  // revolver mount, and stash it on `resources.loader` so SceneHandle
+  // exposes it and dispose() can iterate getAll() in reverse-allocation
+  // order. Phase 1 (scaffold) intentionally skips this step.
   const { scene, room, bulb } = buildSceneGraph(container, initialQuality);
   const postFx = createPostFxPipeline(renderer, scene, camera, initialQuality);
   const revolver = mountRevolver(

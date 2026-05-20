@@ -1,5 +1,5 @@
 /**
- * Placeholder room — cubes only.
+ * Placeholder room — cubes (Sprint 1) → GLB swap (Sprint 3 Phase 2B).
  *
  * Sprint 1 scope: the basement geometry is roughed in with axis-aligned
  * BoxGeometry stand-ins so the lighting, post-FX and shader work in Phase 2
@@ -14,6 +14,19 @@
  * the PS1 vertex-snap ShaderMaterial; on `low`/`medium` it returns plain
  * MeshStandardMaterial. The room itself stays material-agnostic — it only
  * specifies "make me an oak-coloured material", not "use a PBR shader".
+ *
+ * Sprint 3 Phase 1 (scaffold) adds the `useGlbs` flag — the call site in
+ * `scene/index.ts` opts in (defaults true). When `useGlbs === false`, the
+ * Sprint 1 primitive-cube fallback fires; this is the diagnostic mode for
+ * the case where a GLB load fails (e.g. CI without the asset present) or
+ * a designer wants to A/B the placement against the GLBs.
+ *
+ * Sprint 3 Phase 2B (kraken-loader) will: read MODEL_POSITION_*,
+ * MODEL_SCALE_*, MODEL_ROTATION_* from `scene-model-constants.ts`; call
+ * `modelRegistry.load(key)` for each of `table | chair | radio | bottle |
+ * ashtray | lightbulb` (revolver lives in revolver-mount.ts); set each
+ * Group's transform; add to the room. The revolver is NOT placed here —
+ * `revolver-mount.ts` owns that subtree.
  */
 
 import {
@@ -56,10 +69,43 @@ const defaultFactory: Ps1MaterialFactory = (baseColor: string): Material =>
  * The `factory` parameter is optional for back-compat. When supplied (the
  * normal case in scene/index.ts) it controls which material class every
  * mesh receives, enabling the per-quality PS1 ShaderMaterial swap.
+ *
+ * Sprint 3 Phase 1 (scaffold): the `useGlbs` flag defaults to `true` for
+ * forward-compat with Phase 2B. Phase 1 itself ignores the flag because
+ * the GLB swap is not yet implemented; the cubes always render. Phase 2B
+ * kraken-loader replaces the body of this function (or extracts a
+ * `createPlaceholderRoomFromGlbs(factory)` sibling) so that:
+ *
+ *   useGlbs === true  → load + place table, chair, radio, bottle, ashtray,
+ *                       lightbulb GLBs at MODEL_POSITION_* / MODEL_SCALE_* /
+ *                       MODEL_ROTATION_*. Revolver NOT here (revolver-mount.ts).
+ *   useGlbs === false → Sprint 1 primitive-cube fallback (current code path).
+ *                       Diagnostic mode for "GLB failed to load" or A/B
+ *                       placement debugging.
+ *
+ * TODO Sprint 3 Phase 2B (kraken-loader): replace primitive cubes with GLB
+ * instances via model-registry.
+ *   - table.glb at MODEL_POSITION_TABLE / MODEL_SCALE_TABLE / MODEL_ROTATION_TABLE
+ *   - chair.glb at MODEL_POSITION_CHAIR / MODEL_SCALE_CHAIR / MODEL_ROTATION_CHAIR
+ *   - radio.glb at MODEL_POSITION_RADIO / MODEL_SCALE_RADIO / MODEL_ROTATION_RADIO
+ *   - bottle.glb at MODEL_POSITION_BOTTLE / MODEL_SCALE_BOTTLE / MODEL_ROTATION_BOTTLE
+ *   - ashtray.glb at MODEL_POSITION_ASHTRAY / MODEL_SCALE_ASHTRAY / MODEL_ROTATION_ASHTRAY
+ *   - lightbulb.glb at MODEL_POSITION_LIGHTBULB (replaces the primitive
+ *     PointLight visual anchor — coordinate with lighting.ts BulbLightHandle
+ *     attachment so the swaying bulb mesh follows the sodium PointLight pivot)
+ *   - revolver NOT here (revolver-mount.ts owns it)
+ *
+ * Existing cube logic stays Phase 1; Phase 2B kraken-loader replaces.
  */
 export function createPlaceholderRoom(
   factory: Ps1MaterialFactory = defaultFactory,
+  useGlbs: boolean = true,
 ): Group {
+  // Phase 1: GLB swap not yet implemented — always render primitive cubes.
+  // Phase 2B will branch on `useGlbs` and load GLBs from model-registry
+  // when true. We touch the flag here so eslint's no-unused-vars passes
+  // and the parameter shape is locked at scaffold time.
+  void useGlbs;
   const room = new Group();
   room.name = 'placeholder-room';
   room.add(createTable(factory));
