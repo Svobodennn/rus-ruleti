@@ -134,10 +134,10 @@ export function updatePs1MaterialAspect(
   aspect: number,
 ): void {
   root.traverse((obj: unknown): void => {
-    const mesh = obj as Mesh | undefined;
-    if (mesh === undefined || !(mesh instanceof Mesh)) {
+    if (!(obj instanceof Mesh)) {
       return;
     }
+    const mesh = obj;
     const mat = mesh.material;
     if (mat instanceof ShaderMaterial && 'aspect' in mat.uniforms) {
       const uniform = mat.uniforms['aspect'];

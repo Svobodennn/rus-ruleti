@@ -1076,3 +1076,174 @@ The marketing/distribution defense rests on three load-bearing facts established
 3. crashReporter and electron-log are configured local-only; there is no telemetry SDK, no analytics, no fetch/XHR, no remote log transport, no submitURL. Nothing leaves the user's machine (audited at `src/main/index.ts:36-46`, `src/main/logger.ts:43-50`).
 
 If a notarization reviewer or SmartScreen analyst asks "what could this app possibly do that's dangerous?" — the honest, evidence-backed answer is: *nothing the sandbox and the three-channel IPC contract don't already prevent.*
+
+---
+
+## Sprint 1 Security Audit
+
+> **Auditor:** @security-reviewer (Phase 3 QA gate, parallel with @code-reviewer + @verifier + @qa-engineer + @data-analyst).
+> **Commit reviewed:** `59cd186` (Sprint 1 Phase 2 — PS1 shaders + CRT + atmosphere + audio), Sprint 1 cumulative since `d94db6d`.
+> **Mandate:** Extend the Sprint 0 baseline to cover the four new surfaces — Three.js + postprocessing GLSL pipeline, Howler music slot facade, the procedural WebAudio synth, the CRT DOM overlay, the new IPC channel `frame:stats`, and the `session.setPermissionRequestHandler` defence-in-depth.
+> **Read-only.** No source changes. Findings route to Phase 4 if any BLOCKERS.
+
+### A. BrowserWindow webPreferences — UNCHANGED from Sprint 0
+
+| Setting | Required | Actual | Evidence | Result |
+| --- | --- | --- | --- | --- |
+| `sandbox` | `true` | `true` | `window-manager.ts:50` | PASS |
+| `contextIsolation` | `true` | `true` | `window-manager.ts:51` | PASS |
+| `nodeIntegration` | `false` | `false` | `window-manager.ts:52` | PASS |
+| `webSecurity` | `true` | `true` | `window-manager.ts:53` | PASS |
+| `allowRunningInsecureContent` | `false` | `false` | `window-manager.ts:54` | PASS |
+| `setWindowOpenHandler` denies | required | `return { action: 'deny' }` | `window-manager.ts:65-70` | PASS |
+| `will-navigate` blocks off-bundle | required | `event.preventDefault()` for non-dev-URL | `window-manager.ts:73-80` | PASS |
+| App-level `web-contents-created` deny-all | required | `contents.setWindowOpenHandler(() => ({ action: 'deny' }))` | `index.ts:144-146` | PASS |
+
+`git diff d94db6d..59cd186 -- src/main/window-manager.ts` → zero hunks. Sprint 0 hardening preserved verbatim.
+
+Result: PASS
+
+### B. Preload audit — NO NEW SURFACE
+
+Banned-module grep: `grep -rnE "(require|import).*(fs|child_process|shell|net|http|https|dgram|cluster|vm|^os|node:os)" src/preload/` returned **zero hits**.
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| No new Node-API imports in preload | Imports are still `electron` (contextBridge, ipcRenderer) + shared types only (`preload/index.ts:30-42`) | PASS |
+| `sendFrameStats` wrapper added without Node | One-liner `ipcRenderer.send(IPC_CHANNELS.FRAME_STATS, payload)` at `preload/index.ts:128-130` — renderer→main fire-and-forget, no Node API touched | PASS |
+| Preload still exposes a small read-only-ish API | `RusRuletiApi` surface in `shared/api-types.ts:33-58` is `getOS`/`quit`/`onEscapeHold`/`toggleKiosk`/`platform`/`sendFrameStats`. None of them reach the filesystem, shell, or network | PASS |
+| ESLint preload ban still in force | `.eslintrc.cjs` preload override (Sprint 0 audit §2) is unchanged. Defense-in-depth at lint time persists | PASS |
+
+Result: PASS
+
+### C. New IPC channel: `frame:stats`
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| Added to whitelist (SSOT) | `IPC_CHANNELS.FRAME_STATS = 'frame:stats'` at `shared/ipc-channels.ts:25`; included in `ALLOWED_IPC_CHANNELS` array line 35 | PASS |
+| Direction: renderer → main only | `ipcMain.on(...)` at `ipc.ts:93-106` (no `webContents.send` reverse path); preload uses `ipcRenderer.send` (fire-and-forget) at `preload/index.ts:129` | PASS |
+| Origin check (`isAllowedSender`) | Line 96: `if (!isAllowedSender(event)) { logger.warn(...); return; }` | PASS |
+| Strict TypeScript payload type | `FrameStatsPayload` interface at `shared/ipc-channels.ts:47-55` — six readonly numeric fields + `quality: 'low' \| 'medium' \| 'high'` union | PASS |
+| **Runtime payload guard (CRITICAL — first payload-carrying channel)** | `isFrameStatsPayload(payload)` at `ipc.ts:127-141` validates every numeric field is finite + quality is one of three accepted tiers. Bad shapes drop silently with a warn log | PASS |
+| Handler does ONLY logging | `logger.info('frame:stats', payload)` at `ipc.ts:104`. No fs / network / shell / spawn. electron-log writes to `~/Library/Logs/Rus Ruleti/main.log` only | PASS |
+| Cleanup symmetry | `ipcMain.removeAllListeners(IPC_CHANNELS.FRAME_STATS)` in `unregisterIpcHandlers()` at `ipc.ts:117` | PASS |
+
+The Sprint 0 audit forward-looking advisory #3 (IPC payload runtime validation when payloads land) was honoured — manual `unknown → narrowed` discriminator at `ipc.ts:127-141`. Adequate for Sprint 1; zod/io-ts upgrade still recommended if payload count grows past ~3 channels.
+
+Result: PASS
+
+### D. Session permission handler (Sprint 0 advisory #2 closed)
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| `session.defaultSession.setPermissionRequestHandler` installed | `index.ts:75-77` | PASS |
+| Registered AFTER `app.whenReady` | Inside `.then(...)` callback at `index.ts:67-68` — session is guaranteed to exist | PASS |
+| Denies ALL permissions (no allow-list) | `(_wc, _permission, callback) => callback(false)` — unconditional deny for camera, mic, geolocation, notifications, midi, clipboard, etc. | PASS |
+| Documented motivation | Comment at `index.ts:69-74` explicitly references "Sprint 0 retro L.1" and the joke-app posture | PASS |
+
+This closes Sprint 0 forward-looking advisory #2.
+
+Result: PASS
+
+### E. CSP under new dependencies
+
+CSP at `renderer/index.html:6-9`: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self';`. Unchanged from Sprint 0.
+
+| Directive | Sprint 1 dependency interaction | Result |
+| --- | --- | --- |
+| `script-src 'self'` | Three.js + postprocessing compile GLSL strings via the WebGL driver (`gl.shaderSource`/`gl.compileShader`); no JS-side `eval` / `new Function`. Howler decodes audio via WebAudio `decodeAudioData`; no JS-side `eval`. `grep -rnE "eval\(\|new Function" src/` → ZERO hits. | PASS |
+| `style-src 'self' 'unsafe-inline'` | `crt.css` is an external `.css` file. No inline `style=` attributes added by Sprint 1: `grep -rn 'style=' src/renderer/` → ZERO hits. The Sprint 0 advisory on tightening `unsafe-inline` carries forward unchanged. | PASS (advisory carried forward) |
+| `img-src 'self' data:` | `crt.css:142` uses a `data:image/svg+xml;base64,...` SVG-turbulence noise tile. CSP allows `data:` here by design (Sprint 0 baseline). No remote image URLs. | PASS |
+| `font-src 'self'` | No new fonts in Sprint 1 (woff2 set unchanged). | PASS |
+| **`media-src` (NOT declared)** | Sprint 1 introduces a silent `data:audio/wav;base64,...` Howl placeholder at `scene/audio/audio-bed.ts:206-215` to reserve the music channel. **Howler short-circuits `data:[^;]+;base64,` URIs (`node_modules/howler/src/howler.core.js:2397-2405`): it `atob()`-decodes the base64 inline and passes the ArrayBuffer to `decodeAudioData` — NO `XMLHttpRequest` is issued.** So no `media-src` / `connect-src` directive is triggered by Sprint 1. **PASS for now.** Sprint 3 will load real `.ogg` files via Howler (which DOES issue XHR for non-data URLs) — `media-src 'self'` and (likely) `connect-src 'self'` MUST be added at that point. Logged as advisory I.2. | PASS (advisory I.2) |
+| `default-src 'self'` (catchall) | No `fetch` / `XMLHttpRequest` / `WebSocket` introduced in src/: `grep -rnE "(fetch\(\|XMLHttpRequest\|WebSocket\|axios)" src/` → only OFL font-license URL strings in comments and the localhost dev-URL origin check at `ipc.ts:47-54`. No live network code paths. | PASS |
+
+Result: PASS (one carried-forward advisory + one new Sprint-3 advisory)
+
+### F. Asset surface
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| No bundled executables | `find src/ -type f \( -name "*.exe" -o -name "*.dll" -o -name "*.sh" -o -name "*.ps1" -o -name "*.bat" -o -name "*.so" -o -name "*.dylib" -o -name "*.cmd" \)` → ZERO hits | PASS |
+| No live network code | `grep -rnE "(https?://\|fetch\(\|XMLHttpRequest\|WebSocket\|axios\|got\(\|node-fetch)" src/` → only OFL license comments + the localhost dev-URL origin check at `ipc.ts:47, 54`. No live `fetch`/XHR/WebSocket | PASS |
+| Three / postprocessing / Howler local | `npm ls three postprocessing howler` → all resolved locally inside `node_modules/`. No CDN fetch at runtime | PASS |
+| No `.env` committed | `ls .env*` → still no matches (Sprint 0 baseline) | PASS |
+| No new hardcoded credentials | `grep -rnE "(sk-\|ghp_\|gho_\|AKIA\|Bearer \|api[_-]?key)" src/` → ZERO hits | PASS |
+| GLSL shader strings safe | `ps1-material.ts:42` imports `./ps1-vertex-snap.glsl?raw` as a Vite raw string. Three.js passes it to `gl.shaderSource` (WebGL) — there is NO JS-side `eval`. `grep -rnE "eval\(\|new Function" src/` → ZERO hits | PASS |
+| Inline `<style>` / `style=` attributes | `grep -rn 'style=' src/renderer/` → ZERO hits. Only external `.css` files | PASS |
+
+Result: PASS
+
+### G. Dependency vulnerabilities
+
+`npm audit --omit=dev` → **"found 0 vulnerabilities"** (matches Sprint 0 baseline).
+
+`npm audit` (all): 13 vulnerabilities (4 low, 3 moderate, 6 high) — all in `electron-builder` → `node-tar` chain, **dev-only**. Production bundle ships none of them (electron-builder is a build tool, never bundled into `out/`).
+
+| Package | Version | Maintained | Result |
+| --- | --- | --- | --- |
+| `electron-log` | 5.4.4 | active | PASS |
+| `three` | 0.184.0 | active (mrdoob, last release 2025-Q4) | PASS |
+| `postprocessing` | 6.39.1 | active (vanruesc) | PASS |
+| `howler` | 2.2.4 | active (goldfire) | PASS |
+
+Production-dep count: **4** (one added since Sprint 0 → wait, three: `three`, `postprocessing`, `howler` are the three new ones). Surface still minimal.
+
+Result: PASS
+
+### H. Joke-app narrative integrity
+
+The marketing/distribution defense (PLAN section 14, Mac notarization, Win SmartScreen) rests on the assertion that this app performs **zero** real system operations. Sprint 1 must not break that:
+
+| Claim | Evidence | Result |
+| --- | --- | --- |
+| No new fs / shell / network / process spawning in main or preload | `grep -rnE "(spawn\|exec\|fork\|execFile)\(" src/` → ZERO hits. Main process imports remain `electron`, `node:path`, `electron-log` only | PASS |
+| Audio is synthesised in the renderer, not played through any system audio API leak | Synth path: `AudioContext` → `GainNode` → `OscillatorNode` / `AudioBufferSourceNode` in `scene/audio/ambient-synth.ts`. Howler music slot is silent (1-sample data URI, never `.play()`-ed). No native bindings | PASS |
+| Three.js / postprocessing render via WebGL (Chromium GPU process), not native GL bindings | WebGL contract is enforced by `webSecurity: true` + `sandbox: true`. Three.js cannot escape the sandbox to native GL | PASS |
+| `frame:stats` channel persists telemetry **locally only** via electron-log | Handler at `ipc.ts:104` calls `logger.info('frame:stats', payload)`. electron-log is configured local-only (Sprint 0 audit §6); no remote transport. Writes to `~/Library/Logs/Rus Ruleti/main.log` (mac) / `%AppData%\Rus Ruleti\logs\main.log` (win) | PASS |
+| GLSL shaders cannot be exploited as a JS code path | GLSL strings are compiled by the WebGL driver, not by V8. Sandbox + `webSecurity:true` block any GLSL → arbitrary JS escape known to the auditor as of 2026-05 | PASS |
+| CRT overlay is a pure DOM/CSS atmosphere — no JS handlers, no input, no fetch | `crt.css` is pointer-events: none + aria-hidden. `index.html:52` adds the overlay element with no listeners. The SVG turbulence is a static data URI | PASS |
+
+Result: PASS
+
+### Summary table
+
+| Section | Result |
+| --- | --- |
+| A. BrowserWindow webPreferences (unchanged from Sprint 0) | PASS |
+| B. Preload audit (no new Node-API surface) | PASS |
+| C. New IPC channel `frame:stats` (origin + payload-shape guarded) | PASS |
+| D. Session permission handler (Sprint 0 advisory #2 closed) | PASS |
+| E. CSP under new dependencies (`three`, `postprocessing`, `howler`) | PASS (1 carried-forward + 1 Sprint-3 advisory) |
+| F. Asset surface | PASS |
+| G. Dependency vulnerabilities (`npm audit --omit=dev` clean) | PASS |
+| H. Joke-app narrative integrity | PASS |
+
+### I. Forward-Looking Advisories (NOT Sprint 1 blockers)
+
+1. **CSP `style-src 'unsafe-inline'` — carried forward from Sprint 0.** Sprint 1 did not add inline styles (`grep` clean), but the existing allowance persists. Still acceptable. Tighten before Sprint 6/7 polish via nonce-based styles or pure external stylesheets.
+2. **CSP `media-src` (NEW) — Sprint 3 dependency.** Sprint 1 uses a `data:audio/wav` URI for the silent Howl placeholder; Howler short-circuits data URIs internally (no XHR), so the missing `media-src` directive does not block anything today. **The moment Sprint 3 loads `assets/audio/music/temnaya-placeholder.ogg`, Howler will issue an XHR — `media-src 'self'` MUST be added to CSP, and likely `connect-src 'self'` because Howler uses XMLHttpRequest with `responseType: 'arraybuffer'`.** Track in the Sprint 3 ticket where the music file lands.
+3. **IPC payload runtime validation — adequate Sprint 1, plan for Sprint 2+.** The `isFrameStatsPayload` discriminator at `ipc.ts:127-141` is correct and complete for a 7-field flat numeric payload. As Sprint 2+ adds richer payload shapes (lobby state, trigger events, destruction beats), continue this pattern OR adopt `zod` / `valibot` for type-derived runtime schemas. Pure TS narrowing is **not** sufficient at the IPC boundary — the renderer is treated as untrusted.
+4. **Code signing + notarization — UNCHANGED from Sprint 0 advisory #4.** Sprint 7 (mac) and Sprint 8 (win). Placeholders in `electron-builder.yml` remain correct (empty identity = "don't sign", safe local default).
+5. **Howler audio.unlock() autoplay policy — NOT a security issue but worth noting.** Sprint 1 invokes `mountAudioBed` from inside the Continue-button click handler (`main.ts:146` → `scene-mount.ts:40` → `scene/index.ts:118`), satisfying Chromium's user-gesture requirement for AudioContext.resume(). Future entry-points (auto-replay debug shortcut, programmatic flows) must preserve this guarantee or audio will silently fail.
+
+### Final verdict
+
+**PASS — all eight sections green.**
+
+Sprint 1 preserves the Sprint 0 security posture and adds two defence-in-depth wins:
+
+1. **`session.setPermissionRequestHandler` deny-all** (`index.ts:75-77`) closes Sprint 0 forward-looking advisory #2. Camera, microphone, geolocation, notifications, MIDI, clipboard read — every Web API permission request from the renderer is now silently denied at the session layer, on top of the existing sandbox + contextIsolation. There is no UI to grant a permission, and there should not be.
+2. **`frame:stats` runtime payload validation** (`ipc.ts:127-141`) establishes the precedent the Sprint 0 audit specifically asked for (advisory #3): the *first* IPC channel that carries a non-zero payload arrived with both a typed TS contract AND a runtime shape guard, and bad shapes are dropped silently — exactly the right behaviour for a joke app that has no error surface to expose to the user.
+
+The Three.js / postprocessing / Howler triad expands the renderer's *visual* and *auditory* surface but adds **zero** new system-touching code paths: GLSL compiles to WebGL (Chromium GPU process, sandboxed), audio runs in WebAudio (renderer process, sandboxed), and the silent Howler placeholder avoids the XHR path entirely thanks to the data-URI short-circuit. The day Sprint 3 loads a real `.ogg`, the audit MUST be re-opened to add `media-src 'self'` (and probably `connect-src 'self'`) — flagged in advisory I.2.
+
+`npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (`electron-log`, `three`, `postprocessing`, `howler`).
+
+The marketing/distribution defense established by the Sprint 0 audit holds:
+
+- The preload bridge still imports zero modules capable of touching the filesystem, shelling out, opening sockets, or running arbitrary code.
+- The IPC contract expanded from three to four channels — all four are origin-checked, the new one is also payload-shape-validated, none invoke fs / shell / network / process APIs.
+- crashReporter, electron-log, and the new `frame:stats` channel all persist locally. There is no telemetry SDK, no analytics, no fetch / XHR / WebSocket, no remote log transport, no submitURL. Nothing leaves the user's machine.
+
+Audit confirmed. Sprint 1 ships clean.

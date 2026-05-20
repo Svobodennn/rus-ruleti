@@ -149,29 +149,6 @@
 }
 
 /*
- * CRT scanline overlay — Sprint 0 placeholder. 1px repeating gradient pinned
- * over the disclaimer card. Sprint 1 replaces this with a full-window
- * post-FX layer (postprocessing pipeline).
- *
- * pointer-events: none so the underlying button stays clickable.
- */
-#disclaimer::before {
-  content: '';
-  position: absolute;
-  inset: -2rem;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0) 0px,
-    rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.18) 3px,
-    rgba(0, 0, 0, 0) 4px
-  );
-  mix-blend-mode: multiply;
-  z-index: 2;
-}
-
-/*
  * Hidden-by-default state — main.ts toggles `.is-revealed` after hydration
  * so the user never sees an untranslated flash if fonts swap late.
  */

@@ -32,6 +32,21 @@
  */
 
 import { AMBIENT_BULB_HUM_HZ } from '../../../shared/scene-constants';
+import {
+  BULB_HUM_HARMONIC_GAIN,
+  BULB_HUM_LFO_DEPTH_FRACTION,
+  BULB_HUM_LFO_HZ,
+  BULB_HUM_LOWPASS_HZ,
+  BULB_HUM_LOWPASS_Q,
+  RADIO_BANDPASS_HZ,
+  RADIO_BANDPASS_Q,
+  RADIO_LFO_DEPTH_FRACTION,
+  RADIO_LFO_HZ,
+  WIND_LFO_CUTOFF_DEPTH_HZ,
+  WIND_LFO_HZ,
+  WIND_LOWPASS_HZ,
+  WIND_LOWPASS_Q,
+} from '../../../shared/scene-audio-constants';
 
 /** What audio-bed.ts gets back from each factory. */
 export interface SynthLayerHandle {
@@ -79,6 +94,57 @@ function rampGain(param: AudioParam, target: number, durationMs: number, ctx: Au
 /* bulb-hum                                                                 */
 /* ------------------------------------------------------------------------ */
 
+/** Node graph built by buildBulbHumGraph — passed back to the factory. */
+interface BulbHumGraph {
+  masterGain: GainNode;
+  oscFundamental: OscillatorNode;
+  oscHarmonic: OscillatorNode;
+  harmonicGain: GainNode;
+  lowpass: BiquadFilterNode;
+  lfo: OscillatorNode;
+  lfoDepth: GainNode;
+}
+
+/**
+ * Construct and connect the WebAudio node graph for the bulb-hum layer.
+ * Returns all nodes so the factory can start, stop, and disconnect them.
+ */
+function buildBulbHumGraph(
+  ctx: AudioContext,
+  destination: AudioNode,
+  gain: number,
+): BulbHumGraph {
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = 0;
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = BULB_HUM_LOWPASS_HZ;
+  lowpass.Q.value = BULB_HUM_LOWPASS_Q;
+  masterGain.connect(destination);
+  lowpass.connect(masterGain);
+
+  const oscFundamental = ctx.createOscillator();
+  oscFundamental.type = 'sine';
+  oscFundamental.frequency.value = AMBIENT_BULB_HUM_HZ;
+  oscFundamental.connect(lowpass);
+
+  const oscHarmonic = ctx.createOscillator();
+  oscHarmonic.type = 'sine';
+  oscHarmonic.frequency.value = AMBIENT_BULB_HUM_HZ * 2;
+  const harmonicGain = ctx.createGain();
+  harmonicGain.gain.value = BULB_HUM_HARMONIC_GAIN;
+  oscHarmonic.connect(harmonicGain).connect(lowpass);
+
+  const lfo = ctx.createOscillator();
+  lfo.type = 'sine';
+  lfo.frequency.value = BULB_HUM_LFO_HZ;
+  const lfoDepth = ctx.createGain();
+  lfoDepth.gain.value = gain * BULB_HUM_LFO_DEPTH_FRACTION;
+  lfo.connect(lfoDepth).connect(masterGain.gain);
+
+  return { masterGain, oscFundamental, oscHarmonic, harmonicGain, lowpass, lfo, lfoDepth };
+}
+
 /**
  * 50Hz mains hum: fundamental + 2nd harmonic at 100Hz (sounds more "mains-y"
  * than a pure sine), lowpass-filtered at 200Hz so only the deep bottom
@@ -92,63 +158,35 @@ function rampGain(param: AudioParam, target: number, durationMs: number, ctx: Au
  *                                  lfo ─┘ (modulates gain)
  */
 export const createBulbHum: SynthLayerFactory = (ctx, destination, gain) => {
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = 0;
-  const lowpass = ctx.createBiquadFilter();
-  lowpass.type = 'lowpass';
-  lowpass.frequency.value = 200;
-  lowpass.Q.value = 0.7;
-  masterGain.connect(destination);
-  lowpass.connect(masterGain);
-
-  const oscFundamental = ctx.createOscillator();
-  oscFundamental.type = 'sine';
-  oscFundamental.frequency.value = AMBIENT_BULB_HUM_HZ;
-  oscFundamental.connect(lowpass);
-
-  const oscHarmonic = ctx.createOscillator();
-  oscHarmonic.type = 'sine';
-  oscHarmonic.frequency.value = AMBIENT_BULB_HUM_HZ * 2;
-  const harmonicGain = ctx.createGain();
-  harmonicGain.gain.value = 0.35;
-  oscHarmonic.connect(harmonicGain).connect(lowpass);
-
-  // 0.3Hz LFO on master gain → ±20% breathing modulation around `gain`.
-  const lfo = ctx.createOscillator();
-  lfo.type = 'sine';
-  lfo.frequency.value = 0.3;
-  const lfoDepth = ctx.createGain();
-  lfoDepth.gain.value = gain * 0.2;
-  lfo.connect(lfoDepth).connect(masterGain.gain);
-
+  const g = buildBulbHumGraph(ctx, destination, gain);
   let started = false;
   return {
     start: (): void => {
       if (started) return;
       started = true;
-      oscFundamental.start();
-      oscHarmonic.start();
-      lfo.start();
+      g.oscFundamental.start();
+      g.oscHarmonic.start();
+      g.lfo.start();
       // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
     },
     stop: (): void => {
       try {
-        oscFundamental.stop();
-        oscHarmonic.stop();
-        lfo.stop();
+        g.oscFundamental.stop();
+        g.oscHarmonic.stop();
+        g.lfo.stop();
       } catch {
         // Already stopped; safe to swallow.
       }
-      oscFundamental.disconnect();
-      oscHarmonic.disconnect();
-      harmonicGain.disconnect();
-      lfo.disconnect();
-      lfoDepth.disconnect();
-      lowpass.disconnect();
-      masterGain.disconnect();
+      g.oscFundamental.disconnect();
+      g.oscHarmonic.disconnect();
+      g.harmonicGain.disconnect();
+      g.lfo.disconnect();
+      g.lfoDepth.disconnect();
+      g.lowpass.disconnect();
+      g.masterGain.disconnect();
     },
     fadeTo: (target: number, durationMs: number): void => {
-      rampGain(masterGain.gain, target, durationMs, ctx);
+      rampGain(g.masterGain.gain, target, durationMs, ctx);
     },
   };
 };
@@ -175,19 +213,19 @@ export const createWind: SynthLayerFactory = (ctx, destination, _gain) => {
 
   const lowpass = ctx.createBiquadFilter();
   lowpass.type = 'lowpass';
-  lowpass.frequency.value = 600;
-  lowpass.Q.value = 0.4;
+  lowpass.frequency.value = WIND_LOWPASS_HZ;
+  lowpass.Q.value = WIND_LOWPASS_Q;
 
   const masterGain = ctx.createGain();
   masterGain.gain.value = 0;
   noise.connect(lowpass).connect(masterGain).connect(destination);
 
-  // 0.12Hz LFO drifts the cutoff ±200Hz around 600Hz.
+  // LFO drifts the cutoff ±WIND_LFO_CUTOFF_DEPTH_HZ around WIND_LOWPASS_HZ.
   const lfo = ctx.createOscillator();
   lfo.type = 'sine';
-  lfo.frequency.value = 0.12;
+  lfo.frequency.value = WIND_LFO_HZ;
   const lfoDepth = ctx.createGain();
-  lfoDepth.gain.value = 200;
+  lfoDepth.gain.value = WIND_LFO_CUTOFF_DEPTH_HZ;
   lfo.connect(lfoDepth).connect(lowpass.frequency);
 
   let started = false;
@@ -240,19 +278,19 @@ export const createRadioStatic: SynthLayerFactory = (ctx, destination, gain) => 
 
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
-  bandpass.frequency.value = 1500;
-  bandpass.Q.value = 2;
+  bandpass.frequency.value = RADIO_BANDPASS_HZ;
+  bandpass.Q.value = RADIO_BANDPASS_Q;
 
   const masterGain = ctx.createGain();
   masterGain.gain.value = 0;
   noise.connect(bandpass).connect(masterGain).connect(destination);
 
-  // 0.45Hz LFO modulates the gain by ±50% of `gain` for crackle pattern.
+  // LFO modulates the gain by ±RADIO_LFO_DEPTH_FRACTION of `gain` for crackle.
   const lfo = ctx.createOscillator();
   lfo.type = 'sine';
-  lfo.frequency.value = 0.45;
+  lfo.frequency.value = RADIO_LFO_HZ;
   const lfoDepth = ctx.createGain();
-  lfoDepth.gain.value = gain * 0.5;
+  lfoDepth.gain.value = gain * RADIO_LFO_DEPTH_FRACTION;
   lfo.connect(lfoDepth).connect(masterGain.gain);
 
   let started = false;

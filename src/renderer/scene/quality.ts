@@ -73,6 +73,78 @@ export interface QualityControllerHandle {
   dispose: () => void;
 }
 
+/** Mutable controller state shared across tick/evaluate/transition helpers. */
+interface ControllerState {
+  current: QualityLevel;
+  listeners: Set<QualityChangeListener>;
+  framesSinceCheck: number;
+  framesSinceLastChange: number;
+}
+
+/**
+ * Advance the controller by one frame.
+ * Increments counters and triggers evaluate at each sample-size boundary.
+ */
+function tickController(
+  state: ControllerState,
+  frameLogger: FrameLoggerHandle,
+  logger: QualityLogger,
+): void {
+  state.framesSinceCheck += 1;
+  state.framesSinceLastChange += 1;
+  if (state.framesSinceCheck < AUTO_PROMOTE_SAMPLE_SIZE) {
+    return;
+  }
+  state.framesSinceCheck = 0;
+  evaluateController(state, frameLogger, logger);
+}
+
+/**
+ * Check frame stats and promote/demote if thresholds are met.
+ * Hysteresis: skips if fewer than 2×sample-size frames since last transition.
+ */
+function evaluateController(
+  state: ControllerState,
+  frameLogger: FrameLoggerHandle,
+  logger: QualityLogger,
+): void {
+  if (state.framesSinceLastChange < AUTO_PROMOTE_SAMPLE_SIZE * 2) {
+    return;
+  }
+  const stats = frameLogger.getFrameStats();
+  if (stats === undefined) {
+    return;
+  }
+  if (stats.p95 < AUTO_PROMOTE_THRESHOLD_MS && state.current !== 'high') {
+    transitionController(state, stepUp(state.current), 'promote', stats.p95, logger);
+    return;
+  }
+  if (stats.p95 > AUTO_DEMOTE_THRESHOLD_MS && state.current !== 'low') {
+    transitionController(state, stepDown(state.current), 'demote', stats.p95, logger);
+  }
+}
+
+/**
+ * Apply a quality tier transition, reset hysteresis counter, and notify listeners.
+ */
+function transitionController(
+  state: ControllerState,
+  next: QualityLevel,
+  reason: 'promote' | 'demote',
+  p95: number,
+  logger: QualityLogger,
+): void {
+  const prev = state.current;
+  state.current = next;
+  state.framesSinceLastChange = 0;
+  logger.info(
+    `quality level: ${prev} → ${next} (${reason}, 95p=${p95.toFixed(1)}ms)`,
+  );
+  for (const listener of state.listeners) {
+    listener(next, prev, reason);
+  }
+}
+
 /**
  * Create the quality controller.
  *
@@ -85,68 +157,24 @@ export function createQualityController(
   frameLogger: FrameLoggerHandle,
   logger: QualityLogger,
 ): QualityControllerHandle {
-  let current: QualityLevel = getBuildQualityLevel();
-  const listeners = new Set<QualityChangeListener>();
-  let framesSinceCheck = 0;
-  let framesSinceLastChange = Number.POSITIVE_INFINITY;
-
-  const tick = (): void => {
-    framesSinceCheck += 1;
-    framesSinceLastChange += 1;
-    if (framesSinceCheck < AUTO_PROMOTE_SAMPLE_SIZE) {
-      return;
-    }
-    framesSinceCheck = 0;
-    evaluate();
-  };
-
-  const evaluate = (): void => {
-    if (framesSinceLastChange < AUTO_PROMOTE_SAMPLE_SIZE * 2) {
-      return;
-    }
-    const stats = frameLogger.getFrameStats();
-    if (stats === undefined) {
-      return;
-    }
-    if (
-      stats.p95 < AUTO_PROMOTE_THRESHOLD_MS &&
-      current !== 'high'
-    ) {
-      transition(stepUp(current), 'promote', stats.p95);
-      return;
-    }
-    if (stats.p95 > AUTO_DEMOTE_THRESHOLD_MS && current !== 'low') {
-      transition(stepDown(current), 'demote', stats.p95);
-    }
-  };
-
-  const transition = (
-    next: QualityLevel,
-    reason: 'promote' | 'demote',
-    p95: number,
-  ): void => {
-    const prev = current;
-    current = next;
-    framesSinceLastChange = 0;
-    logger.info(
-      `quality level: ${prev} → ${next} (${reason}, 95p=${p95.toFixed(1)}ms)`,
-    );
-    for (const listener of listeners) {
-      listener(next, prev, reason);
-    }
+  const state: ControllerState = {
+    current: getBuildQualityLevel(),
+    listeners: new Set<QualityChangeListener>(),
+    framesSinceCheck: 0,
+    framesSinceLastChange: Number.POSITIVE_INFINITY,
   };
 
   return {
-    getQualityLevel: (): QualityLevel => current,
-    tick,
+    getQualityLevel: (): QualityLevel => state.current,
+    tick: (): void => tickController(state, frameLogger, logger),
     onQualityChange: (listener: QualityChangeListener): (() => void) => {
-      listeners.add(listener);
+      state.listeners.add(listener);
       return (): void => {
-        listeners.delete(listener);
+        state.listeners.delete(listener);
       };
     },
     dispose: (): void => {
-      listeners.clear();
+      state.listeners.clear();
     },
   };
 }

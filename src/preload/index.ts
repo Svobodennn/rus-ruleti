@@ -43,65 +43,92 @@ import type {
 
 const ESC_KEY = 'Escape';
 
+/** Mutable timer state shared across the ESC hold handler callbacks. */
+interface EscTimerState {
+  holdStartedAt: number | null;
+  rafId: number | null;
+}
+
+/**
+ * RAF tick: measures hold progress, fires onProgress each frame, and fires
+ * onComplete + IPC quit when ESC_HOLD_DURATION_MS is reached.
+ */
+function escTick(
+  state: EscTimerState,
+  onProgress: EscapeHoldProgressCallback,
+  onComplete: EscapeHoldCompleteCallback,
+): void {
+  if (state.holdStartedAt === null) {
+    return;
+  }
+  const elapsed = performance.now() - state.holdStartedAt;
+  const progress = Math.min(elapsed / ESC_HOLD_DURATION_MS, 1);
+  onProgress(progress);
+  if (progress >= 1) {
+    state.holdStartedAt = null;
+    state.rafId = null;
+    onComplete();
+    ipcRenderer.send(IPC_CHANNELS.APP_QUIT);
+    return;
+  }
+  state.rafId = requestAnimationFrame(() => escTick(state, onProgress, onComplete));
+}
+
+/**
+ * Keydown handler: starts the hold timer on first ESC press (skips repeats
+ * and ignores subsequent presses while a hold is already in progress).
+ */
+function onEscKeyDown(
+  state: EscTimerState,
+  onProgress: EscapeHoldProgressCallback,
+  onComplete: EscapeHoldCompleteCallback,
+  ev: KeyboardEvent,
+): void {
+  if (ev.key !== ESC_KEY || ev.repeat || state.holdStartedAt !== null) {
+    return;
+  }
+  state.holdStartedAt = performance.now();
+  state.rafId = requestAnimationFrame(() => escTick(state, onProgress, onComplete));
+}
+
+/**
+ * Keyup handler: cancels the in-progress hold timer and resets progress to 0.
+ */
+function onEscKeyUp(
+  state: EscTimerState,
+  onProgress: EscapeHoldProgressCallback,
+  ev: KeyboardEvent,
+): void {
+  if (ev.key !== ESC_KEY) {
+    return;
+  }
+  state.holdStartedAt = null;
+  if (state.rafId !== null) {
+    cancelAnimationFrame(state.rafId);
+    state.rafId = null;
+  }
+  onProgress(0);
+}
+
 function createEscHoldHandler(
   onProgress: EscapeHoldProgressCallback,
   onComplete: EscapeHoldCompleteCallback,
 ): () => void {
-  let holdStartedAt: number | null = null;
-  let rafId: number | null = null;
+  const state: EscTimerState = { holdStartedAt: null, rafId: null };
 
-  const tick = (): void => {
-    if (holdStartedAt === null) {
-      return;
-    }
-    const elapsed = performance.now() - holdStartedAt;
-    const progress = Math.min(elapsed / ESC_HOLD_DURATION_MS, 1);
-    onProgress(progress);
-    if (progress >= 1) {
-      // Completed. Fire quit and reset.
-      holdStartedAt = null;
-      rafId = null;
-      onComplete();
-      ipcRenderer.send(IPC_CHANNELS.APP_QUIT);
-      return;
-    }
-    rafId = requestAnimationFrame(tick);
-  };
+  const keyDownHandler = (ev: KeyboardEvent): void =>
+    onEscKeyDown(state, onProgress, onComplete, ev);
+  const keyUpHandler = (ev: KeyboardEvent): void =>
+    onEscKeyUp(state, onProgress, ev);
 
-  const onKeyDown = (ev: KeyboardEvent): void => {
-    if (ev.key !== ESC_KEY) {
-      return;
-    }
-    if (ev.repeat) {
-      return;
-    }
-    if (holdStartedAt !== null) {
-      return;
-    }
-    holdStartedAt = performance.now();
-    rafId = requestAnimationFrame(tick);
-  };
-
-  const onKeyUp = (ev: KeyboardEvent): void => {
-    if (ev.key !== ESC_KEY) {
-      return;
-    }
-    holdStartedAt = null;
-    if (rafId !== null) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-    onProgress(0);
-  };
-
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('keydown', keyDownHandler);
+  window.addEventListener('keyup', keyUpHandler);
 
   return (): void => {
-    window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('keyup', onKeyUp);
-    if (rafId !== null) {
-      cancelAnimationFrame(rafId);
+    window.removeEventListener('keydown', keyDownHandler);
+    window.removeEventListener('keyup', keyUpHandler);
+    if (state.rafId !== null) {
+      cancelAnimationFrame(state.rafId);
     }
   };
 }

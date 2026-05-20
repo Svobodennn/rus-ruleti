@@ -9,6 +9,16 @@
 
 @import './disclaimer.css';
 
+:root {
+  --color-shadow: #0a0908; /* kömür siyahı */
+  --color-oak:    #1c1814; /* eski meşe */
+  --color-rust:   #3d2817; /* paslı boru */
+  --color-paper:  #7a6a4e; /* kirli kâğıt */
+  --color-sodium: #c89b3c; /* sodyum ampul */
+  --color-blood:  #8b1a1a; /* kan kırmızısı */
+  --color-neon:   #4a5d3a; /* soğuk neon yeşil */
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -19,8 +29,8 @@ html,
 body {
   width: 100%;
   height: 100%;
-  background: #0a0908; /* kömür siyahı */
-  color: #7a6a4e; /* kirli kâğıt */
+  background: var(--color-shadow); /* kömür siyahı */
+  color: var(--color-paper); /* kirli kâğıt */
   font-family: 'Old Standard TT', Georgia, serif;
   overflow: hidden;
   user-select: none;
@@ -54,7 +64,7 @@ body {
   gap: 0.5rem;
   font-size: 0.7rem;
   letter-spacing: 0.15em;
-  color: #3d2817;
+  color: var(--color-rust);
   opacity: 0;
   transition: opacity 200ms ease-out;
   pointer-events: none;
@@ -67,7 +77,7 @@ body {
 #esc-hold-bar {
   width: 80px;
   height: 2px;
-  background: #1c1814;
+  background: var(--color-oak);
   position: relative;
   overflow: hidden;
 }
@@ -77,12 +87,12 @@ body {
   position: absolute;
   inset: 0;
   width: var(--esc-progress, 0%);
-  background: #c89b3c; /* sodium yellow */
+  background: var(--color-sodium); /* sodium yellow */
   transition: width 60ms linear;
 }
 
 #esc-hold-label {
-  color: #7a6a4e;
+  color: var(--color-paper);
 }
 
 /*
@@ -101,7 +111,7 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0a0908;
+  background: var(--color-shadow);
 }
 
 #scene-container canvas {
