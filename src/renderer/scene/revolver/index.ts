@@ -28,9 +28,11 @@ import type { Group, PerspectiveCamera, Scene } from 'three';
 import type { AudioBedHandle } from '../audio/audio-bed';
 import type { BulbLightHandle } from '../lighting';
 import type { Locale } from '../../i18n/strings';
+import type { LoadedModelHandle } from '../../loader';
 import { mountHud, type HudHandle } from './hud/hud';
 import { attachInput, type InputHandle } from './revolver-input';
 import { mountRevolverMesh, type RevolverMeshHandle } from './revolver-mount';
+import { mountRevolverMeshFromGlb } from './revolver-mount-glb';
 import { pullTrigger } from './revolver-rng';
 import {
   applyRevealLite,
@@ -90,8 +92,12 @@ export function mountRevolver(
   lighting: BulbLightHandle,
   camera: PerspectiveCamera,
   bangOverlay: HTMLElement,
+  revolverGlb: LoadedModelHandle | null = null,
 ): RevolverHandle {
-  const args = { scene, room, hudContainer, locale, audioBed, lighting, camera, bangOverlay };
+  const args = {
+    scene, room, hudContainer, locale, audioBed, lighting, camera, bangOverlay,
+    revolverGlb,
+  };
   const resources = allocateResources(args);
   resources.hud.setVisible(true);
   // Start idle bob so the revolver doesn't sit static at mount.
@@ -132,6 +138,12 @@ interface MountArgs {
   lighting: BulbLightHandle;
   camera: PerspectiveCamera;
   bangOverlay: HTMLElement;
+  /**
+   * Sprint 3 Phase 2B: a preloaded revolver GLB. If non-null, the mount
+   * uses the GLB-based path; if null, falls back to the Sprint 2 primitive
+   * rig (e.g. GLB load failed or diagnostic mode).
+   */
+  revolverGlb: LoadedModelHandle | null;
 }
 
 /**
@@ -139,7 +151,9 @@ interface MountArgs {
  * so each function body stays under the 50-line ceiling.
  */
 function allocateResources(args: MountArgs): RevolverResources {
-  const mesh = mountRevolverMesh(args.room);
+  const mesh = args.revolverGlb !== null
+    ? mountRevolverMeshFromGlb(args.room, args.revolverGlb)
+    : mountRevolverMesh(args.room);
   args.scene.add(mesh.group);
   const hud = mountHud(args.hudContainer, args.locale);
   const state: MutableFsmState = {

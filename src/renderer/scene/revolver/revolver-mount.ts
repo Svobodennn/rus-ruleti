@@ -247,3 +247,19 @@ function disposeChildren(group: Group): void {
     group.remove(child);
   }
 }
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 3 Phase 2B — GLB mount path shared helpers                        */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Expose `positionOnTable` so the sibling `revolver-mount-glb.ts` can reuse
+ * the table-top anchor logic without duplicating Box3 math.
+ */
+export { positionOnTable };
+
+/**
+ * Tilt constant — exported so the GLB mount module can match the Sprint 2
+ * visibility tilt without re-deriving the 15° rotation.
+ */
+export { REVOLVER_TILT_Y_RAD };

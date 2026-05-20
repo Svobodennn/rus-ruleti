@@ -1,107 +1,194 @@
 /**
  * Model registry — singleton cache of loaded GLB handles.
  *
- * Sprint 3 Phase 1 (scaffold). Phase 2B kraken-loader fills the body. The
- * Phase 1 surface is a stable contract so Phase 2A designer Vector3
- * placements (scene-model-constants.ts) can reference the same ModelKey
- * identifiers, and scene/index.ts can wire preload() into its mount path
- * even before the cache logic is real.
+ * Sprint 3 Phase 2B kraken-loader implementation. The Phase 1 stub contract:
+ *   - Singleton `Map<ModelKey, LoadedModelHandle>` cache.
+ *   - Inflight `Map<ModelKey, Promise<LoadedModelHandle>>` so two concurrent
+ *     `load('table')` calls share one fetch instead of double-loading.
+ *   - `preloadAll()` runs Promise.allSettled — one bad GLB does NOT block
+ *     the rest of the scene (designer model-freeze §8.1 recommendation).
+ *   - `dispose()` releases every cached handle and resets the maps.
  *
- * Phase 2B implementation contract:
- *   - **Singleton cache**: `Map<ModelKey, LoadedModelHandle>`. A second
- *     `load('revolver')` returns the cached handle without re-fetching.
- *   - **preload()**: parallel `Promise.all(keys.map(load))` so the seven
- *     GLBs load concurrently. Hit MODEL_LOAD_BUDGET_MS (4000ms) on M1
- *     baseline; degrade gracefully on slow disks (warn, do not crash).
- *   - **getAll()**: snapshot of every currently-loaded handle for the
- *     SceneHandle.dispose() reverse-allocation teardown.
- *   - **No eager loading at module-eval time** — the renderer entry-point
- *     (scene/index.ts) chooses when to preload (after disclaimer dismiss,
- *     so the Three.Loaders fetch doesn't slow first paint).
+ * Surface change from Phase 1 stub:
+ *   - `preload()` (Phase 1 stub `Promise<void>`) is supplemented by
+ *     `preloadAll()` (Phase 2B) which returns `{ loaded, failed }` so the
+ *     scene mount can render placeholders for failed keys instead of
+ *     silently breaking. `preload()` is kept as a thin wrapper so the
+ *     Phase 1 SceneHandle.loader.preload contract still typechecks.
  *
- * Temporal-correctness scenarios (Phase 3 qa-engineer verify list):
- *   - Scenario A: two concurrent load('table') calls share one in-flight
- *     promise (Promise.race vs duplicate fetch). Phase 2B must use a
- *     `Map<ModelKey, Promise<LoadedModelHandle>>` "inflight" map.
- *   - Scenario B: preload() called twice in the same session must be a
- *     no-op the second time (cache hit on every key).
- *   - Scenario C: a load that exceeds MODEL_LOAD_BUDGET_MS must still
- *     resolve (do NOT race the budget) but emit a console.warn? — no,
- *     console is banned; surface via document.body.dataset['modelBudget']
- *     so the dashboard hook picks it up (same pattern as quality.ts).
+ * Asset URL resolution: each GLB is imported via Vite's `?url` query so the
+ * build pipeline copies the binary into `out/renderer/assets/` and hands us
+ * back a hashed URL. This is the only correct way to ship binary assets
+ * through electron-vite — string paths under `/src/...` only resolve in dev
+ * mode and break in the packaged build.
  */
 
-import type { ModelKey, LoadedModelHandle } from './types';
+import type { ModelKey, LoadedModelHandle, LoaderHandle } from './types';
+import { loadGLTFFromPath } from './gltf-loader';
+import { MODEL_LOAD_BUDGET_MS } from '../../shared/scene-model-constants';
+
+// Vite `?url` imports — hashed bundle URLs at build time, dev-server URLs in dev.
+import revolverUrl from '../assets/models/revolver.glb?url';
+import chairUrl from '../assets/models/chair.glb?url';
+import radioUrl from '../assets/models/radio.glb?url';
+import bottleUrl from '../assets/models/bottle.glb?url';
+import tableUrl from '../assets/models/table.glb?url';
+import ashtrayUrl from '../assets/models/ashtray.glb?url';
+import lightbulbUrl from '../assets/models/lightbulb.glb?url';
 
 /**
- * Per-key file path map. Lines up 1:1 with the ModelKey union. The paths
- * are renderer-resolved (Vite ships them as static assets at /assets/...).
+ * Per-key URL map. Built from Vite `?url` imports so the build pipeline
+ * picks the GLBs up automatically — no `publicDir` hand-wiring needed.
  *
- * If a new model is added, both this map AND the ModelKey union must be
- * extended in lockstep — TypeScript catches mismatches via the Record
- * type's exhaustiveness check.
- *
- * **DO NOT edit values** without updating:
- *   - src/renderer/assets/models/README.md (attribution row)
- *   - LEGAL.md (SHA-256 manifest, CC-BY credits)
- *   - scene-model-constants.ts (MODEL_POSITION_* / MODEL_SCALE_* /
- *     MODEL_ROTATION_* row for the new key — designer Phase 2A)
+ * Adding a new model:
+ *   1. Vendor the .glb under src/renderer/assets/models/.
+ *   2. Add the import line above.
+ *   3. Add the key here AND to ModelKey union in types.ts.
+ *   4. Add MODEL_SCALE/POSITION/ROTATION + MATERIAL_COLOR_OVERRIDE_BY_KEY
+ *      entries (designer territory).
  */
-const MODEL_PATHS: Readonly<Record<ModelKey, string>> = {
-  revolver: '/src/renderer/assets/models/revolver.glb',
-  chair: '/src/renderer/assets/models/chair.glb',
-  radio: '/src/renderer/assets/models/radio.glb',
-  bottle: '/src/renderer/assets/models/bottle.glb',
-  table: '/src/renderer/assets/models/table.glb',
-  ashtray: '/src/renderer/assets/models/ashtray.glb',
-  lightbulb: '/src/renderer/assets/models/lightbulb.glb',
+const MODEL_URLS: Readonly<Record<ModelKey, string>> = {
+  revolver: revolverUrl,
+  chair: chairUrl,
+  radio: radioUrl,
+  bottle: bottleUrl,
+  table: tableUrl,
+  ashtray: ashtrayUrl,
+  lightbulb: lightbulbUrl,
 } as const;
 
+/** Cache of resolved handles. Mutated only via `load()` and `disposeAll()`. */
+const _cache = new Map<ModelKey, LoadedModelHandle>();
+
+/** Inflight promises, keyed by model. Cleared on settle (success or failure). */
+const _inflight = new Map<ModelKey, Promise<LoadedModelHandle>>();
+
 /**
- * Internal cache. Phase 2B converts to `Map<ModelKey, LoadedModelHandle>`
- * + `Map<ModelKey, Promise<LoadedModelHandle>>` (inflight). Kept as a
- * frozen empty object during Phase 1 so accidental `_CACHE[key] = ...`
- * mutations error at strict-mode-runtime — defensive.
+ * Result of `preloadAll()`. The scene mount inspects `failed` to decide whether
+ * to render a placeholder for the missing keys.
  */
-const _CACHE: Readonly<Partial<Record<ModelKey, LoadedModelHandle>>> =
-  Object.freeze({});
+export interface PreloadResult {
+  /** Successfully-loaded handles, in completion order. */
+  loaded: LoadedModelHandle[];
+  /** Per-key load failures with the underlying error. */
+  failed: Array<{ key: ModelKey; error: Error }>;
+}
 
 /**
  * Load a single model. Returns the cached handle on subsequent calls.
  *
- * Phase 1 stub. Phase 2B kraken-loader fills the body. Throws until then
- * so partial integrations fail loud.
+ * Three return paths:
+ *   1. Cache hit → return cached handle immediately.
+ *   2. Inflight  → return the same Promise the first caller awaits (no
+ *                  double fetch — temporal-correctness Scenario A).
+ *   3. Cold      → kick off loadGLTFFromPath, register the inflight Promise,
+ *                  cache the handle on success, throw on failure.
  */
 export async function load(key: ModelKey): Promise<LoadedModelHandle> {
-  void _CACHE;
-  void MODEL_PATHS;
-  throw new Error(
-    `[loader] model-registry.load('${key}') stub — Phase 2B kraken-loader fills.`,
-  );
+  const cached = _cache.get(key);
+  if (cached !== undefined) return cached;
+
+  const inflight = _inflight.get(key);
+  if (inflight !== undefined) return inflight;
+
+  const promise = startLoad(key);
+  _inflight.set(key, promise);
+  return promise;
 }
 
 /**
- * Preload all seven models in parallel. Returns when every load resolves
- * (or rejects, if any one fails — Phase 2B decides whether one bad GLB
- * blocks the rest).
- *
- * Phase 1 stub. Phase 2B kraken-loader fills the body.
+ * Kick off the actual GLB fetch + cache install on resolve. Extracted so the
+ * `load()` entry point stays focused on cache + inflight bookkeeping.
  */
+async function startLoad(key: ModelKey): Promise<LoadedModelHandle> {
+  try {
+    const handle = await loadGLTFFromPath(MODEL_URLS[key], key);
+    _cache.set(key, handle);
+    return handle;
+  } finally {
+    _inflight.delete(key);
+  }
+}
+
+/**
+ * Parallel preload of every model via Promise.allSettled. Designer §8.1
+ * recommendation: one bad GLB renders a placeholder cube, the scene stays
+ * playable rather than going black-screen.
+ *
+ * Surfaces over-budget loads via `document.body.dataset['modelBudget']`
+ * (console is banned per Sprint-0 lint rules).
+ */
+export async function preloadAll(): Promise<PreloadResult> {
+  const keys: ModelKey[] = [
+    'revolver', 'chair', 'radio', 'bottle', 'table', 'ashtray', 'lightbulb',
+  ];
+  const startMs = performance.now();
+  const results = await Promise.allSettled(keys.map((k) => load(k)));
+  surfaceLoadBudget(performance.now() - startMs);
+  return collectResults(keys, results);
+}
+
+/** Walk allSettled outputs into `{ loaded, failed }`. */
+function collectResults(
+  keys: ModelKey[],
+  results: PromiseSettledResult<LoadedModelHandle>[],
+): PreloadResult {
+  const loaded: LoadedModelHandle[] = [];
+  const failed: Array<{ key: ModelKey; error: Error }> = [];
+  results.forEach((r, i): void => {
+    const key = keys[i];
+    if (key === undefined) return;
+    if (r.status === 'fulfilled') {
+      loaded.push(r.value);
+    } else {
+      const reason = r.reason;
+      const error = reason instanceof Error ? reason : new Error(String(reason));
+      failed.push({ key, error });
+    }
+  });
+  return { loaded, failed };
+}
+
+/** Stash over-budget elapsed time on document.body.dataset (console is banned). */
+function surfaceLoadBudget(elapsedMs: number): void {
+  if (elapsedMs > MODEL_LOAD_BUDGET_MS) {
+    document.body.dataset['modelBudget'] = `${elapsedMs.toFixed(0)}ms`;
+  } else {
+    document.body.dataset['modelBudget'] = `${elapsedMs.toFixed(0)}ms-ok`;
+  }
+}
+
+/** Phase 1 compatibility — kept so SceneHandle.loader.preload still typechecks. */
 export async function preload(): Promise<void> {
-  // Phase 2B: const keys = Object.keys(MODEL_PATHS) as ModelKey[];
-  //           await Promise.all(keys.map(load));
+  await preloadAll();
+}
+
+/** Snapshot of every currently-cached handle. Used by SceneHandle dispose. */
+export function getAll(): ReadonlyArray<LoadedModelHandle> {
+  return Array.from(_cache.values());
+}
+
+/** Release every cached handle and reset both maps. */
+export function disposeAll(): void {
+  for (const handle of _cache.values()) {
+    handle.dispose();
+  }
+  _cache.clear();
+  _inflight.clear();
 }
 
 /**
- * Snapshot of every loaded handle currently in the cache. Used by the
- * SceneHandle dispose path to release GPU buffers in reverse-allocation
- * order.
- *
- * Phase 1 stub: returns an empty array because the cache is empty.
+ * Construct a LoaderHandle facade for the SceneHandle. Wraps the module-level
+ * state so consumers in scene/index.ts don't need to import each function
+ * individually — they just hold the handle and call its methods.
  */
-export function getAll(): ReadonlyArray<LoadedModelHandle> {
-  return [];
+export function createLoaderHandle(): LoaderHandle {
+  return {
+    preload,
+    getAll,
+    dispose: disposeAll,
+  };
 }
 
-/** Re-export the path map so LEGAL.md SHA-256 manifest tooling can iterate. */
-export const _PATHS_FOR_AUDIT: Readonly<Record<ModelKey, string>> = MODEL_PATHS;
+/** Re-export the URL map so LEGAL.md SHA-256 manifest tooling can iterate. */
+export const _PATHS_FOR_AUDIT: Readonly<Record<ModelKey, string>> = MODEL_URLS;

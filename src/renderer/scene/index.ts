@@ -43,18 +43,25 @@ import {
 import { createCamera, updateCameraAspect } from './camera';
 import { createBulbLight } from './lighting';
 import type { BulbLightHandle } from './lighting';
-import { createPlaceholderRoom } from './placeholder-room';
 import { createPostFxPipeline } from './post-fx/pipeline';
 import type { PostFxHandle } from './post-fx/pipeline';
-import {
-  createPs1MaterialFactory,
-  updatePs1MaterialAspect,
-} from './shaders/ps1-material';
+import { updatePs1MaterialAspect } from './shaders/ps1-material';
 import { mountAudioBed } from './audio/audio-bed';
 import type { AudioBedHandle } from './audio/audio-bed';
 import { mountRevolver, type RevolverHandle } from './revolver';
 import { resolveUserLocale } from '../i18n/strings';
-import type { LoaderHandle } from '../loader';
+import {
+  createLoaderHandle,
+  type LoaderHandle,
+  type LoadedModelHandle,
+  type ModelKey,
+} from '../loader';
+import {
+  attachLightbulbIfLoaded,
+  buildFactoryForQuality,
+  composeRoom,
+  preloadGlbs,
+} from './scene-glb-bridge';
 
 /** Public handle returned from mountScene. */
 export interface SceneHandle {
@@ -99,6 +106,9 @@ interface InternalResources {
   readonly quality: QualityControllerHandle;
   readonly audioBed: AudioBedHandle;
   readonly revolver: RevolverHandle;
+  readonly loader: LoaderHandle;
+  /** Preloaded GLB map keyed by ModelKey (Sprint 3 Phase 2B). */
+  readonly glbHandles: ReadonlyMap<ModelKey, LoadedModelHandle>;
   stopLoop: () => void;
   disposeResize: () => void;
   disposeQualitySub: () => void;
@@ -132,6 +142,7 @@ export async function mountScene(
       resources.frameLogger.getFrameStats(),
     audio: resources.audioBed,
     revolver: resources.revolver,
+    loader: resources.loader,
   };
 }
 
@@ -147,30 +158,28 @@ async function buildResources(
   const renderer = createRenderer(container);
   const camera = createCamera(container);
   const audioBed = await mountAudioBed();
-  // 4s fade-in for the drone bed (PLAN §2 slow-burn intro).
   audioBed.fadeInAmbient();
 
   const { frameLogger, quality } = buildTelemetry();
   const initialQuality = quality.getQualityLevel();
-  // TODO Sprint 3 Phase 2B (kraken-loader): preload all 7 GLBs via
-  // `import('../loader').preload()` before `buildSceneGraph()` so the room
-  // can compose its meshes from the cached handles instead of primitive
-  // cubes. Budget: MODEL_LOAD_BUDGET_MS=4000ms per PLAN §13. Surface
-  // over-budget runs via `document.body.dataset['modelBudget']` (console
-  // is banned). Pass the resulting LoaderHandle into the room builder +
-  // revolver mount, and stash it on `resources.loader` so SceneHandle
-  // exposes it and dispose() can iterate getAll() in reverse-allocation
-  // order. Phase 1 (scaffold) intentionally skips this step.
-  const { scene, room, bulb } = buildSceneGraph(container, initialQuality);
+  // Sprint 3 Phase 2B: parallel preload of all 7 GLBs before scene graph
+  // composition. Promise.allSettled — one failed GLB renders placeholder
+  // for that key, scene stays whole (designer §8.1).
+  const glbHandles = await preloadGlbs();
+  const loader = createLoaderHandle();
+  const { scene, room, bulb } = buildSceneGraph(
+    container, initialQuality, glbHandles,
+  );
   const postFx = createPostFxPipeline(renderer, scene, camera, initialQuality);
   const revolver = mountRevolver(
     scene, room, hudContainer, resolveUserLocale(),
     audioBed, bulb, camera, bangOverlay,
+    glbHandles.get('revolver') ?? null,
   );
 
   const resources: InternalResources = {
     renderer, scene, camera, postFx, room, bulb,
-    frameLogger, quality, audioBed, revolver,
+    frameLogger, quality, audioBed, revolver, loader, glbHandles,
     stopLoop: (): void => undefined,
     disposeResize: (): void => undefined,
     disposeQualitySub: (): void => undefined,
@@ -207,20 +216,27 @@ function buildTelemetry(): {
 }
 
 /**
- * Build the Three.js scene graph: scene + placeholder room (PS1 material
- * factory baked in) + bulb light + ambient. Pure construction; no I/O,
- * no listeners. Caller wires the result into the post-fx composer.
+ * Build the Three.js scene graph: scene + room + bulb light + ambient. Pure
+ * construction; no I/O, no listeners. Caller wires the result into the
+ * post-fx composer.
+ *
+ * Sprint 3 Phase 2B: the room is built from preloaded GLB handles when
+ * available (designer model-freeze §8 production path). If no room GLBs
+ * loaded successfully, falls back to the Sprint 1 primitive cube path.
+ * The 'high' quality tier additionally swaps GLB materials for PS1
+ * ShaderMaterial (affine-UV vertex snap) per designer §6.
  */
 function buildSceneGraph(
   container: HTMLElement,
   quality: QualityLevel,
+  glbHandles: ReadonlyMap<ModelKey, LoadedModelHandle>,
 ): { scene: Scene; room: Group; bulb: BulbLightHandle } {
-  const aspect = container.clientWidth / Math.max(container.clientHeight, 1);
   const scene = createScene(quality);
-  const factory = createPs1MaterialFactory(quality, aspect);
-  const room = createPlaceholderRoom(factory);
+  const factory = buildFactoryForQuality(quality, container);
+  const room = composeRoom(glbHandles, factory, quality);
   scene.add(room);
   const bulb = createBulbLight();
+  attachLightbulbIfLoaded(bulb, glbHandles);
   scene.add(bulb.light);
   scene.add(bulb.bulbMesh);
   return { scene, room, bulb };
@@ -291,12 +307,13 @@ function rebuildRoomMaterials(
   resources: InternalResources,
   next: QualityLevel,
 ): void {
-  const container = resources.renderer.domElement;
   disposeRoomGroup(resources.room);
   resources.scene.remove(resources.room);
-  const aspect = container.clientWidth / Math.max(container.clientHeight, 1);
-  const factory = createPs1MaterialFactory(next, aspect);
-  const fresh = createPlaceholderRoom(factory);
+  const factory = buildFactoryForQuality(next, resources.renderer.domElement);
+  // Sprint 3 Phase 2B: re-compose from GLB handles on tier change so the
+  // PS1 ShaderMaterial swap (high tier) on the 5 textured GLB meshes
+  // applies; falls back to cubes if no GLBs are loaded.
+  const fresh = composeRoom(resources.glbHandles, factory, next);
   resources.scene.add(fresh);
   resources.room = fresh;
 }
@@ -352,6 +369,12 @@ async function disposeAll(
   resources.bulb.dispose();
   disposeRoomGroup(resources.room);
   resources.postFx.dispose();
+  // Sprint 3 Phase 2B: release every cached GLB scene's geometry + materials
+  // + textures via the loader handle. Runs AFTER room/revolver/bulb dispose
+  // because those subsystems hold cloned subtrees; the loader's source
+  // scenes are disposed last so any cloned children's geometry references
+  // are still valid during their own dispose pass.
+  resources.loader.dispose();
   await resources.audioBed.dispose();
   resources.renderer.dispose();
   if (resources.renderer.domElement.parentNode === container) {

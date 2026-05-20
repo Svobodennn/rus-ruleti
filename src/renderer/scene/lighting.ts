@@ -31,10 +31,13 @@ import {
   Color,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   PointLight,
   SphereGeometry,
 } from 'three';
+import type { Group } from 'three';
 import { AMBIENT_LIGHT, BULB_LIGHT } from '../../shared/scene-constants';
+import { MODEL_SCALE_LIGHTBULB } from '../../shared/scene-model-constants';
 import {
   LIGHTING_FLICKER_DEPTH,
   TENSION_MICRO_PULSE_AMP,
@@ -84,6 +87,28 @@ export interface BulbLightHandle {
    * last 100ms of trigger hold (designer §3).
    */
   setMicroPulseActive: (active: boolean) => void;
+  /**
+   * Attach the loaded lightbulb GLB scene as a child of the PointLight.
+   *
+   * Sprint 3 Phase 2B kraken-loader hook (model-freeze §8.3):
+   *   1. The GLB Group is parented to the PointLight so it tracks the
+   *      Lissajous sway organically — when the light position swings,
+   *      the bulb mesh swings with it because the parent transform
+   *      carries the children.
+   *   2. The original placeholder sphere (`bulbMesh`) is hidden — the
+   *      light is the same, only the visible glass envelope changes.
+   *   3. Every MeshStandardMaterial in the GLB has its `.emissive` killed
+   *      to pure black so the bulb only glows because of the cone landing
+   *      on it (model-freeze §3.2 "porcelain duy lit from the cone, not
+   *      from baked emissive"). Without this kill, the GLB's authored
+   *      emissive blooms in the chromatic post-pass and the bulb looks
+   *      like a neon sign instead of a tungsten filament.
+   *
+   * Called once at scene mount. Idempotent: subsequent calls re-parent the
+   * (already-attached) Group as a child of the PointLight (Three.js Group
+   * automatically detaches from prior parent on re-add).
+   */
+  attachToMesh: (lightbulbScene: Group) => void;
   /** Tear down. Frees GPU buffers + dispose materials. */
   dispose: () => void;
 }
@@ -122,10 +147,13 @@ export function createBulbLight(): BulbLightHandle {
   const setMicroPulseActive = (active: boolean): void => {
     dynamicState.microPulseActive = active;
   };
+  const attachToMesh = (lightbulbScene: Group): void => {
+    attachLightbulbGlbAsChild(light, bulbMesh, lightbulbScene);
+  };
   const dispose = buildDisposer(bulbMesh);
 
   return {
-    light, bulbMesh, update, dispose,
+    light, bulbMesh, update, dispose, attachToMesh,
     setBaseIntensityFactor, triggerFlicker, setMicroPulseActive,
   };
 }
@@ -261,4 +289,48 @@ function buildDisposer(bulbMesh: Mesh): () => void {
       mat.dispose();
     }
   };
+}
+
+/**
+ * Parent the lightbulb GLB to the PointLight, scale it, hide the placeholder
+ * sphere, and kill the GLB's baked emissive so the bulb only glows from the
+ * cone falloff (model-freeze §3.2). The GLB position stays relative to the
+ * parent — so [0,0,0] sits dead-centre on the PointLight pivot and the
+ * Lissajous sway carries through.
+ */
+function attachLightbulbGlbAsChild(
+  light: PointLight,
+  placeholderMesh: Mesh,
+  lightbulbScene: Group,
+): void {
+  lightbulbScene.scale.setScalar(MODEL_SCALE_LIGHTBULB);
+  lightbulbScene.position.set(0, 0, 0);
+  light.add(lightbulbScene);
+  placeholderMesh.visible = false;
+  killEmissiveOnGlb(lightbulbScene);
+}
+
+/**
+ * Walk the GLB scene and zero every MeshStandardMaterial's emissive. Some
+ * Poly Pizza authors ship a glowing-bulb albedo with a strong emissive; we
+ * want the bulb's brightness to come from the PointLight's cone hitting the
+ * envelope, not from a baked emissive in the GLB.
+ */
+function killEmissiveOnGlb(lightbulbScene: Group): void {
+  lightbulbScene.traverse((obj): void => {
+    if (!(obj instanceof Mesh)) return;
+    const mat = obj.material;
+    if (Array.isArray(mat)) {
+      mat.forEach(killEmissiveOnMaterial);
+    } else {
+      killEmissiveOnMaterial(mat);
+    }
+  });
+}
+
+/** Zero `.emissive` + `.emissiveIntensity` on a single material if present. */
+function killEmissiveOnMaterial(mat: unknown): void {
+  if (!(mat instanceof MeshStandardMaterial)) return;
+  mat.emissive.set('#000000');
+  mat.emissiveIntensity = 0;
 }

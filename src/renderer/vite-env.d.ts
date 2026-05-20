@@ -15,3 +15,17 @@ declare module '*.glsl?raw' {
   const source: string;
   export default source;
 }
+
+/**
+ * Vite `?url` import for binary GLB files.
+ *
+ * Sprint 3 Phase 2B kraken-loader uses `import revolverUrl from './revolver.glb?url'`
+ * to obtain a hashed asset URL that Vite copies into the output bundle. The
+ * URL string is what `GLTFLoader.loadAsync` consumes. Importing without `?url`
+ * would attempt to parse the binary as a module — broken.
+ */
+declare module '*.glb?url' {
+  /** Resolved asset URL produced by Vite's static-asset pipeline. */
+  const url: string;
+  export default url;
+}

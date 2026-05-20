@@ -26,8 +26,12 @@ export { loadGLTFFromPath, disposeModel } from './gltf-loader';
 export {
   load,
   preload,
+  preloadAll,
   getAll,
+  disposeAll,
+  createLoaderHandle,
   _PATHS_FOR_AUDIT,
+  type PreloadResult,
 } from './model-registry';
 
 export {
