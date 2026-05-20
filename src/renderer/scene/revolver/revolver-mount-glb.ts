@@ -150,8 +150,14 @@ function wrapMonolithicMesh(group: Group, instance: Group): void {
 
 /**
  * Walk the cloned revolver GLB and apply the revolver's material color
- * override (MATERIAL_COLOR_OVERRIDE_BY_KEY['revolver'] = '#1a1816' — gunmetal
- * just above oak). Mirrors placeholder-room.ts's override on the room GLBs.
+ * override. Sprint 3 runtime calibration lifted the gunmetal hex from the
+ * original near-shadow value to a mid-tone gunmetal that actually
+ * reflects bulb-cone light back to camera (see
+ * scene-model-constants.ts MATERIAL_COLOR_OVERRIDE_BY_KEY JSDoc for the
+ * full per-key luminance band table). The constant export is the source
+ * of truth — we read from MATERIAL_COLOR_OVERRIDE_BY_KEY['revolver']
+ * rather than hardcoding the hex here. Mirrors placeholder-room.ts's
+ * override on the room GLBs.
  */
 function applyRevolverGlbMaterial(instance: Group): void {
   const hex = MATERIAL_COLOR_OVERRIDE_BY_KEY['revolver'];
