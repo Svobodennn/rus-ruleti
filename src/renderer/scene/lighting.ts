@@ -29,6 +29,7 @@
 import {
   AmbientLight,
   Color,
+  HemisphereLight,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -36,7 +37,11 @@ import {
   SphereGeometry,
 } from 'three';
 import type { Group } from 'three';
-import { AMBIENT_LIGHT, BULB_LIGHT } from '../../shared/scene-constants';
+import {
+  AMBIENT_LIGHT,
+  BULB_LIGHT,
+  HEMISPHERE_LIGHT,
+} from '../../shared/scene-constants';
 import { MODEL_SCALE_LIGHTBULB } from '../../shared/scene-model-constants';
 import {
   LIGHTING_FLICKER_DEPTH,
@@ -124,7 +129,12 @@ export function createBulbLight(): BulbLightHandle {
   const light = createPointLight();
   const bulbMesh = createBulbMesh(light);
   const ambient = createAmbientLight();
+  const hemisphere = createHemisphereLight();
   light.add(ambient);
+  // Parent the HemisphereLight under the PointLight too; HemisphereLight is
+  // position-independent (only the up-axis matters), so parenting is purely
+  // scene-graph convenience — index.ts adds one node and gets all three lights.
+  light.add(hemisphere);
 
   // Mutable bag the swayUpdater consults each frame so empty-click cues
   // (setBaseIntensityFactor, triggerFlicker) can write here without
@@ -210,6 +220,26 @@ function createAmbientLight(): AmbientLight {
   );
   ambient.name = 'ambient-floor';
   return ambient;
+}
+
+/**
+ * Sky/ground HemisphereLight — Sprint 3 runtime calibration.
+ *
+ * Adds a non-directional fill where up-facing surfaces pick up the cool
+ * `skyColor` (suggests a thin cellar-window leak) and down-facing surfaces
+ * pick up the warm `groundColor` (suggests floor bounce from the sodium
+ * bulb cone). HemisphereLight casts no shadows and is cheaper than a
+ * second PointLight; intensity stays below the AmbientLight so the
+ * single-bulb chiaroscuro reads as the dominant lighting motif.
+ */
+function createHemisphereLight(): HemisphereLight {
+  const hemi = new HemisphereLight(
+    new Color(HEMISPHERE_LIGHT.skyColor),
+    new Color(HEMISPHERE_LIGHT.groundColor),
+    HEMISPHERE_LIGHT.intensity,
+  );
+  hemi.name = 'hemi-fill';
+  return hemi;
 }
 
 /* ------------------------------------------------------------------------ */

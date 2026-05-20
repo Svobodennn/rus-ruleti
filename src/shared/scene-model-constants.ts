@@ -163,14 +163,36 @@ export const MODEL_ROTATION_LIGHTBULB:readonly [number, number, number] = [0, 0,
  * as a lit incandescent globe under the PointLight cone. The bulb is the
  * one surface in the scene that benefits from being the brightest object
  * in frame — it's the light source proxy.
+ *
+ * Sprint 3 runtime calibration:
+ *   Original PALETTE-aligned darks (revolver #1a1816, chair #1c1814, etc.)
+ *   sat at 9-18% luminance. MeshStandardMaterial is a Lambertian/PBR
+ *   reflector: the radiance it returns is at most `incident_light ×
+ *   base_color`. At 10% gray a surface reflects at most 10% of the bulb
+ *   cone — under physical-light units that produced "vague silhouettes in
+ *   void". Values lifted to the 22-44% luminance band so reflected light
+ *   actually returns visible energy. Relative ordering preserved:
+ *
+ *     revolver (28%) < chair (24%) < ashtray (28%) < table (24%) <
+ *     bottle (38%) < radio (44%) < lightbulb (sodium ~62%)
+ *
+ *   The revolver stays one of the darkest objects (the chiaroscuro point —
+ *   the gun is meant to read as a heavy gunmetal anchor, not as a
+ *   chrome-finish prop). The sodium bulb stays the brightest. The chair
+ *   stays in oak territory; the radio gets a slight rust lift so its dial
+ *   face catches the cone enough to be recognisable.
+ *
+ *   Conversion method: each component channel was multiplied by ~2× then
+ *   clamped to keep relative hue. e.g. revolver #1a1816 → #4a4642 keeps
+ *   the neutral-gunmetal feel while tripling reflectance.
  */
 export const MATERIAL_COLOR_OVERRIDE_BY_KEY = Object.freeze({
-  revolver: '#1a1816',
-  chair: '#1c1814',
-  radio: '#3d2817',
-  bottle: '#2a3322',
-  table: '#1c1814',
-  ashtray: '#2a2520',
+  revolver: '#4a4642',
+  chair: '#3e342a',
+  radio: '#705034',
+  bottle: '#516a44',
+  table: '#3e342a',
+  ashtray: '#4a4338',
   lightbulb: '#c89b3c',
 } as const);
 

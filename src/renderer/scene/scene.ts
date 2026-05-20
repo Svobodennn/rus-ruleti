@@ -23,10 +23,12 @@
  */
 
 import {
+  ACESFilmicToneMapping,
   Clock,
   Color,
   FogExp2,
   Scene,
+  SRGBColorSpace,
   WebGLRenderer,
 } from 'three';
 import {
@@ -35,6 +37,7 @@ import {
   FOG_DENSITY_LOW,
   FOG_DENSITY_MEDIUM,
   RENDERER,
+  RENDERER_TONE_MAPPING_EXPOSURE,
   type QualityLevel,
 } from '../../shared/scene-constants';
 import type { PostFxHandle } from './post-fx/pipeline';
@@ -47,6 +50,21 @@ export type SceneFrameUpdate = (elapsedSec: number, deltaMs: number) => void;
  *
  * antialias is OFF (PS1 aesthetic — jagged edges are intentional). pixelRatio
  * is capped at 2 to avoid blowing fragment count on high-DPR displays.
+ *
+ * Sprint 3 runtime lighting calibration:
+ *   - `outputColorSpace = SRGBColorSpace` — Three r152+ defaults to
+ *     LinearSRGBColorSpace which crushes midtones (the rendered scene goes
+ *     out un-gamma-corrected and the user sees raw linear values, which
+ *     read as "dark almost everywhere"). SRGBColorSpace applies the proper
+ *     gamma curve on output so 50% physical luminance reads as 50% perceived.
+ *   - `toneMapping = ACESFilmicToneMapping` — Three's default is
+ *     NoToneMapping which clips highlights and crushes lows. ACES is the
+ *     industry-standard filmic curve: lifts midtones perceptually,
+ *     compresses highlights gently, gives the warm tungsten bulb a film
+ *     look instead of clipping. The cellar aesthetic benefits massively.
+ *   - `toneMappingExposure` lifts the whole image. 1.0 is neutral; values
+ *     >1.0 brighten before the ACES curve is applied. Tuned at 1.4 to
+ *     compensate for the dim single-bulb scene without going "office bright".
  */
 export function createRenderer(container: HTMLElement): WebGLRenderer {
   const renderer = new WebGLRenderer({
@@ -58,6 +76,9 @@ export function createRenderer(container: HTMLElement): WebGLRenderer {
   );
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setClearColor(new Color(FOG_COLOR));
+  renderer.outputColorSpace = SRGBColorSpace;
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = RENDERER_TONE_MAPPING_EXPOSURE;
   return renderer;
 }
 
