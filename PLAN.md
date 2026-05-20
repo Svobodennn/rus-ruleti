@@ -495,6 +495,29 @@ shortcut additions live in separate handlers and do not race the IPC path.
   Phase 2 counter is free to split digit/separator into spans if a pure-segment
   look is required.
 
+### 3D Models (Sprint 3 vendor — B3 hybrid)
+
+CC0 / CC-BY low-poly models from Poly Pizza, auto-vendored 2026-05-20. Stored under `src/renderer/assets/models/`. Total payload 244KB.
+
+**CC0 (Quaternius — no attribution required, credited as good practice):**
+- **Revolver** — `revolver.glb` — https://poly.pizza/m/E7IaG9TptR — generic low-poly, chamber opaque (RNG visibility safe per designer §6).
+- **Chair** — `chair.glb` — https://poly.pizza/m/iMNqRzPwwe
+- **Radio** — `radio.glb` — https://poly.pizza/m/TPqvwkyWdV (generic vintage; user may override with Soviet VEF/Mayak-202 from Sketchfab)
+- **Bottle** — `bottle.glb` — https://poly.pizza/m/FAHsHFXfTf (label can be texture-painted in renderer)
+
+**CC-BY 4.0 (attribution required in About + LEGAL.md):**
+- **Table** by dook — `table.glb` — https://poly.pizza/m/7qAyGZnerYt
+- **Ashtray** by dook — `ashtray.glb` — https://poly.pizza/m/aHmJIWIr1vI
+- **Light bulb** by Jason Toff — `lightbulb.glb` — https://poly.pizza/m/4TkYCZMlbS6
+
+**User-vendored (Sketchfab CC-BY, downloaded manually):**
+- See `src/renderer/assets/models/incoming/README.md` for the download list (radio USSR, samovar, podstakannik, Nagant revolver override, 60s Soviet table override).
+- Each user-vendored file requires attribution append to README + LEGAL.md.
+
+**Procedural (no model file):**
+- 5 kopek coin — CylinderGeometry r=0.012m h=0.0015m, 16 segments, brass material
+- Cigarette stub on ashtray — small CylinderGeometry
+
 ### Görsel
 - **Wallpaper (Faz 2):** Blender procedural render — Mac varyantı için dağ/sis, Win varyantı için bloom-abstract. Apple/Microsoft default kullanılmaz.
 - **Propaganda afişi:** Solgun, okunmaz, kendi tasarım.
