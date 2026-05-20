@@ -44,23 +44,22 @@
    ───────────────────────────────────────────────────────────── */
 
 .crt-overlay {
-  /* Scanline darkness: 0 invisible → 1 solid black bars. 0.18 reads as
-   * "broken signal" without obscuring the room. */
-  --crt-scanline-alpha: 0.18;
+  /* Scanline darkness. Sprint 3 calibration: 0.18 cumulatively darkened
+   * the GLB scene below readability. 0.10 keeps the "broken signal"
+   * texture without crushing midtones. */
+  --crt-scanline-alpha: 0.10;
 
-  /* Vertical period of the scanline stripe. 3px → 1px dark / 2px clear.
-   * On a HiDPI display this is sub-pixel-crisp; on a 1× monitor it shows
-   * as a faintly visible bar. */
+  /* Vertical period of the scanline stripe. 3px → 1px dark / 2px clear. */
   --crt-scanline-gap: 3px;
 
-  /* Film-grain opacity over the whole viewport. 0.08 is "old film stock";
-   * pushing above 0.12 starts to read as digital noise. */
-  --crt-grain-opacity: 0.08;
+  /* Film-grain opacity. Sprint 3 calibration: 0.08 → 0.05 to lift
+   * midtones (grain texture preserved, just less density). */
+  --crt-grain-opacity: 0.05;
 
-  /* Vignette darkness at the four corners. 0.5 reads as "looking through a
-   * viewfinder"; 1.0 would clip the corners to total black. The radial
-   * gradient multiplies this by 0.8 so the centre stays clear. */
-  --crt-vignette-strength: 0.5;
+  /* Vignette corner darkness. Sprint 3 calibration: 0.5 → 0.28 — corners
+   * still suggest viewfinder but no longer crush the room's silhouette
+   * edges to pure black. Centre is multiplied by 0.8 in the gradient. */
+  --crt-vignette-strength: 0.28;
 }
 
 /* ─────────────────────────────────────────────────────────────
