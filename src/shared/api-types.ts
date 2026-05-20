@@ -55,4 +55,19 @@ export interface RusRuletiApi {
    * Fire-and-forget — main writes to electron-log and never replies.
    */
   sendFrameStats: (payload: FrameStatsPayload) => void;
+  /**
+   * Returns the OS login username (Sprint 4 PLAN §12 S2 risk closure).
+   *
+   * Resolved via IPC `os:get-username`; main process owns the `os` module
+   * call and returns ONLY the username string (no homedir, no hostname, no
+   * other os.userInfo fields). Renderer's Faz 3 terminal substitutes the
+   * result into FAKE_FILE_PATHS_* templates so the joke uses the user's real
+   * login name instead of a hardcoded "USER" / "Melih". If the main-process
+   * lookup fails the resolved string is "unknown" (see main/ipc.ts).
+   *
+   * Called by: src/renderer/scene/destruction/destruction-director.ts (FSM
+   * entry — caches username before entering Faz 3 so the typewriter does not
+   * block on IPC mid-sequence).
+   */
+  getUsername: () => Promise<string>;
 }

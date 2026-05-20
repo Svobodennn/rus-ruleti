@@ -14,6 +14,13 @@
  *   - scene-model-constants.ts  — Sprint 3: MODEL_SCALE_*, MODEL_POSITION_*,
  *                                  MODEL_ROTATION_*, SMOKE_*, MODEL_LOAD_BUDGET_MS,
  *                                  PROC_TEXTURE_BUDGET_MS, PROC_TEXTURE_DIMENSIONS
+ *   - scene-destruction-constants.ts — Sprint 4: FAZ_*_DURATION_MS, TINNITUS_*,
+ *                                  LOW_PASS_CUTOFF_HZ, BANG_CAMERA_SHAKE_*,
+ *                                  APARTMENT_BLEED_*, DIALOG_*_DIMENSIONS,
+ *                                  TOAST_*, TYPEWRITER_*_CHARS_PER_SEC,
+ *                                  WALLPAPER_*_PALETTE, MENUBAR/TASKBAR_*_PX,
+ *                                  FAKE_FILE_PATHS_*, TOAST_MESSAGES_*,
+ *                                  PREFERS_REDUCED_MOTION_QUERY, USERNAME_PLACEHOLDER
  *
  * This file keeps the Phase 1 base (QualityLevel, frame budgets, AMBIENT_LAYERS,
  * AMBIENT_BULB_HUM_HZ) and re-exports everything else so existing consumers
@@ -124,3 +131,4 @@ export * from './scene-audio-constants';
 export * from './scene-shader-constants';
 export * from './scene-revolver-constants';
 export * from './scene-model-constants';
+export * from './scene-destruction-constants';

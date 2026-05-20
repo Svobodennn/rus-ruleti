@@ -273,7 +273,10 @@ function finalizeFiring(
   const nextAfterFall = onAnimationComplete(state.value, 'fall', revealLite);
   state.value = nextAfterFall;
   if (outcome === 'bang') {
-    // Bang: state.value === firing(bang), terminal hold for Sprint 4.
+    // Sprint 4: onAnimationComplete transitions firing(bang) →
+    // destruction-active. The revolver FSM is now locked; destruction-
+    // director (subscribed to the bang-fired CustomEvent emitted by
+    // revolver-effects.triggerBangOverlay) owns the timeline from here.
     return;
   }
   if (revealLite) {

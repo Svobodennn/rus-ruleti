@@ -67,6 +67,10 @@ import {
 } from './scene-glb-bridge';
 import type { SmokeHandle } from './particles/smoke';
 import { disposeAllProceduralTextures } from '../loader/procedural-textures';
+import {
+  mountDestructionDirector,
+  type DestructionDirectorHandle,
+} from './destruction';
 
 /** Public handle returned from mountScene. */
 export interface SceneHandle {
@@ -97,6 +101,36 @@ export interface SceneHandle {
    * every call site.
    */
   loader?: LoaderHandle;
+  /**
+   * Sprint 4 Phase 1: data URL snapshot of the lobby canvas captured at
+   * scene-mount complete (after the first rAF). ApartmentBleed consumes
+   * this string as the backing image for its flicker overlay so the bleed
+   * "leaks" the real lobby through the destruction takeover.
+   *
+   * Optional because the rAF-deferred capture races mount returning the
+   * handle — callers that need a guaranteed snapshot should resolve via a
+   * Phase 2B-added Promise. For ApartmentBleed (mounted lazily ~11s after
+   * bang) the rAF has long resolved and the field is populated.
+   *
+   * Explicit `| undefined` because tsconfig has exactOptionalPropertyTypes
+   * (Sprint 0 strict-mode posture) — the `?` modifier on its own is
+   * insufficient when the implementation may legitimately set the field
+   * to `undefined` (toDataURL throw path).
+   */
+  lobbySnapshotDataUrl?: string | undefined;
+  /**
+   * Sprint 4 Phase 1: destruction-director handle. Mounted eagerly in
+   * buildResources so its bang-fired CustomEvent listener is attached
+   * before the user can pull the trigger. Phase 1 stub bodies; Phase 2B
+   * kraken-faz0-1 fills.
+   *
+   * Explicit `| null` so SceneHandle.dispose() can walk the field
+   * defensively (the union encodes "may not yet be ready" intent at the
+   * type level; Phase 1 always populates it so today's runtime value is
+   * never null, but Sprint 5 may add a "wait until first bang" lazy
+   * variant without a type churn).
+   */
+  destructionDirector?: DestructionDirectorHandle | null;
 }
 
 /** Internal bag of resources mountScene needs to track for disposal. */
@@ -118,6 +152,13 @@ interface InternalResources {
   readonly smoke: SmokeHandle;
   /** Procedural-texture surface planes (Sprint 3 Phase 2B §8.5). */
   readonly proceduralTextures: ProceduralTextureSurfacesHandle;
+  /** Sprint 4 Phase 1: destruction-director, mounted eagerly so its
+   *  bang-fired listener is attached before user can pull the trigger. */
+  readonly destructionDirector: DestructionDirectorHandle;
+  /** Sprint 4 Phase 1: lobby canvas snapshot for ApartmentBleed. Mutable
+   *  because it's captured via rAF AFTER buildResources returns. Explicit
+   *  `| undefined` per the exactOptionalPropertyTypes tsconfig posture. */
+  lobbySnapshotDataUrl?: string | undefined;
   stopLoop: () => void;
   disposeResize: () => void;
   disposeQualitySub: () => void;
@@ -144,6 +185,20 @@ export async function mountScene(
   const resources = await buildResources(container, hudContainer, bangOverlay);
   attachToContainer(container, resources.renderer);
   bangOverlay.dataset['sceneMounted'] = 'true';
+  // Sprint 4 Phase 1: capture lobby snapshot AFTER first frame renders.
+  // ApartmentBleed (Phase 2B kraken-faz2-3) consumes the data URL to
+  // flicker the lobby back during Faz 2 / Faz 3. Try/catch because
+  // toDataURL can throw on WebGL contexts where preserveDrawingBuffer
+  // was not set; we fall back to an empty handle field (ApartmentBleed
+  // designer-§8 a11y matrix has a no-snapshot fallback path).
+  requestAnimationFrame((): void => {
+    try {
+      resources.lobbySnapshotDataUrl =
+        resources.renderer.domElement.toDataURL('image/png');
+    } catch {
+      resources.lobbySnapshotDataUrl = undefined;
+    }
+  });
 
   return {
     dispose: async (): Promise<void> => disposeAll(container, resources),
@@ -153,6 +208,10 @@ export async function mountScene(
     audio: resources.audioBed,
     revolver: resources.revolver,
     loader: resources.loader,
+    get lobbySnapshotDataUrl(): string | undefined {
+      return resources.lobbySnapshotDataUrl;
+    },
+    destructionDirector: resources.destructionDirector,
   };
 }
 
@@ -190,11 +249,15 @@ async function buildResources(
   const smoke = mountSmokeIfReady(scene, initialQuality);
   // Sprint 3 Phase 2B FIX 2: mount procedural texture surfaces (§8.5).
   const proceduralTextures = await mountProceduralTextureSurfaces(scene);
+  // Sprint 4 Phase 1: destruction-director mounted eagerly so its
+  // bang-fired CustomEvent listener is attached before the user can pull
+  // the trigger. Stub bodies in Phase 1; Phase 2B kraken-faz0-1 fills.
+  const destructionDirector = mountDestructionDirector(scene);
 
   const resources: InternalResources = {
     renderer, scene, camera, postFx, room, bulb,
     frameLogger, quality, audioBed, revolver, loader, glbHandles,
-    smoke, proceduralTextures,
+    smoke, proceduralTextures, destructionDirector,
     stopLoop: (): void => undefined,
     disposeResize: (): void => undefined,
     disposeQualitySub: (): void => undefined,
@@ -378,12 +441,17 @@ function attachToContainer(
  * Tear down all resources in reverse-allocation order.
  *
  * Order: stopLoop → resize → qualitySubs → logger → quality →
- * revolver → smoke → proceduralTextures → bulb → room → postFx →
- * loader → audio → renderer → DOM.
+ * destructionDirector → revolver → smoke → proceduralTextures → bulb →
+ * room → postFx → loader → audio → renderer → DOM.
  *
  * Deviation from §8.10 spec: cloned GLB subtrees own independent GPU
  * buffers so revolver/smoke/textures relative ordering is safe. The hard
  * constraint — loader source scenes disposed last — is preserved.
+ *
+ * Sprint 4: destruction-director disposes BEFORE revolver so its
+ * bang-fired CustomEvent listener / MutationObserver on the bang-overlay
+ * is detached before the overlay element itself is reset by
+ * revolver.dispose() (avoids a stale-DOM observer fire during teardown).
  */
 async function disposeAll(
   container: HTMLElement,
@@ -395,6 +463,9 @@ async function disposeAll(
   resources.disposeQualitySmokeSub();
   resources.frameLogger.dispose();
   resources.quality.dispose();
+  // Sprint 4 Phase 1: destruction-director dispose first among DOM-touching
+  // subsystems so its listener detach precedes any DOM mutation downstream.
+  resources.destructionDirector.dispose();
   // Revolver disposal (input listeners + HUD DOM + mesh group removal) runs
   // BEFORE audio so empty-click cue handlers can no longer reach into the
   // audio context after it closes.

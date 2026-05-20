@@ -48,13 +48,20 @@ export type TriggerOutcome = 'empty' | 'bang';
  * other field is specific to the variant. Switch on `kind` with
  * `assertNever(s)` in the `default` branch so adding a new state forces
  * every switch in the codebase to handle it (compile error otherwise).
+ *
+ * Sprint 4: `destruction-active` is the terminal state for the bang path.
+ * Once entered, the revolver FSM is locked — every input transition is a
+ * no-op. The destruction-director (a peer module) takes over the user's
+ * timeline from this point. Recovery from destruction-active only happens
+ * via SceneHandle.dispose() + re-mount (lobby reload).
  */
 export type RevolverState =
   | { kind: 'idle' }
   | { kind: 'cocking'; holdStartMs: number }
   | { kind: 'spinning'; rngOutcome: TriggerOutcome }
   | { kind: 'firing'; outcome: TriggerOutcome }
-  | { kind: 'reveal-lite' };
+  | { kind: 'reveal-lite' }
+  | { kind: 'destruction-active' };
 
 /** Exhaustive-switch helper. Compile error if `s` is not `never`. */
 export function assertNever(s: never): never {
@@ -83,6 +90,9 @@ export function onMouseDown(
     case 'firing':
       return state;
     case 'reveal-lite':
+      return state;
+    case 'destruction-active':
+      // Sprint 4: terminal — input ignored, destruction-director owns timeline.
       return state;
     default:
       return assertNever(state);
@@ -122,6 +132,9 @@ export function onMouseUp(
       return state;
     case 'reveal-lite':
       return state;
+    case 'destruction-active':
+      // Sprint 4: terminal — input ignored, destruction-director owns timeline.
+      return state;
     default:
       return assertNever(state);
   }
@@ -153,7 +166,10 @@ export function onAnimationComplete(
     case 'firing':
       if (clip === 'fall' || clip === 'kick') {
         if (state.outcome === 'bang') {
-          return state;
+          // Sprint 4: fall+kick completion on a bang outcome hands the FSM
+          // off to the destruction-director. The revolver FSM is locked
+          // from this point until SceneHandle.dispose() re-mounts.
+          return { kind: 'destruction-active' };
         }
         return revealLite ? { kind: 'reveal-lite' } : { kind: 'idle' };
       }
@@ -163,6 +179,9 @@ export function onAnimationComplete(
     case 'cocking':
       return state;
     case 'reveal-lite':
+      return state;
+    case 'destruction-active':
+      // Sprint 4: terminal — animations are no-ops once destruction-active.
       return state;
     default:
       return assertNever(state);

@@ -16,6 +16,13 @@
  * Sprint 1 additions:
  *   - frame:stats    renderer pushes rolling frame-time summary to main for
  *                    electron-log persistence (S1 risk telemetry).
+ *
+ * Sprint 4 additions:
+ *   - os:get-username  renderer asks main for the OS user's login name
+ *                      (os.userInfo().username, main-process side). Closes
+ *                      PLAN §12 S2 risk (no hardcoded "USER" in Faz 3
+ *                      terminal). Preload bridge exposes only the string —
+ *                      no homedir, no hostname, no other os.userInfo fields.
  */
 
 export const IPC_CHANNELS = {
@@ -23,6 +30,7 @@ export const IPC_CHANNELS = {
   OS_GET: 'os:get',
   KIOSK_TOGGLE: 'kiosk:toggle',
   FRAME_STATS: 'frame:stats',
+  OS_GET_USERNAME: 'os:get-username',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -33,6 +41,7 @@ export const ALLOWED_IPC_CHANNELS: ReadonlyArray<IpcChannel> = [
   IPC_CHANNELS.OS_GET,
   IPC_CHANNELS.KIOSK_TOGGLE,
   IPC_CHANNELS.FRAME_STATS,
+  IPC_CHANNELS.OS_GET_USERNAME,
 ];
 
 export type OsFamily = 'mac' | 'win';

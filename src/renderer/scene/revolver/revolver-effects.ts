@@ -218,11 +218,27 @@ async function playBangSequence(ctx: EffectContext): Promise<void> {
  * `.bang-overlay.is-fired .bang-black { animation: ... }`. Durations flow
  * from SSOT constants into CSS via custom properties so the values are a
  * true SSOT (no dead dataset write that CSS never reads).
+ *
+ * Sprint 4 handoff: in addition to the class toggle, emit a `bang-fired`
+ * CustomEvent on `document` so destruction-director (a peer module that
+ * subscribes from outside the revolver subsystem) can begin Faz 0 without
+ * either (a) hand-wiring a callback through every layer of the revolver
+ * call chain or (b) racing the destruction-director's MutationObserver
+ * fallback on `.bang-overlay.is-fired`. Two parallel detection paths
+ * (event + observer) means a missed listener attach is not a hang.
  */
 function triggerBangOverlay(overlay: HTMLElement): void {
   overlay.style.setProperty('--bang-flash-ms', `${BANG_FLASH_DURATION_MS}ms`);
   overlay.style.setProperty('--bang-fade-ms', `${BANG_FADE_TO_BLACK_MS}ms`);
   overlay.classList.add('is-fired');
+  // Sprint 4: destruction-director subscribes to this event. Detail
+  // payload carries the performance.now() timestamp so the director's FSM
+  // can compute APARTMENT_BLEED_*_TRIGGER_MS offsets without re-querying.
+  document.dispatchEvent(
+    new CustomEvent('bang-fired', {
+      detail: { timestamp: performance.now() },
+    }),
+  );
 }
 
 /** Empty sequence — flicker bulb, darken, increment cues, update counter. */

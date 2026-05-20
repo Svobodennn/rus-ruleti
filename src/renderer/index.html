@@ -2,10 +2,16 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <!-- CSP: no remote resources, no inline eval. Sprint 0 scaffold posture. -->
+    <!--
+      CSP: no remote resources, no inline eval. Sprint 0 scaffold posture.
+      Sprint 3 added img-src blob: (47c8ff7) for CanvasTexture procedural
+      surfaces. Sprint 4 adds media-src 'self' so Howler XHR can fetch the
+      bundled bang.ogg / tinnitus-4khz.ogg for the destruction Faz 0 audio
+      (no remote audio — all OGG bundled under src/renderer/assets/audio/).
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; script-src 'self';"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; script-src 'self'; media-src 'self';"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rus Ruleti</title>

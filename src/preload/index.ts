@@ -19,6 +19,7 @@
  *   - onEscapeHold(cb): void                 NOT IPC — local keyboard timer
  *   - quit(): void                           via 'app:quit'
  *   - toggleKiosk(): Promise<boolean|null>   via 'kiosk:toggle' (debug, swift-expert)
+ *   - getUsername(): Promise<string>         via 'os:get-username' (Sprint 4 S2)
  *
  * NOTE on onEscapeHold:
  *   The maestro directive says the renderer runs the ESC keydown/keyup timer
@@ -154,6 +155,20 @@ const api: RusRuletiApi = {
   platform: process.platform as PlatformId,
   sendFrameStats: (payload: FrameStatsPayload): void => {
     ipcRenderer.send(IPC_CHANNELS.FRAME_STATS, payload);
+  },
+  getUsername: async (): Promise<string> => {
+    // Defensive — never let an IPC failure crash the renderer. The main
+    // handler returns "unknown" on os.userInfo() failure, but if the IPC
+    // itself rejects (e.g. handler not registered yet during dev HMR), we
+    // also fall back to "unknown" so Faz 3 has something to substitute.
+    try {
+      const result = (await ipcRenderer.invoke(
+        IPC_CHANNELS.OS_GET_USERNAME,
+      )) as string;
+      return result;
+    } catch {
+      return 'unknown';
+    }
   },
 };
 

@@ -12,6 +12,7 @@
 
 import { app, ipcMain } from 'electron';
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron';
+import * as os from 'os';
 import {
   IPC_CHANNELS,
   type FrameStatsPayload,
@@ -19,6 +20,9 @@ import {
 } from '../shared/ipc-channels';
 import { toggleKiosk } from './window-manager';
 import { logger } from './logger';
+
+/** Returned when os.userInfo() throws (e.g. headless / unusual sandbox). */
+const UNKNOWN_USERNAME = 'unknown';
 
 /** Returns 'mac' for darwin, 'win' for win32. Other platforms reject. */
 function getOsFamily(): OsFamily {
@@ -85,6 +89,12 @@ export function registerIpcHandlers(): void {
     },
   );
 
+  // os:get-username — Sprint 4 PLAN §12 S2 risk closure. Returns ONLY the
+  // login username (no homedir, no hostname). os module lives here in main
+  // process; preload bridge has os banned by ESLint, so the only path the
+  // renderer has to this data is through this whitelisted IPC channel.
+  ipcMain.handle(IPC_CHANNELS.OS_GET_USERNAME, getUsernameHandler);
+
   // frame:stats — one-way. Renderer flushes a frame-time summary every
   // FRAME_LOG_FLUSH_INTERVAL_MS so a packaged build leaves a per-session
   // perf record on disk (S1 risk telemetry). Payload shape is validated
@@ -115,6 +125,31 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler(IPC_CHANNELS.OS_GET);
   ipcMain.removeHandler(IPC_CHANNELS.KIOSK_TOGGLE);
   ipcMain.removeAllListeners(IPC_CHANNELS.FRAME_STATS);
+  ipcMain.removeHandler(IPC_CHANNELS.OS_GET_USERNAME);
+}
+
+/**
+ * Handler for `os:get-username`. Extracted into a named function so the
+ * registration call site stays inside the 50-line ceiling of
+ * registerIpcHandlers (lint enforcement) and so the try/catch + sender check
+ * are easy to read on their own.
+ *
+ * Defensive: `os.userInfo()` can throw on systems with an unresolvable UID
+ * (rare on Mac/Win desktop targets but technically possible). On failure we
+ * return UNKNOWN_USERNAME so the renderer's Faz 3 terminal still has SOMETHING
+ * to substitute, rather than the destruction sequence crashing in the middle
+ * of a punchline.
+ */
+function getUsernameHandler(event: IpcMainInvokeEvent): string {
+  if (!isAllowedSender(event)) {
+    throw new Error('os:get-username rejected — sender check failed');
+  }
+  try {
+    return os.userInfo().username;
+  } catch (err) {
+    logger.warn('os.userInfo failed; returning UNKNOWN_USERNAME', { err });
+    return UNKNOWN_USERNAME;
+  }
 }
 
 /**
