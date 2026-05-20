@@ -44,13 +44,20 @@
  * camera at y=1.6 (CAMERA.posY). Designer tunes each scale so the object
  * reads at the intended visual size from the static camera angle.
  */
-export const MODEL_SCALE_REVOLVER = 1.0;
+/** Quaternius revolver ~28cm long → 0.9 brings barrel to ~25cm Nagant feel. */
+export const MODEL_SCALE_REVOLVER = 0.9;
+/** Quaternius chair ~0.9m tall — matches Sprint 1 placeholder height 1:1. */
 export const MODEL_SCALE_CHAIR = 1.0;
-export const MODEL_SCALE_RADIO = 1.0;
-export const MODEL_SCALE_BOTTLE = 1.0;
-export const MODEL_SCALE_TABLE = 1.0;
-export const MODEL_SCALE_ASHTRAY = 1.0;
-export const MODEL_SCALE_LIGHTBULB = 1.0;
+/** Quaternius radio ~0.4m wide → 0.85 brings to ~0.34m, matches placeholder. */
+export const MODEL_SCALE_RADIO = 0.85;
+/** Quaternius bottle ~0.4m tall → 0.75 brings to ~0.3m Stolichnaya silhouette. */
+export const MODEL_SCALE_BOTTLE = 0.75;
+/** dook table ~1.2m → 1.15 brings to ~1.4m, matches Sprint 1 placeholder width. */
+export const MODEL_SCALE_TABLE = 1.15;
+/** dook ashtray ~0.25m → 0.6 brings to ~0.15m coffee-table ashtray size. */
+export const MODEL_SCALE_ASHTRAY = 0.6;
+/** Jason Toff lightbulb ~0.2m total → 0.7 brings to ~0.14m incandescent bulb size. */
+export const MODEL_SCALE_LIGHTBULB = 0.7;
 
 /* ------------------------------------------------------------------------ */
 /* Model position — designer Phase 2A fills                                 */
@@ -69,12 +76,19 @@ export const MODEL_SCALE_LIGHTBULB = 1.0;
  *   - y: down (-) / up (+) — floor at 0, table top at ~0.79
  *   - z: forward to camera (+) / back wall (-)
  */
+/** Centered on the table top, slightly forward of center (z=0.1) so barrel reads clearly. */
 export const MODEL_POSITION_REVOLVER: readonly [number, number, number] = [0, 0.79, 0.1];
-export const MODEL_POSITION_CHAIR:    readonly [number, number, number] = [0, 0, -0.9];
+/** 5cm off-center (x=0.05) — "real chair someone walked away from" per atmosphere §3.3. */
+export const MODEL_POSITION_CHAIR:    readonly [number, number, number] = [0.05, 0, -0.9];
+/** Far-right back-corner mass, matches Sprint 1 placeholder exactly. */
 export const MODEL_POSITION_RADIO:    readonly [number, number, number] = [1.6, 0.1, -1.2];
-export const MODEL_POSITION_BOTTLE:   readonly [number, number, number] = [-0.6, 0.79, -0.2];
+/** On table top, left of revolver (x=-0.5), slightly behind (z=-0.2) — silhouette anchor. */
+export const MODEL_POSITION_BOTTLE:   readonly [number, number, number] = [-0.5, 0.79, -0.2];
+/** Floor origin; GLB origin assumed at base, so y=0 lands the table on the floor naturally. */
 export const MODEL_POSITION_TABLE:    readonly [number, number, number] = [0, 0, 0];
+/** Right of revolver (x=0.4), same z as revolver — smoke column shares the bulb-revolver axis. */
 export const MODEL_POSITION_ASHTRAY:  readonly [number, number, number] = [0.4, 0.79, 0.1];
+/** Top apex of the composition triangle; matches BULB_LIGHT.posY for PointLight attach. */
 export const MODEL_POSITION_LIGHTBULB:readonly [number, number, number] = [0, 2.4, 0];
 
 /* ------------------------------------------------------------------------ */
@@ -92,13 +106,73 @@ export const MODEL_POSITION_LIGHTBULB:readonly [number, number, number] = [0, 2.
  * rotation here is the place to flip it (NOT inside revolver-mount.ts —
  * that file owns animation pivots, not asset orientation).
  */
-export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [0, 0, 0];
-export const MODEL_ROTATION_CHAIR:    readonly [number, number, number] = [0, 0, 0];
-export const MODEL_ROTATION_RADIO:    readonly [number, number, number] = [0, 0, 0];
-export const MODEL_ROTATION_BOTTLE:   readonly [number, number, number] = [0, 0, 0];
+/** Barrel pointing left (-π/2 around y) — grip faces chair; "muzzle pointed away" narrative. */
+export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [0, -Math.PI / 2, 0];
+/** 15° (π/12) counterclockwise — chair pushed back at an angle; humanises the seat. */
+export const MODEL_ROTATION_CHAIR:    readonly [number, number, number] = [0, Math.PI / 12, 0];
+/** 22.5° (-π/8) turned toward camera so dial face is visible from sabit camera. */
+export const MODEL_ROTATION_RADIO:    readonly [number, number, number] = [0, -Math.PI / 8, 0];
+/** 30° (π/6) rotation so label face catches bulb cone glancingly — "puslu etiket" reading. */
+export const MODEL_ROTATION_BOTTLE:   readonly [number, number, number] = [0, Math.PI / 6, 0];
+/** Grid-aligned — table is the stage, the chair gets the angle. */
 export const MODEL_ROTATION_TABLE:    readonly [number, number, number] = [0, 0, 0];
-export const MODEL_ROTATION_ASHTRAY:  readonly [number, number, number] = [0, 0, 0];
+/** 36° (π/5) — "someone pushed this aside to put the gun down" narrative. */
+export const MODEL_ROTATION_ASHTRAY:  readonly [number, number, number] = [0, Math.PI / 5, 0];
+/** Neutral — bulb hangs straight down; sway is animated, not baked into rotation. */
 export const MODEL_ROTATION_LIGHTBULB:readonly [number, number, number] = [0, 0, 0];
+
+/* ------------------------------------------------------------------------ */
+/* Material color overrides — designer Phase 2A fills (model-freeze §2/§7.1) */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Per-model hex color override applied by Phase 2B kraken-loader at GLB
+ * load time. Each Poly Pizza model ships with the original author's
+ * albedo; the brutalist Soviet cellar requires darker, dirtier surfaces
+ * than the default CC0 / CC-BY uploads provide.
+ *
+ * Phase 2B kraken-loader traverses each loaded scene, finds every
+ * MeshStandardMaterial, and sets its `.color` to the override:
+ *
+ * ```ts
+ * import { MATERIAL_COLOR_OVERRIDE_BY_KEY } from '../shared/scene-model-constants';
+ * const override = MATERIAL_COLOR_OVERRIDE_BY_KEY[modelKey];
+ * glbScene.traverse((obj) => {
+ *   if (obj instanceof Mesh && obj.material instanceof MeshStandardMaterial) {
+ *     obj.material.color.set(override);
+ *   }
+ * });
+ * ```
+ *
+ * Rationale per object lives in model-freeze-direction.md §2. Summary:
+ *   revolver  — matte gunmetal, just above PALETTE.oak
+ *   chair     — PALETTE.oak (brutally heavy dark wood)
+ *   radio     — PALETTE.rust (lampovaya radyo wooden cabinet)
+ *   bottle    — faded green-grey glass (PALETTE.neon × 0.35)
+ *   table     — PALETTE.oak (chiaroscuro preservation)
+ *   ashtray   — near-shadow ceramic (PALETTE.shadow × 1.4)
+ *   lightbulb — see §3.2: NO color override on porcelain duy; glass
+ *                envelope keeps PALETTE.sodium base AND gets emissive
+ *                killed by Phase 2B (separate concern, not a color
+ *                override — it's a `material.emissive` mutation).
+ *                The lightbulb entry below targets the GLASS ENVELOPE
+ *                base color only; the porcelain duy keeps the GLB's
+ *                authored ceramic tint.
+ *
+ * `lightbulb` is intentionally PALETTE.sodium so the glass envelope reads
+ * as a lit incandescent globe under the PointLight cone. The bulb is the
+ * one surface in the scene that benefits from being the brightest object
+ * in frame — it's the light source proxy.
+ */
+export const MATERIAL_COLOR_OVERRIDE_BY_KEY = Object.freeze({
+  revolver: '#1a1816',
+  chair: '#1c1814',
+  radio: '#3d2817',
+  bottle: '#2a3322',
+  table: '#1c1814',
+  ashtray: '#2a2520',
+  lightbulb: '#c89b3c',
+} as const);
 
 /* ------------------------------------------------------------------------ */
 /* Revolver mesh split — designer / kraken-revolver collaboration           */

@@ -460,3 +460,216 @@ visible reading is the point.
 *End of designer atmosphere direction. Questions on visual decisions should
 copy this file into the conversation so the rationale stays linked to the
 constants.*
+
+---
+
+## 8. Sprint 3 — Model freeze composition notes
+
+> Appended 2026-05-20 by designer agent (Sprint 3 Phase 2A SOLO). These
+> are Sprint 3 deltas on top of the Sprint 1 atmosphere direction in
+> §1–§6 and the Sprint 2 revolver scene polish in §7. The model-freeze
+> details live in `src/renderer/scene/model-freeze-direction.md`; this
+> §8 documents the **cross-cutting atmosphere** decisions for the GLB
+> swap that touch existing lighting / camera / composition reading.
+
+### 8.1 Composition with real GLBs (the triangle reaffirmed)
+
+Sprint 1 §3 set the camera at `(0, 1.6, 3.2)` looking at `(0, 0.75, 0)`.
+Sprint 3 honours those values exactly — the camera transform is LOCKED.
+What changes is what fills the frame:
+
+- The Sprint 1 placeholder cubes are replaced by the seven GLBs per
+  `model-freeze-direction.md` §2. The compositional intent is a
+  **vertical triangle**: bulb (top apex) → table (base) → revolver
+  (focal subject at base center). Off-table objects (chair, radio,
+  bottle, ashtray) exist as silhouette context bracketing the focal
+  surface.
+- Sprint 1 §3.1 recommendations for Sprint 3 (pull back to posZ=3.5,
+  drop to posY=1.45, 4° dolly toward chair) are **NOT applied**.
+  Sprint 3 reasoning: the Sprint 2 revolver mechanic is already
+  validated against the Sprint 1 framing; changing the camera now
+  would require re-tuning the HOLD_ZOOM_FACTOR (which is calibrated
+  against the existing fov 50). The framing stays Sprint 1's; if
+  Sprint 5 QA reports the GLBs look cramped, revisit at Sprint 6.
+
+### 8.2 Lightbulb GLB as visual anchor (Sprint 1 §2.6 compromise resolved)
+
+Sprint 1 §2.6 documented the "bulb mesh ≠ bulb light position"
+compromise: the placeholder sphere stayed fixed at the bulb origin
+while the PointLight swayed in the Lissajous curve. The cast shadows
+moved; the visible glass did not. Sprint 3 resolves this.
+
+**Resolution (per model-freeze-direction.md §3.1):** `lightbulb.glb`
+becomes a CHILD of the PointLight via `pointLight.add(lightbulbScene)`.
+Three.js scene-graph inheritance means the GLB's world position
+follows the PointLight's swayed position automatically. The Sprint 1
+placeholder sphere stays in the codebase as the `useGlbs=false`
+fallback but is hidden when the GLB mounts.
+
+This resolution lands cheaply (one `.add()` call, no per-frame sync
+code) and finally honours PLAN §2 "Tavan: Çıplak ampul, beyaz porselen
+duy. Hafif sallanır." — the visible bulb now physically sways with
+the light it casts.
+
+### 8.3 BULB_LIGHT.intensity = 3.4 reconciliation (Sprint 1 §2.1 holds)
+
+The Sprint 1 designer tuned `BULB_LIGHT.intensity = 3.4` against flat
+oak `BoxGeometry` placeholders. The GLB swap introduces:
+
+- A revolver with a darker albedo (`#1a1816` override per
+  model-freeze §2.1) — slightly less light returned to camera.
+- A table with PS1 affine-UV warp at 'high' tier — the warp doesn't
+  change brightness, just UV coordinate stability.
+- A bottle with green-tan glass tint catching less light than flat
+  oak.
+
+Net change: **the table-top region reads slightly darker overall** but
+the contrast ratio between revolver-lit and table-shadow is
+preserved. Sprint 1's intensity 3.4 still works — no tweak Sprint 3.
+
+If Sprint 5 QA reports the room feels "underlit" with the GLBs in
+place, the right channel to widen is the `BULB_LIGHT.intensity` value
+in `scene-palette.ts` — not a per-material multiplier on the GLBs.
+Keep the lighting math one-knob.
+
+### 8.4 AmbientLight floor (Sprint 1 §2.5 holds)
+
+`AMBIENT_LIGHT.intensity = 0.05` was tuned against flat-cube
+silhouettes. The GLBs have more form — more curved surfaces, more
+edge planes — than the cubes. The ambient floor's job (revealing
+form in unlit regions) becomes MORE important with the GLBs, not
+less.
+
+The intensity stays at 0.05 because **the goal is form-revealing,
+not form-flattening**. A higher ambient would soften the chiaroscuro
+the bulb cone creates on the table top. Phase 2B kraken-loader MUST
+NOT raise this value to compensate for "dark corners with the GLBs in
+place" — dark corners are the point.
+
+### 8.5 PS1 affine-UV shader activation (TH-S1-05 close)
+
+Sprint 1 Phase 2 (kraken-shader) created the `ps1-affine-uv.glsl`
+fragment shader but couldn't ship it because the placeholder cubes
+were `MeshStandardMaterial` with no UV-mapped textures. Sprint 3
+activates the shader on 5 GLB meshes + 3 procedural texture surfaces.
+
+**Activated surfaces** (model-freeze §6.1 table — copied here for
+atmosphere reading):
+
+| Tier   | Where the warp lands                                                |
+|--------|---------------------------------------------------------------------|
+| low    | nowhere — MeshStandardMaterial direct, no shader pass               |
+| medium | 8 surfaces with reduced amplitude (× 0.5)                           |
+| high   | 8 surfaces with full amplitude — table, chair, radio, bottle,       |
+|        | ashtray, cyrillic-envelope, faded-portrait, soviet-poster           |
+
+**What the warp adds to the atmosphere:** the PS1-era graphics
+reading PLAN §2 line 42 promised ("PS1 low-poly estetik. Vertex snap
+shader, affine UV warp..."). Sprint 1 shipped the vertex snap; Sprint
+3 ships the UV warp. Together they give the room the "bozuk kayıt"
+(broken recording) feel from BUCKSHOT_ROULETTE_THEME.md line 19 — the
+surfaces look slightly off-register, like a corrupted save state.
+
+The revolver is intentionally exempted from the warp (model-freeze
+§6.1 — the revolver is the focal subject; UV distortion on the barrel
+would break the chiaroscuro reading). The lightbulb GLB is also
+exempted (its mesh is bulb-light-position-anchor; warping would make
+the glass visually drift from the PointLight).
+
+### 8.6 Smoke particle compositional integration
+
+The cigarette smoke column above the ashtray (model-freeze §5) is
+**atmospheric texture, not a focal element**. It serves the
+composition triangle by adding slow upward motion in the right-third
+of the table — reinforcing the bulb-table-revolver vertical axis
+without competing for the eye.
+
+**Frequency design (incommensurable with bulb sway):**
+- Bulb Lissajous: 3.7s and 4.9s (Sprint 1 §2.2)
+- Smoke drift: 3.33s (`SMOKE_PARTICLE_DRIFT_FREQUENCY_HZ = 0.3` ⇒
+  period ≈ 3.33s)
+
+The three periods are pairwise incommensurable — the bulb and the
+smoke never visually sync, the column drift never aligns with the
+bulb's pendulum. The brain reads "two unrelated motions in the same
+still room" as ambient noise (correct), not as choreographed motion
+(wrong).
+
+**Particle render mode:** THREE.Points + PointsMaterial, no texture.
+Single colour `#d8d0c0` (PALETTE.paper × 1.7 clamped). This is the
+right call for the PS1 aesthetic — sprite particles with proper
+textures would read as "modern atmospheric effect"; flat-colour
+Points read as "low-end engine ambient fog".
+
+### 8.7 Procedural texture compositional integration (§4 cross-ref)
+
+The three procedural textures from model-freeze §4 land on the back
+wall (portrait, poster) and table top (envelope, Sprint 4 placement
+target). Atmosphere reading:
+
+- **Back wall density:** TWO textures (portrait at right, poster at
+  left). The wall stays at PALETTE.oak fill colour between them.
+  More textures (calendar, second portrait, paper note) push the
+  wall into diorama territory — Sprint 3 ships at the lower density
+  per model-freeze §7.4.
+- **Table top density:** the envelope (Sprint 4 placement) plus the
+  procedural 5 kopek coin (model-freeze §7.6, Sprint 4 default) plus
+  the revolver, bottle, ashtray. Sprint 3 ships the GLBs +
+  generated-but-not-placed envelope. Sprint 4 places the envelope on
+  the table top during destruction-director scene prep.
+- **Wall plane → camera distance:** the back wall is at z=-3,
+  ~6.2m from camera. The portrait and poster procedural textures are
+  rendered at 512×512 and read as low-resolution wall hangings at
+  that distance — exactly the PS1-era "wall hanging texture" feel.
+- **Cyrillic anonymity (model-freeze §1 + §4):** all designer-
+  authored Cyrillic content (envelope addressing, poster text,
+  portrait nameplate if added Sprint 4) is **fictional and
+  glyphic**. No real person's name, no real address, no real slogan,
+  no recognisable Soviet historical reference. This is both an
+  atmospheric decision (the room is anonymous, leaks story, doesn't
+  name names) and a telif-safety decision (security-reviewer Phase 5
+  passes without rights-clearance investigation).
+
+### 8.8 Sprint 4 destruction-director hand-off contract
+
+The destruction-director (PLAN §7, Sprint 4) cuts apartment-bleed
+flicker frames during the destruction sequence. The bleeds are
+0.2–0.8s flashes of the bodrum oda back into the OS-mimicry
+destruction. The composition the bleed reveals must be the **frozen
+Sprint 3 model arrangement** — the same revolver position, same bulb
+sway, same chair angle, same smoke column.
+
+This is what model-freeze §9 sign-off locks: post-Sprint 3, no GLB
+position changes, no material overrides, no DARKEN_CURVE retuning.
+The bleed frames are baked against this composition; changing it
+would require re-recording the destruction-director's timing against
+the new composition.
+
+### 8.9 What atmosphere-direction.md does NOT touch Sprint 3
+
+For Phase 2B implementer collision-safety, designer Phase 2A
+explicitly does NOT touch:
+- `BULB_LIGHT.intensity` or any field in `scene-palette.ts` — Sprint 1
+  Phase 2 tuning is locked.
+- `AMBIENT_LIGHT.intensity` — Sprint 1 Phase 2 tuning is locked.
+- `CAMERA.*` — sabit camera contract holds (PLAN §2).
+- `FOG_*` — Sprint 1 Phase 2 tuning is locked.
+- `BulbLightHandle` interface in `lighting.ts` — Phase 2B kraken-loader
+  extends with `attachLightbulbGlb(handle)` per model-freeze §8.3;
+  designer does not pre-write that function.
+- `Ps1MaterialFactory` — Sprint 1 shader contract is locked; Phase 2B
+  kraken-loader reuses the existing factory pattern for the GLB swap.
+
+The Sprint 3 atmosphere additions are entirely in the **new** territory:
+model-freeze-direction.md (this file's sibling), the MODEL_*
+constants in scene-model-constants.ts, and the §8 you are reading. No
+existing Sprint 1 / Sprint 2 atmosphere file gets edited beyond this
+append.
+
+---
+
+*End of Sprint 3 atmosphere addendum. The model-freeze-direction.md
+companion file is the load-bearing artifact for Phase 2B GLB
+integration; §8 here is the atmosphere cross-reference for
+implementers who need the Sprint 1 / Sprint 2 context next to the
+Sprint 3 changes.*

@@ -660,3 +660,204 @@ should copy the relevant section into the conversation so the rationale
 stays linked to the constants. Sprint 2 retro should revisit clicks 1–6
 audio mix levels once the synth placeholders are auditioned in the
 mount.*
+
+---
+
+## 9. Sprint 3 — GLB swap notes
+
+> Appended 2026-05-20 by designer agent (Sprint 3 Phase 2A SOLO). These
+> are Sprint 3 deltas on top of the Sprint 1 atmosphere direction and
+> the Sprint 2 §1–§8 revolver direction. The model-freeze composition
+> details live in `src/renderer/scene/model-freeze-direction.md`; this
+> §9 documents the **revolver-specific** decisions for the GLB swap
+> that affect the §6 RNG visibility contract and the Sprint 2
+> AnimationMixer rebind.
+
+### 9.1 Why §9 is here (not deferred)
+
+The directive offered §9 as optional **IF** the GLB swap is clean
+(named hammer / cylinder / body, scale fits, no surprises). The
+Quaternius Poly Pizza CC0 revolver (PolyPizza E7IaG9TptR) is a generic
+low-poly model — author intent is "looks like a revolver from across a
+table", NOT "rigged for animation". Designer expectation is that the
+GLB is **monolithic** (single combined mesh, no named hammer /
+cylinder / body children).
+
+That expectation makes §9 non-optional: Phase 2B kraken-loader needs
+explicit designer guidance on the monolithic-fallback path so the
+Sprint 2 AnimationMixer's 5 clips (cock, spin, fall, kick, idle)
+continue to play correctly. The §6 RNG visibility contract amplifies
+the stakes — if the cylinder spin clip can't rotate just the cylinder
+because the mesh is monolithic, the visible animation might
+accidentally reveal the spin end angle that the contract forbids.
+
+### 9.2 Discovery protocol (Phase 2B kraken-loader)
+
+The pivot lookup uses the existing SSOT names from
+`scene-model-constants.ts`:
+
+```ts
+import {
+  MODEL_REVOLVER_HAMMER_PIVOT_KEY,    // 'Hammer'
+  MODEL_REVOLVER_CYLINDER_PIVOT_KEY,  // 'Cylinder'
+  MODEL_REVOLVER_BODY_PIVOT_KEY,      // 'Body'
+} from '../../shared/scene-model-constants';
+
+// After GLB load:
+const hammer = glbScene.getObjectByName(MODEL_REVOLVER_HAMMER_PIVOT_KEY);
+const cylinder = glbScene.getObjectByName(MODEL_REVOLVER_CYLINDER_PIVOT_KEY);
+const body = glbScene.getObjectByName(MODEL_REVOLVER_BODY_PIVOT_KEY);
+```
+
+**Three outcomes:**
+
+1. **All three found (Blender-rigged GLB):** use directly as
+   AnimationMixer targets. Sprint 2 clips bind one-to-one to the
+   named children. Best case.
+2. **Some named, others not:** mixed case. Phase 2B kraken-loader
+   reports the missing names via `document.body.dataset['revolver-
+   pivots']` and falls back to the monolithic path (§9.3) for the
+   missing pivots. Designer accepts this gracefully — partial-rigged
+   GLBs are real-world outputs.
+3. **None found (monolithic mesh):** the GLB is a single combined
+   Mesh. Phase 2B falls back to programmatic Object3D wrapping per
+   §9.3.
+
+### 9.3 Monolithic fallback — programmatic Object3D wrapping
+
+If the GLB ships as a single mesh, Phase 2B kraken-loader wraps the
+mesh in three Object3D pivots at the **anatomical positions** of a
+real revolver's hammer / cylinder / body:
+
+```text
+revolver-root (Group, MODEL_POSITION_REVOLVER / SCALE / ROTATION)
+  ├─ body-pivot (Object3D at body anatomical origin)
+  │   └─ MeshClone-A (the monolithic mesh, no rotation applied)
+  ├─ cylinder-pivot (Object3D at cylinder axis origin)
+  │   └─ MeshClone-B (the same monolithic mesh, masked to cylinder area)
+  └─ hammer-pivot (Object3D at hammer hinge origin)
+      └─ MeshClone-C (the same monolithic mesh, masked to hammer area)
+```
+
+**Designer's visual ratification (the load-bearing question):**
+
+Wait — the monolithic fallback as described above is wrong. You cannot
+clone the entire mesh three times because the Sprint 2 AnimationMixer
+rotates each pivot independently — if all three pivots contain the same
+full mesh, rotating the cylinder pivot would rotate the entire visible
+revolver, not just the cylinder.
+
+**The correct fallback is simpler and more honest: rotate the
+WHOLE revolver as the body-pivot for `cock` / `fall` / `idle` / `kick`,
+and animate the WHOLE revolver as the cylinder-pivot for `spin`**.
+
+The §6 RNG visibility contract is preserved because:
+- The spin animation ends at the same visual angle (`SPIN_TURNS = 4`,
+  end at start angle). Rotating the whole monolithic mesh 4 times
+  still ends at the same visible state.
+- The chamber is invisible from the static camera angle anyway (the
+  cylinder face is partly occluded by the body); the player cannot
+  count chamber positions even on the rigged GLB.
+
+**Visual cost of the fallback:**
+- The `cock` animation (30° hammer rotation) becomes a 30° rotation
+  of the entire revolver. This reads as "the gun tilts back when
+  cocked" — subtly different from the rigged "the hammer pulls back"
+  but still mechanically legible. **Acceptable Sprint 3 visually.**
+- The `spin` animation (4 cylinder turns) becomes 4 rotations of the
+  entire revolver around the cylinder axis. This reads as "the gun
+  spins on the table" — exactly the cinematic spin from many
+  Russian-roulette films. **Acceptable, possibly preferable.**
+- The `fall` (1-frame snap) and `kick` (5° body tilt + camera shake)
+  animations are body-only already; no degradation.
+- The `idle` (subtle bob) animation moves the whole revolver up/down
+  in sync with the bulb sway; the rigged version would only move the
+  body and leave the hammer/cylinder stable. Visually similar at the
+  Sprint 1 amplitudes — the bob is sub-millimetre.
+
+### 9.4 Sprint 3 designer ratification of the fallback
+
+**Designer's position: ship the monolithic fallback if §9.2 discovery
+finds no named children.** Reasoning:
+
+1. The Sprint 2 mechanic (hold / spin / bang / empty) is fully
+   functional and well-tuned. Replacing the primitive revolver mesh
+   with the GLB is an art upgrade, not a mechanical change.
+2. Deferring the GLB swap to Sprint 4 (the alternative if the
+   monolithic mesh is "not good enough") would slip the model freeze
+   checkpoint (PLAN §11 line 595-616, Sprint 3 sonu freeze) and
+   downstream-impact Sprint 4 destruction-director's frozen-frame
+   contract.
+3. The visual cost (§9.3) is acceptable — the "whole-gun-tilts-when-
+   cocking" reading is slightly less anatomically correct but more
+   cinematically familiar. Players will not notice the difference
+   without a side-by-side comparison.
+4. The §6 RNG visibility contract is preserved either way.
+
+**Phase 2B kraken-loader: ship the monolithic fallback. Sprint 3 done.
+Sprint 4 destruction-director can pick up the bang exit state from
+§7 unchanged.**
+
+If Sprint 5 QA reports the cock animation reads as "gun tilts
+weirdly" with the monolithic fallback, Sprint 6 can:
+- Manually rig the GLB in Blender (15-30 minutes of work — split the
+  hammer + cylinder + body into named children, re-export).
+- Vendor a Sketchfab Nagant M1895 alternative
+  (`src/renderer/assets/models/incoming/README.md` lists one).
+
+That's a Sprint 6 fix path, not a Sprint 3 blocker.
+
+### 9.5 Chamber visibility contract reaffirmation (RNG safety)
+
+PLAN §6 line 232: "Spin durduğunda chamber namluya bakar — kullanıcı
+*göremez* hangisi durdu." Sprint 2 §6 (this document) is the literal
+contract: every spin ends at the same visual cylinder angle, no
+randomisation of the visual stopping point, the outcome is revealed
+only through the bang/empty animation event.
+
+**Sprint 3 GLB swap impact:** the chamber visibility contract HOLDS.
+The Sprint 2 implementation in `revolver-anim.ts` was authored against
+the §6 contract (kraken-revolver Phase 2B Sprint 2). The GLB swap is
+geometry-only — the animation logic is unchanged. Phase 2B
+kraken-loader's rebind of the AnimationMixer (model-freeze §8.8)
+preserves the existing clip definitions.
+
+Phase 2B kraken-loader verify:
+- After GLB swap, run 10 consecutive spin animations (dev-only test
+  harness, NOT in production code path).
+- The visible cylinder angle at the end of each spin is the same
+  ±1° (rounding noise from the rebind).
+- If the angle drifts per-spin, the rebind is wrong — the spin clip
+  is being applied to an Object3D that includes a baked rotation
+  offset from the GLB's authored pose. Fix: zero the pivot's
+  initial rotation before binding.
+
+### 9.6 Material override (model-freeze §2.1 cross-ref)
+
+The revolver's material color override is `#1a1816` (just above
+PALETTE.oak `#1c1814`). Per model-freeze §3.3, the revolver is the
+brightest single object in the table-top region — but only because
+of the bulb cone landing on its specular highlights. The base albedo
+is intentionally darker than the table so the bulb cone reads as a
+**highlight**, not as a flat fill.
+
+Phase 2B kraken-loader applies this override at GLB load time via the
+`MATERIAL_COLOR_OVERRIDE_BY_KEY` constant (newly added to
+`scene-model-constants.ts` per model-freeze §7.1). No revolver-specific
+code changes needed in revolver-mount.ts; the override is data, not
+behaviour.
+
+### 9.7 What §9 explicitly does NOT change
+
+- The Sprint 2 FSM (revolver-state.ts) is unchanged.
+- The Sprint 2 animation timings (COCK_DURATION_MS=250,
+  SPIN_TURNS=4, KICK_FLASH_FRAMES=1, etc.) are unchanged.
+- The Sprint 2 RNG (revolver-rng.ts) is unchanged.
+- The Sprint 2 HUD glow curve (HUD_GLOW_ALPHA_BY_CLICK) is unchanged.
+- The Sprint 2 DARKEN_CURVE_PER_CLICK is unchanged.
+- The Sprint 2 RNG visibility contract (§6) is unchanged.
+- The Sprint 2 bang transition placeholder (§7) is unchanged — Sprint
+  4 destruction-director consumes the same bang exit state.
+
+§9 is **art swap only**. Mechanics are locked Sprint 2.
+
