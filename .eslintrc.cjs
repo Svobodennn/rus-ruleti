@@ -19,6 +19,17 @@ module.exports = {
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/no-explicit-any': 'error',
     '@typescript-eslint/consistent-type-imports': 'error',
+    // Structural enforcement of the 50-line function / 400-line file ceiling
+    // (Sprint 0 MAJOR-2 + Sprint 1 BLOCKER-1/2/3 lesson: prose-spec keeps
+    // slipping; lint catches at write time).
+    'max-lines-per-function': [
+      'error',
+      { max: 50, skipBlankLines: true, skipComments: true, IIFEs: true },
+    ],
+    'max-lines': [
+      'error',
+      { max: 400, skipBlankLines: true, skipComments: true },
+    ],
     'no-restricted-imports': [
       'error',
       {
