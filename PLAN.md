@@ -1473,6 +1473,218 @@ Audit confirmed. Sprint 2 ships clean.
 
 ---
 
+## Sprint 3 Security + Telif Audit
+
+> **Auditor:** @security-reviewer (Phase 3 QA gate, parallel with @code-reviewer + @verifier + @qa-engineer).
+> **Commit reviewed:** `f465489` (Sprint 3 Phase 2B kraken-particles smoke system + procedural textures + GLB loader integration), Sprint 3 cumulative since `b7aeed8` (Sprint 2 close).
+> **Mandate:** Sprint 3 is the **Model Freeze Checkpoint sprint** — the headline task is the **telif (license) audit** of the 7 vendored GLBs (4 CC0 Quaternius + 3 CC-BY dook/Toff) and the 3 designer-fictional procedural textures (Cyrillic envelope, faded portrait, Soviet poster). Extends the Sprint 0/1/2 baseline to cover: GLTFLoader integration, GLB asset surface, procedural CanvasTexture pipeline (SVG → Blob → Image → drawImage), smoke particle system (THREE.Points + BufferAttribute), AnimationMixer rebind for GLB revolver, BulbLightHandle.attachToMesh, PS1 affine-UV activation on 5 textured meshes.
+> **Read-only.** No source changes. One write allowed: append this audit section.
+
+### A. 3D Model Assets — CC0/CC-BY cross-reference (TELIF AUDIT HEADLINE)
+
+All 7 GLBs verified against `src/renderer/assets/models/README.md` attribution table + `LEGAL.md` rows. Sources cross-checked against the Poly Pizza URLs in both files. Sketchfab `incoming/` is empty (only README.md scaffold present) so the Sprint 3 vendor set is exactly the 7 Poly Pizza files.
+
+| GLB | License | Author | Source URL | Size (B) | GLB magic | README row | LEGAL.md row | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `revolver.glb` | CC0 1.0 | Quaternius | `poly.pizza/m/E7IaG9TptR` | 58,204 | `glTF` (0x676C5446) | line 9 | line 25 | PASS |
+| `chair.glb` | CC0 1.0 | Quaternius | `poly.pizza/m/iMNqRzPwwe` | 13,360 | `glTF` (0x676C5446) | line 10 | line 26 | PASS |
+| `radio.glb` | CC0 1.0 | Quaternius | `poly.pizza/m/TPqvwkyWdV` | 28,996 | `glTF` (0x676C5446) | line 11 | line 27 | PASS |
+| `bottle.glb` | CC0 1.0 | Quaternius | `poly.pizza/m/FAHsHFXfTf` | 15,376 | `glTF` (0x676C5446) | line 12 | line 28 | PASS |
+| `table.glb` | **CC-BY 4.0** | dook | `poly.pizza/m/7qAyGZnerYt` | 44,792 | `glTF` (0x676C5446) | line 13 | line 34 | PASS |
+| `ashtray.glb` | **CC-BY 4.0** | dook | `poly.pizza/m/aHmJIWIr1vI` | 14,076 | `glTF` (0x676C5446) | line 14 | line 35 | PASS |
+| `lightbulb.glb` | **CC-BY 4.0** | Jason Toff | `poly.pizza/m/4TkYCZMlbS6` | 60,332 | `glTF` (0x676C5446) | line 15 | line 36 | PASS |
+
+Total payload: 235,136 bytes (~230 KB) — within `MODEL_LOAD_BUDGET_MS = 4000` budget headroom. `file` command on each confirms valid glTF 2.0 binary (magic word 0x676C5446 = ASCII "glTF" little-endian). No `.exe` / `.dll` / `.sh` / `.dylib` / `.so` in the assets tree (`find src/ -name "*.exe" -o -name "*.dll" -o -name "*.sh" -o -name "*.ps1" -o -name "*.bat"` → ZERO hits).
+
+**CC-BY 4.0 attribution chain — three required surfaces:**
+
+| Surface | Status | Evidence |
+| --- | --- | --- |
+| `src/renderer/assets/models/README.md` (vendor manifest) | DONE | Lines 13-15 inventory + lines 26-31 verbatim attribution block per CC-BY 4.0 §3 |
+| `LEGAL.md` (release-prep manifest) | DONE | Lines 30-45 (CC-BY 4.0 table + verbatim attribution block) + lines 109-120 (attribution requirement satisfaction subsection) |
+| App About screen (Sprint 6 reveal-lite) | STUBBED | LEGAL.md lines 113-117 explicitly mark this as Sprint 6 deferred. Sprint 3 SCOPE end. Acceptable per LEGAL.md §"Attribution requirement satisfaction" #2. |
+
+`LEGAL.md` line 116 specifies the About panel will read attribution rows **programmatically** from `src/renderer/assets/models/README.md` so the LEGAL/About duplication stays in sync — locked design, no manual second-source-of-truth.
+
+**No paid / Royalty-Free / Standard-license assets in vendor set.** README.md line 69 closes: "All 7 models verified CC0 or CC-BY 4.0 compatible. No 'Royalty Free' (CGTrader proprietary) models included. No paid models. Re-distribution safe for open-source."
+
+Result: **PASS — all 7 GLBs have an unbroken attribution chain through README → LEGAL → About-plan. The 4 CC0 files are credited as good practice; the 3 CC-BY 4.0 files satisfy §3 attribution in both the vendor manifest AND the redistributable LEGAL.md.**
+
+### B. Procedural Textures — designer-fictional content audit
+
+Three CanvasTextures generated at runtime via inline SVG → Blob → Image → drawImage → THREE.CanvasTexture pipeline (`src/renderer/loader/procedural-textures.ts:228-250`). Designer §4 spec at `src/renderer/scene/model-freeze-direction.md:497-628` is the authoritative content brief; this audit verifies the SVG content matches the anonymity rules.
+
+| Texture | Anonymity rule | Evidence | Result |
+| --- | --- | --- | --- |
+| `cyrillic-envelope` | Designer-fictional Cyrillic addressing — NO real letter, NO real address | `procedural-textures.ts:108-112` SVG text: `"от М. до Х."` (initials only — "from M. to H." with no full names), `"пр. Ленина 14-23"` (generic Soviet-era street designation; "пр. Ленина" / "Lenin Avenue" is a common street name in many post-Soviet cities, the unit number 14-23 is fictional), `"Москва"` (city marker only, no specific locality). `"МОСКВА"` postmark (line 116) is a generic city stamp ring. Designer §4.1 line 515-519 explicitly ratifies the strings as fictional initials + generic address with no historical referent. | PASS |
+| `faded-portrait` | Silhouette ONLY — NO real face, NO recognizable identity | `procedural-textures.ts:148-152` SVG: `<ellipse>` (rounded head) + `<polygon>` (trapezoidal shoulders) + `<polygon>` (triangular collar V) + two small shoulder accents. **ZERO face elements** — no eyes, no nose, no mouth, no eyebrow shapes in the SVG. Inline `opacity="0.85"` (line 148) plus radial-gradient `<rect width="512" height="512" fill="url(#fade)"/>` overlay (line 153) burn the silhouette toward "person-shaped void". Designer §4.2 line 561-567 hard-blocks face rendering: "any rendered face will, at the PS1 affine-UV warp resolution, accidentally resemble somebody — opening a telif/likeness can." PLAN §2 line 67 reaffirmation: "yüzü silinmiş". | PASS |
+| `soviet-poster` | OWN geometric design — NOT historical reproduction; non-lexical Cyrillic; generic star (NOT hammer-and-sickle) | `procedural-textures.ts:178-192` SVG: tilted PALETTE.blood banner (`<rect>` line 180, rotated -8°), `<polygon points="256,38 270,82 ..."/>` (line 183) is a standard 5-pointed star geometry (NOT hammer-and-sickle — confirmed by inspecting the 10-vertex polygon shape: alternating outer/inner radius around a center, matching the geometric definition of a pentagram-fill). Cyrillic text glyphs `"К Р О Р Н И"` (line 185) and `"Е А"` (line 186) — letters from the Cyrillic alphabet arranged with `letter-spacing="6"` / `letter-spacing="8"` so they LOOK like a word but spell nothing. Colour rule (lines 178-192): only PALETTE.paper, PALETTE.blood, PALETTE.rust, PALETTE.shadow — no other hues, no white. Designer §4.3 line 581-604 explicitly forbids hammer-and-sickle ("politically charged real symbol") and historical reproduction ("yazılar okunmaz, kendi tasarımı" — PLAN §10 line 524). | PASS |
+
+**Why this matters for distribution:** A photoreal face would risk likeness rights; reproducing a real historical Soviet poster would risk both the original artist's copyright AND political-content classification on app stores. The designer-fictional approach is the **safest possible legal posture** for the bodrum-oda's wall surfaces.
+
+Result: **PASS — all 3 procedural textures match designer §4 anonymity spec verbatim. No real face, no real letter content, no real historical poster.**
+
+### C. Font assets — Sprint 2 re-baseline
+
+No new fonts in Sprint 3. Existing bundle re-verified:
+
+| Family | License | Vendor path | Sprint added | LEGAL.md row |
+| --- | --- | --- | --- | --- |
+| Old Standard TT | SIL OFL 1.1 | `src/renderer/fonts/old-standard-tt/OFL.txt` | Sprint 0 | line 69 |
+| PT Serif | SIL OFL 1.1 | `src/renderer/fonts/pt-serif/OFL.txt` | Sprint 0 | line 69 |
+| DSEG7-Classic | SIL OFL 1.1 | `src/renderer/fonts/dseg/LICENSE.txt` | Sprint 2 | line 67 |
+
+`src/renderer/fonts/dseg/LICENSE.txt` (4.5 KB) carries the SIL OFL 1.1 verbatim with Reserved Font Name "DSEG" preserved. PT Serif and Old Standard TT each carry an `OFL.txt` license copy. `font-family: 'DSEG7-Classic'` at `fonts.css:347` and `hud.css:111` preserves the upstream family name verbatim — no derivative rename under OFL §3-§4. The procedural-envelope and procedural-poster SVGs reference `font-family: 'Old Standard TT'` (lines 108, 184) — re-using the Sprint 0 vendor; the font payload is already in the bundle so the SVG `<text>` rasters against an already-licensed font.
+
+Result: PASS (no new font surface; Sprint 0+2 fonts intact)
+
+### D. BrowserWindow webPreferences — UNCHANGED from Sprint 0/1/2
+
+`git diff b7aeed8..f465489 -- src/main/window-manager.ts` → **zero hunks**. All eight settings at `window-manager.ts:48-56` preserved verbatim: `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `webSecurity: true`, `allowRunningInsecureContent: false`, `devTools: isDev`, `setWindowOpenHandler({ action: 'deny' })` at line 65-70, `will-navigate` block at line 73-80, app-level `web-contents-created` deny-all at `index.ts:144-146`.
+
+Result: PASS
+
+### E. Preload audit — NO NEW SURFACE
+
+`grep -rnE "(require|import).*(fs|child_process|shell|net|http|https|dgram|cluster|vm|^os|node:os)" src/preload/` → **zero hits**.
+
+`git diff b7aeed8..f465489 -- src/preload/` → **zero hunks**. Imports remain `electron` (contextBridge, ipcRenderer) + shared types only (`preload/index.ts:30-42`). The `RusRuletiApi` surface (`shared/api-types.ts`) is unchanged: `getOS`/`quit`/`onEscapeHold`/`toggleKiosk`/`platform`/`sendFrameStats`. Sprint 3 directive (no preload bridge additions) honoured — the entire GLB loader + procedural texture + smoke particle subsystem is renderer-only. Nothing crosses the contextBridge.
+
+Result: PASS
+
+### F. IPC channels — UNCHANGED from Sprint 1/2
+
+`git diff b7aeed8..f465489 -- src/shared/ipc-channels.ts src/main/ipc.ts` → **zero hunks**.
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| Whitelist still 4 channels (`app:quit`, `os:get`, `kiosk:toggle`, `frame:stats`) | `IPC_CHANNELS` const at `shared/ipc-channels.ts:21-26`; `ALLOWED_IPC_CHANNELS` array lines 31-36 | PASS |
+| All handlers retain `isAllowedSender` origin check | `ipc.ts:60,70,81,96` | PASS |
+| `frame:stats` runtime payload guard still in force | `ipc.ts:127-141` | PASS |
+| Cleanup symmetry preserved | `ipc.ts:113-118` | PASS |
+| Sprint 3 added zero new IPC channels | `grep "ipcMain\\.(on\\|handle)" src/main/` → still four handlers | PASS |
+
+Result: PASS
+
+### G. Session permission handler — STILL INSTALLED
+
+`session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))` at `src/main/index.ts:75-77` preserved verbatim. Camera / mic / geolocation / notifications / MIDI / clipboard / etc. unconditionally denied. Sprint 3 added zero new permission-touching code paths (the procedural textures use Canvas2D which has no permission gate; smoke particles use only WebGL via Three.js).
+
+Result: PASS
+
+### H. CSP under Sprint 3 additions
+
+CSP at `renderer/index.html:6-9`: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self';`. **Unchanged from Sprint 0/1/2.**
+
+| Directive | Sprint 3 interaction | Result |
+| --- | --- | --- |
+| `script-src 'self'` | GLTFLoader (`gltf-loader.ts:25`) uses fetch + ArrayBuffer parsing — no `eval` / `new Function`. AnimationMixer rebind for GLB revolver (`revolver-mount-glb.ts`) mutates `Object3D.position/rotation/scale` on already-loaded scene nodes — no shader recompile at clip time. Smoke particles (`particles/smoke.ts:43-50`) use `Points` + `PointsMaterial` + `BufferAttribute` — pure renderer-side data binding, no GLSL injection. `grep -rnE "eval\\(\\|new Function" src/` → ZERO hits. | PASS |
+| `default-src 'self'` (catchall) | GLBs loaded via Vite `?url` imports (`model-registry.ts:31-37`) — these resolve to hashed bundle URLs (`/assets/revolver-HASH.glb` in production, `/src/...` dev paths in dev) which are `'self'`-origin. GLTFLoader's internal `fetch()` is governed by `default-src` and works correctly. `grep -rnE "(https?://\\|fetch\\(\\|XMLHttpRequest\\|WebSocket)" src/renderer/scene/ src/renderer/loader/` → only SVG `xmlns="http://www.w3.org/2000/svg"` declarations (XML namespace tokens, NOT network fetches — verified by inspecting `procedural-textures.ts:87,129,167` — these are string literals inside the SVG body, the browser SVG parser treats them as schema identifiers, not URLs to fetch). | PASS |
+| `style-src 'self' 'unsafe-inline'` | `procedural-textures.ts` builds SVG strings with inline `style=`/`fill=`/`opacity=` attributes (lines 87-195). These attributes are **SVG presentation attributes**, not CSS inline-style attributes — they are NOT governed by CSP `style-src`. Confirmed by W3C CSP3 §6.6.2.4 (presentation attributes are not style-src-controlled). No new HTML inline `style=` attributes; no new `<style>` blocks; `style.setProperty` (HUD glow alpha) still the only CSSOM mutation from Sprint 2. | PASS |
+| **`img-src 'self' data:`** (CRITICAL CSP advisory for Sprint 4+) | **Procedural textures use `URL.createObjectURL(blob)` → `Image.src = blob:URL`** at `procedural-textures.ts:232,234`. CSP `img-src 'self' data:` does **NOT** cover `blob:` — per W3C CSP3 §6.6.2.2, `blob:` is a separate URL scheme that requires the explicit `blob:` token in the directive. **`getProceduralTexture()` is exported from `src/renderer/loader/index.ts:38` but is NOT yet consumed by any scene-mount path** (`grep -rn "getProceduralTexture" src/` → only the function declaration, the barrel re-export, and a JSDoc reference in `model-freeze-direction.md:1226`). Sprint 3 scope ends at texture generation; the actual mesh application is Sprint 4. **The day Sprint 4 wires `getProceduralTexture('cyrillic-envelope')` (or any of the three keys) into a Mesh material, CSP MUST be amended to `img-src 'self' data: blob:'` OR the SVG-render pipeline must be refactored to avoid `URL.createObjectURL` (e.g., write the SVG as a data: URI directly).** Tracked as Sprint 4-blocking advisory TH-S3-01 below. | **PASS (current sprint) / ADVISORY (Sprint 4 dependency)** |
+| `font-src 'self'` | No new fonts in Sprint 3. SVG `<text font-family="'Old Standard TT'">` references the Sprint 0 vendored family which is already in the bundle. | PASS |
+| `media-src` (still not declared) | Sprint 3 added zero real audio file loads (Howler music slot still the data-URI placeholder; revolver SFX still pure WebAudio synth). Smoke particles emit no audio. AnimationMixer rebind for the revolver still triggers WebAudio synth via the Sprint 2 chain (`revolver-effects.ts:202`). Sprint 1 advisory I.2 (add `media-src 'self'` when Sprint 4+ ships real `.ogg`) carries forward unchanged. | PASS (advisory carried forward) |
+
+Result: **PASS (Sprint 3 specifically — procedural textures not yet consumed). Critical advisory TH-S3-01 emitted for Sprint 4.**
+
+### I. Asset surface
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| No bundled executables | `find src/ -name "*.exe" -o -name "*.dll" -o -name "*.sh" -o -name "*.ps1" -o -name "*.bat"` → ZERO hits | PASS |
+| No live network code in scene/loader | `grep -rnE "(https?://\\|fetch\\(\\|XMLHttpRequest\\|WebSocket)" src/renderer/scene/ src/renderer/loader/` → only SVG `xmlns` schema tokens at `procedural-textures.ts:87,129,167` (NOT network fetches) | PASS |
+| No new prod dependencies in Sprint 3 | `package.json` deps still: `electron-log@5.4.4`, `howler@2.2.4`, `postprocessing@6.39.1`, `three@0.184.0`. GLTFLoader is `three/examples/jsm/loaders/GLTFLoader.js` — already inside the existing `three` package. | PASS |
+| GLBs live local, not remote | 7 GLBs at `src/renderer/assets/models/*.glb` (total 235,136 B). Imported via Vite `?url` queries which resolve to bundled hashed URLs in prod and `/src/...` paths in dev — never CDN. `MODEL_URLS` table at `model-registry.ts:50-58` is the SSOT for paths. | PASS |
+| `npm audit --omit=dev` | "found 0 vulnerabilities" (matches Sprint 0/1/2 baseline) | PASS |
+| No new hardcoded credentials in Sprint 3 surface | `grep -rnE "(sk-\\|ghp_\\|gho_\\|AKIA\\|Bearer \\|api[_-]?key\\|password\\|secret\\|token)" src/renderer/loader/ src/renderer/scene/particles/ src/renderer/scene/revolver/revolver-mount-glb.ts src/renderer/assets/models/` (excluding LICENSE / README hits) → ZERO functional hits | PASS |
+| `incoming/` staging directory empty | `ls src/renderer/assets/models/incoming/` → only `README.md` (no actual GLB files vendored mid-sprint). Sketchfab CC-BY hybrid override path remains user-controlled, not yet exercised. | PASS |
+| GLB magic bytes valid | All 7 files have header `0x676C5446` (ASCII "glTF" little-endian) — confirmed via `xxd -l 4` per file. No corrupted / re-extension'd binaries hiding executable payloads. | PASS |
+
+Result: PASS
+
+### J. AnimationMixer + smoke particles + procedural pipeline integrity
+
+| Claim | Evidence | Result |
+| --- | --- | --- |
+| GLTFLoader does not execute embedded scripts | `three`'s GLTFLoader parses glTF JSON + binary buffers + textures — the glTF 2.0 spec has **no script extension**. Three.js does not implement any of the optional extension that would run JS (e.g., MSFT_lod, EXT_meshopt_compression are pure data extensions). `gltf-loader.ts:61` `loadAsync(path)` returns a parsed scene graph; no `eval` / `new Function` in the call chain. | PASS |
+| AnimationMixer rebind on GLB revolver does not recompile GLSL | `revolver-mount-glb.ts` (Phase 2B) walks the GLB scene graph to find named nodes (e.g., `'Hammer'`, `'Cylinder'`) — designer model-freeze §2.1 lists the expected names — and binds AnimationMixer tracks to their `position` / `rotation` properties. Mixer's `update(delta)` interpolates keyframe values and writes to `Object3D` JS properties. No `WebGLProgram` recompilation triggered. `revolver-anim.ts:103` builds `new AnimationMixer(root)` once; tracks added before the first `play()` call. | PASS |
+| Smoke particle system uses pure Three.js buffer attributes — no external asset load | `particles/smoke.ts:42-50` imports `BufferAttribute`, `BufferGeometry`, `Color`, `Points`, `PointsMaterial`. Pool sized at module top (line 84) and allocated **once** at mount via `BufferGeometry.setAttribute('position', new BufferAttribute(Float32Array, 3))`. Per-frame `update(deltaSec)` mutates the typed array in-place; never reallocates. No sprite texture file loaded (designer §5.2: flat colour, no texture). | PASS |
+| Smoke particles honour `prefers-reduced-motion` | `smoke.ts:18-19` (JSDoc) + `smoke.ts:470-475` (`isReducedMotion()`) read `window.matchMedia('(prefers-reduced-motion: reduce)').matches` at MOUNT time; under reduce, velocity + amplitude × 0.5 dampen (designer §5.3). Camera shake (`camera.ts:104-111`) and bang flash (`hud.css:300-308`) both gate reduced-motion. CRT scanline (`crt.css:245`) gates reduced-motion. | PASS |
+| Procedural texture pipeline is bounded + non-leaking | `procedural-textures.ts:228-250` wraps the Blob → Image → CanvasTexture chain in `try { ... } finally { URL.revokeObjectURL(url); }` so the blob is released even if Image decode fails. `recordBudgetTelemetry` (line 212-220) surfaces over-budget runs via `document.body.dataset['procTextureBudget']`. Per-key cache (line 39) returns the same THREE.CanvasTexture identity on repeat gets — no GPU re-upload. `disposeProceduralTexture` (line 267) + `disposeAllProceduralTextures` (line 276) provide explicit cleanup hooks. | PASS |
+| Model registry has graceful-degradation under a bad GLB | `model-registry.ts:121-129` (`preloadAll`) uses `Promise.allSettled` so one corrupt GLB does NOT block the rest. Failed keys surface via `scene-glb-bridge.ts:42` (`document.body.dataset['modelFailures']`) and the room composer (`composeRoom` line 59-70) falls back to placeholder cubes if NO room GLB loaded. | PASS |
+
+Result: PASS
+
+### K. PS1 affine-UV shader activation (TH-S1-05 closure)
+
+Sprint 1 dormant thread TH-S1-05 (PS1 affine-UV shader wired but visually inert until textures land) is **closed by Sprint 3**. The 5 textured GLB meshes (table, chair, radio, bottle, ashtray) now receive `ps1-affine-uv.glsl` via the `createPs1MaterialFactory` factory wired through `scene-glb-bridge.ts:87-93` and applied conditionally on `quality === 'high'` in `composeRoom()` line 59-70. No new GLSL files added Sprint 3 — the existing shader at `src/renderer/scene/shaders/ps1-affine-uv.glsl` activates against GLB UV channels for the first time. WebGL compile happens at scene mount (Sprint 1 baseline); the shader binding is a parameter change, not a recompile.
+
+Result: PASS (TH-S1-05 → DONE; see Open Threads table below)
+
+### L. Joke-app narrative integrity
+
+Sprint 3 must preserve the marketing/distribution defense: this app performs **zero** real system operations.
+
+| Claim | Evidence | Result |
+| --- | --- | --- |
+| No new fs / shell / network / process spawning in Sprint 3 code | `grep -rnE "(require\\|import).*(fs\\|child_process\\|shell\\|net\\|dgram\\|cluster\\|vm)" src/renderer/loader/ src/renderer/scene/particles/` → ZERO hits | PASS |
+| GLTFLoader reads from local bundle path only | `MODEL_URLS` (`model-registry.ts:50-58`) maps each ModelKey → Vite `?url` import. Vite resolves these to `'self'`-origin paths at build time (`/assets/<name>-<hash>.glb` in prod, `/src/...` paths in dev). Never CDN. GLTFLoader.loadAsync uses `fetch` against the resolved URL — governed by `default-src 'self'`. | PASS |
+| Procedural textures run on Canvas2D + CanvasTexture (no native rendering bridge) | `procedural-textures.ts:236-241` — `document.createElement('canvas')` → `canvas.getContext('2d')` → `ctx.drawImage(img, ...)` → `new CanvasTexture(canvas)`. Pure W3C Canvas2D + Three.js JS. No native bindings, no OffscreenCanvas worker (which would need its own audit), no WebCodecs. | PASS |
+| Smoke particles run on Three.js scene graph (no system effects) | THREE.Points is a JS scene-graph object; per-frame updates mutate `BufferAttribute` typed arrays which Three.js uploads to a single WebGL VBO at draw time. No GPU compute, no transform feedback, no compute shader extension (which would need its own audit). | PASS |
+| No telemetry SDK in Sprint 3 | `grep -rnE "(sentry\\|amplitude\\|mixpanel\\|posthog\\|datadog\\|tracking\\|pixel\\|telemetry\\|analytics)" src/` → only the same Sprint 0 comment references at `index.ts:13` and `logger.ts:22`. **No new analytics surface in Sprint 3.** | PASS |
+| `frame:stats` still the only payload-carrying IPC channel | `git diff b7aeed8..f465489 -- src/main/ipc.ts` → zero hunks. Same one-payload channel, same runtime shape guard. | PASS |
+
+Result: PASS
+
+### Summary table
+
+| Section | Result |
+| --- | --- |
+| A. 3D Model Assets — CC0/CC-BY cross-reference (telif audit headline) | PASS |
+| B. Procedural Textures — designer-fictional content audit | PASS |
+| C. Font assets — Sprint 2 re-baseline | PASS |
+| D. BrowserWindow webPreferences (unchanged from Sprint 0/1/2) | PASS |
+| E. Preload audit — no new surface | PASS |
+| F. IPC channels — unchanged from Sprint 1/2 | PASS |
+| G. Session permission handler — still installed | PASS |
+| H. CSP under Sprint 3 additions | PASS (current) / ADVISORY (Sprint 4 blob: dependency) |
+| I. Asset surface | PASS |
+| J. AnimationMixer + smoke particles + procedural pipeline integrity | PASS |
+| K. PS1 affine-UV shader activation (TH-S1-05 closure) | PASS |
+| L. Joke-app narrative integrity | PASS |
+
+### M. Forward-Looking Advisories (NOT Sprint 3 blockers)
+
+Sprint 0/1/2 advisories re-affirmed; two new Sprint 3 / Sprint 4 / Sprint 5 items appended:
+
+1. **TH-S3-01 — CSP `img-src` must allow `blob:` before Sprint 4 wires procedural textures into Mesh materials.** The procedural-textures pipeline at `src/renderer/loader/procedural-textures.ts:232,234` uses `URL.createObjectURL(blob)` and assigns the resulting `blob:` URL to `Image.src`. Current CSP `img-src 'self' data:` does NOT permit `blob:` (W3C CSP3 §6.6.2.2 — `blob:` is a separate scheme requiring an explicit token). Today this is dormant because `getProceduralTexture()` is exported but no scene-mount path consumes it (verified via `grep -rn "getProceduralTexture" src/`). **Sprint 4 (texture application to table-top + back-wall meshes) MUST either (a) amend CSP to `img-src 'self' data: blob:` OR (b) refactor the SVG-render pipeline to use a data: URI directly (`Image.src = 'data:image/svg+xml;base64,' + btoa(svg)`), avoiding the Blob/createObjectURL pair entirely.** Option (b) is preferred because it keeps the CSP surface narrower; option (a) is one-line. Track in the Sprint 4 ticket where the first `getProceduralTexture` call lands.
+2. **TH-S3-02 — SHA-256 manifest must be committed at Sprint 3 Phase 5 (verifier handoff).** `LEGAL.md:82-95` references `src/renderer/assets/models/SHA256-MANIFEST.txt` for the Model Freeze Checkpoint, but the manifest file does NOT yet exist (`ls .../SHA256-MANIFEST.txt` → "No such file or directory"). Sprint 3 Phase 5 verifier task: generate via `shasum -a 256 src/renderer/assets/models/*.glb > src/renderer/assets/models/SHA256-MANIFEST.txt`, commit, and reference from LEGAL.md. The hashes captured during this audit pass (advisory record only — Phase 5 owns the canonical commit): `revolver=d1260ba6..., chair=bdc6aeeb..., radio=9e5c7934..., bottle=7245e262..., table=c2c62694..., ashtray=baf31293..., lightbulb=6992c610...` (full SHA-256 in repo at Phase 5 close).
+3. **TH-S2-01 carried forward — CSP `media-src 'self'` + likely `connect-src 'self'` when first real `.ogg` audio file ships.** Sprint 3 still uses pure WebAudio synth (`revolver-sfx.ts`) and a data-URI Howl placeholder (`audio-bed.ts`). The day Sprint 4+ loads any `assets/audio/music/*.ogg`, Howler will issue an XHR with `responseType: 'arraybuffer'` — CSP MUST be amended at that point.
+4. **Code signing + notarization — UNCHANGED from Sprint 0+1 advisory.** Sprint 7 (mac) and Sprint 8 (win). Placeholders in `electron-builder.yml` correct.
+5. **The 3 Sketchfab CC-BY hybrid alternatives are still optional / unvendored.** `incoming/` staging directory is empty; the Sketchfab override path (`incoming/README.md` lines 9-15) remains a user-vendored extension, not Sprint 3 vendor scope. If the user drops `radio-ussr.glb` / `samovar.glb` / `podstakannik.glb` / `nagant-revolver.glb` / `soviet-table.glb` into `incoming/` post-Sprint 3, `LEGAL.md` lines 47-55 specify the attribution rows MUST be appended BEFORE the file leaves staging. Each download must also be verified against Sketchfab "Standard" / "Editorial" license (which prohibit redistribution); `incoming/README.md:53` enforces "CC-BY / CC0 only" at staging.
+
+### Final verdict
+
+**PASS — all twelve sections green. Sprint 3 ships clean with two forward-looking advisories (TH-S3-01 CSP blob: pre-Sprint-4, TH-S3-02 SHA-256 manifest at Phase 5).**
+
+Sprint 3 preserves the Sprint 0/1/2 security posture intact:
+
+1. **Main / preload / IPC contract: zero diff vs Sprint 2.** `git diff b7aeed8..f465489 -- src/main/ src/preload/ src/shared/ipc-channels.ts` returns zero hunks. The four-channel IPC contract is unchanged; all four still origin-checked, `frame:stats` still payload-shape-validated. Sprint 3 directive ("renderer-only additions, no IPC/preload surface change") honoured.
+2. **GLB loader subsystem is renderer-only and asset-bound.** GLTFLoader is the standard `three/examples/jsm` loader (zero new prod deps). All 7 GLB paths resolve via Vite `?url` imports to `'self'`-origin bundle URLs; never CDN. Model registry uses `Promise.allSettled` for graceful-degradation under a bad GLB. Dispose chain walks the scene graph and releases GPU buffers defensively (`typeof === 'function'` guards). AnimationMixer rebind for the GLB revolver mutates already-compiled JS-side Object3D properties — no shader recompile at clip time.
+3. **Procedural texture pipeline is renderer-only, designer-fictional, and CSP-safe today.** Three CanvasTextures generated via inline SVG → Blob → Image → drawImage. All three textures match designer §4 anonymity rules verbatim: Cyrillic envelope has fictional initials + generic address (no real recipient, no real address); faded portrait is silhouette-only (zero face elements in SVG); Soviet poster has non-lexical Cyrillic glyphs + generic 5-pointed star (NOT hammer-and-sickle) + designer-restricted PALETTE. `getProceduralTexture` is exported but not yet consumed by scene-mount — the CSP `blob:` dependency is dormant. **Sprint 4 must close TH-S3-01 before wiring textures into Mesh materials.**
+4. **Smoke particle system is renderer-only and accessibility-correct.** THREE.Points + BufferAttribute (positions + colors); pool sized once at mount, never reallocated. `prefers-reduced-motion` honoured at mount time per designer §5.3 (velocity + amplitude × 0.5 dampening). No external asset load, no sprite texture, no GPU compute. Quality demotion reduces active particle count without reallocating the buffer.
+5. **License compliance — full attribution chain in place for all 7 GLBs and the 3 fonts.** CC-BY 4.0 §3 satisfied in 2 of 3 required surfaces (README.md + LEGAL.md); the third (About screen) is STUBBED per LEGAL.md line 113-117 as a Sprint 6 deferred task — acceptable for Sprint 3 ship. CC0 4 GLBs (Quaternius) credited as good practice. Procedural textures are 100% original designer-fictional content with zero historical-reproduction or likeness risk. SIL OFL 1.1 fonts (Old Standard TT, PT Serif, DSEG7-Classic) preserved verbatim with reserved-font-name compliance.
+
+`npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (`electron-log`, `three`, `postprocessing`, `howler` — same set as Sprint 2; no new prod deps in Sprint 3).
+
+If a notarization reviewer or SmartScreen analyst asks "what could this app possibly do that's dangerous after Sprint 3?" — the honest, evidence-backed answer is the same as Sprint 0/1/2: *nothing the sandbox and the four-channel IPC contract don't already prevent.* The GLB loader cannot reach beyond the renderer; the procedural CanvasTexture pipeline runs entirely in JS on a 2D canvas; the smoke particle system is THREE.Points data binding against a Three.js BufferAttribute. **The two open advisories (TH-S3-01 blob: CSP, TH-S3-02 SHA-256 manifest) are pre-Sprint-4 work, not Sprint 3 blockers.**
+
+**Model Freeze Readiness: GO.** The 7 vendored GLBs are byte-stable (header verified, sizes verified, licenses verified across README + LEGAL). Phase 5 must commit `SHA256-MANIFEST.txt` to lock the byte-for-byte set so Sprint 4 kick/recoil testing cannot diverge silently. After the manifest commit, the 7 GLBs are frozen for Sprint 4+ (no replacement, no re-extraction, no recompression without a Sprint 4 model-update task with its own audit pass).
+
+Audit confirmed. Sprint 3 ships clean. Model Freeze Checkpoint reached.
+
+---
+
 ## 18. Open Threads (Cross-Sprint Carry-Forward)
 
 Persistent housekeeping items carried across sprints. Each thread cites its
