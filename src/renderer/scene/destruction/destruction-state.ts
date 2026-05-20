@@ -1,20 +1,22 @@
 /**
- * Destruction FSM transition functions — Phase 1 STUB.
+ * Destruction FSM transition functions.
  *
- * Sprint 4 Phase 1 declares signatures only. Phase 2B kraken-faz0-1 fills
- * the bodies. Keeping the stubs typed so destruction-director.ts (also
- * stubbed Phase 1) imports compile without `any`.
+ * Sprint 4 Phase 2B kraken-faz0-1 fill of the Phase 1 stub bodies. Pure
+ * functions — no DOM, no audio, no Three.js references. Identical contract
+ * to `src/renderer/scene/revolver/revolver-state.ts`:
  *
- * Mirrors the proven pattern in src/renderer/scene/revolver/revolver-state.ts:
- *   - Pure functions, no side effects (no DOM / audio / Three.js refs).
- *   - Input: current state + event; output: next state.
- *   - Exhaustive `switch (state.kind)` with `assertNever(s)` default branch
- *     so adding a new variant forces every transition function to handle it.
+ *   - Input: current state + event payload.
+ *   - Output: next state.
+ *   - Exhaustive `switch (state.kind)` with `assertNever` default.
+ *
+ * Sprint 4 covers idle → faz0 → faz1 → faz2 → faz3 → aborted{completed}
+ * plus the ESC-hold short-circuit (any active faz → aborted{esc-hold}).
+ * Sprint 5 will extend with faz4..faz7; Sprint 6 adds faz8 (reveal).
  *
  * Called by:
- *   - destruction-director.ts (orchestrator — invokes each transition on
- *     the corresponding event and feeds the result back into its mutable
- *     state cell, à la revolver/index.ts MutableFsmState).
+ *   - destruction-director.ts (orchestrator — feeds each transition's
+ *     result back into its mutable state cell, à la revolver/index.ts
+ *     MutableFsmState).
  */
 
 import type { DestructionState, OsVariant } from './types.js';
@@ -29,89 +31,160 @@ export function initialState(): DestructionState {
  * revolver-state.assertNever — compile error if `s` is not `never`.
  *
  * Called by: destruction-state.ts switch defaults + destruction-director.ts
- * (Phase 2B) exhaustive guards.
+ * exhaustive guards.
  */
 export function assertNever(s: never): never {
   throw new Error(`assertNever: unreachable destruction state ${String(s)}`);
 }
 
 /**
- * Transition: bang detected (idle → faz0). Phase 2B kraken-faz0-1 fills.
+ * Transition: bang detected (idle → faz0).
+ *
+ * From idle the FSM enters faz0 with the wall-clock timestamp of the bang
+ * (used by the director to compute APARTMENT_BLEED_*_TRIGGER_MS offsets).
+ * Every other state is monotonic — re-entry while a sequence is in flight
+ * is a no-op (defence-in-depth; the director's `started` flag also guards).
  *
  * Called by: destruction-director.ts bang-fired event handler.
  */
 export function onBangFired(
   state: DestructionState,
-  _nowMs: number,
+  nowMs: number,
 ): DestructionState {
-  // TODO Phase 2B kraken-faz0-1: idle → faz0{startedAtMs:nowMs};
-  // all other states return unchanged (faz0-N path is monotonic).
-  return state;
+  switch (state.kind) {
+    case 'idle':
+      return { kind: 'faz0', startedAtMs: nowMs };
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
 }
 
 /**
- * Transition: Faz 0 BANG sequence complete (faz0 → faz1). Phase 2B fills.
+ * Transition: Faz 0 BANG sequence complete (faz0 → faz1).
  *
- * Called by: destruction-director.ts after faz0-bang.runFaz0 promise resolves.
+ * OS variant becomes known at this transition (the director awaited
+ * `window.api.getOS()` in parallel with the Faz 0 promise; the value is
+ * passed in here). Faz 1/2/3 carry the OS forward.
+ *
+ * Called by: destruction-director.ts after faz0-bang.runFaz0 promise
+ * resolves.
  */
 export function onFaz0Complete(
   state: DestructionState,
-  _os: OsVariant,
-  _nowMs: number,
+  os: OsVariant,
+  nowMs: number,
 ): DestructionState {
-  // TODO Phase 2B kraken-faz0-1: faz0 → faz1{os, startedAtMs:nowMs}.
-  return state;
+  switch (state.kind) {
+    case 'faz0':
+      return { kind: 'faz1', os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
 }
 
 /**
- * Transition: Faz 1 Critical Dialog complete (faz1 → faz2). Phase 2B fills.
+ * Transition: Faz 1 Critical Dialog complete (faz1 → faz2).
  *
- * Called by: destruction-director.ts after faz1-critical-dialog.runFaz1
- * promise resolves (5s countdown ends OR user-skip via debug shortcut).
+ * OS preserved from the faz1 variant. Called by: destruction-director.ts
+ * after faz1-critical-dialog.runFaz1 promise resolves.
  */
 export function onFaz1Complete(
   state: DestructionState,
-  _nowMs: number,
+  nowMs: number,
 ): DestructionState {
-  // TODO Phase 2B kraken-faz0-1: faz1 → faz2{os preserved, startedAtMs:nowMs}.
-  return state;
+  switch (state.kind) {
+    case 'faz1':
+      return { kind: 'faz2', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz2':
+    case 'faz3':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
 }
 
 /**
- * Transition: Faz 2 Takeover complete (faz2 → faz3). Phase 2B kraken-faz2-3.
+ * Transition: Faz 2 Takeover complete (faz2 → faz3).
  *
- * Called by: destruction-director.ts after faz2-takeover.runFaz2 resolves.
+ * OS preserved. Called by: destruction-director.ts after faz2-takeover.runFaz2
+ * resolves. (Phase 2B kraken-faz2-3 fills the runner; this transition function
+ * lives in Lane A because the FSM contract is shared.)
  */
 export function onFaz2Complete(
   state: DestructionState,
-  _nowMs: number,
+  nowMs: number,
 ): DestructionState {
-  // TODO Phase 2B kraken-faz2-3: faz2 → faz3{os preserved, startedAtMs:nowMs}.
-  return state;
+  switch (state.kind) {
+    case 'faz2':
+      return { kind: 'faz3', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz3':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
 }
 
 /**
  * Transition: Faz 3 Terminal complete (faz3 → aborted{reason:'completed'}).
  *
  * Sprint 4 closes at faz3; Sprint 5 will replace this transition with a
- * faz3 → faz4 path. Phase 2B kraken-faz2-3 fills.
+ * faz3 → faz4 path.
  *
  * Called by: destruction-director.ts after faz3-terminal.runFaz3 resolves.
  */
 export function onFaz3Complete(state: DestructionState): DestructionState {
-  // TODO Phase 2B kraken-faz2-3: faz3 → aborted{reason:'completed'}.
-  return state;
+  switch (state.kind) {
+    case 'faz3':
+      return { kind: 'aborted', reason: 'completed' };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
 }
 
 /**
- * Transition: ESC-hold 3s detected at any Faz. Force-aborts to reveal.
- * Phase 2B kraken-faz0-1 fills (subscribes to the existing
- * window.api.onEscapeHold callback exposed by the preload bridge).
+ * Transition: ESC-hold 3s detected at any active faz. Short-circuits to
+ * aborted{reason:'esc-hold'}. Idle / aborted are no-ops (the director's
+ * dispose chain handles cleanup; this function just records the terminal
+ * state for telemetry / future Sprint 5 jump-to-reveal logic).
  *
  * Called by: destruction-director.ts ESC-hold subscription.
  */
 export function onEscHold(state: DestructionState): DestructionState {
-  // TODO Phase 2B kraken-faz0-1: any active faz → aborted{reason:'esc-hold'};
-  // idle / aborted return unchanged.
-  return state;
+  switch (state.kind) {
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+      return { kind: 'aborted', reason: 'esc-hold' };
+    case 'idle':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
 }

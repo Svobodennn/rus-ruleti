@@ -43,6 +43,95 @@ export const STRINGS = {
       bangMessage: 'ВЫСТРЕЛ',
       revealLiteMessage: 'Не следовало этого делать.',
     },
+    /**
+     * Sprint 4 destruction sequence — OS dialog + toast + terminal copy.
+     *
+     * Schema authority: `destruction-direction.md` §1185-1200 (Lane E
+     * checklist) and SSOT `scene-destruction-constants.ts`
+     * `TOAST_MESSAGES_MAC` / `TOAST_MESSAGES_WIN` prefixes.
+     *
+     * Tone contract: authentic OS-dialog formal voice. NO marketing copy,
+     * NO trademark-sensitive product names beyond well-known service refs
+     * (iCloud, OneDrive, BitLocker, Defender) which are used as in-context
+     * UI surfaces — the game does NOT attribute behaviour to those
+     * brands (no "Microsoft Office Activation Failed" etc.).
+     *
+     * Placeholder: `{n}` in `dialog.restartCountdown` is replaced at
+     * render time via `template.replace('{n}', String(remaining))` by
+     * Lane A (kraken-faz0-1) and Lane C (swift-expert mac-dialog
+     * `setCountdown`). Lane A/C MUST keep the literal `{n}` token.
+     *
+     * Russian punctuation: Cyrillic « » guillemets where applicable;
+     * em-dash (—) NOT hyphen for parenthetical clauses.
+     * Turkish punctuation: dotted İ at sentence start (distinct from I);
+     * ş/ç with cedilla; sentence-final ellipsis "…" single-glyph.
+     */
+    destruction: {
+      mac: {
+        dialog: {
+          title: 'Критическая ошибка',
+          body: 'macOS обнаружила критическую системную ошибку. В kernel_task произошёл неустранимый сбой.',
+          restartCountdown: 'Перезагрузка через {n}…',
+          restartNowLabel: 'Перезагрузить сейчас',
+          cancelLabel: 'Отмена',
+        },
+      },
+      win: {
+        dialog: {
+          title: 'Критический процесс остановлен',
+          body: 'Критический системный процесс перестал отвечать. Windows соберёт сведения об ошибке и выполнит перезагрузку.',
+          okLabel: 'ОК',
+          moreInfoLabel: 'Подробнее',
+        },
+      },
+      toast: {
+        mac: {
+          iCloudSyncPaused: {
+            title: 'iCloud',
+            body: 'Синхронизация iCloud приостановлена',
+          },
+          timeMachineBackupLost: {
+            title: 'Time Machine',
+            body: 'Резервный диск Time Machine не найден',
+          },
+          finderDiskEjectError: {
+            title: 'Finder',
+            body: 'Ошибка извлечения диска',
+          },
+          kernelTaskTermination: {
+            title: 'Система',
+            body: 'Завершение работы kernel_task',
+          },
+          spotlightIndexStopped: {
+            title: 'Spotlight',
+            body: 'Индексирование остановлено',
+          },
+        },
+        win: {
+          oneDriveSyncError: {
+            title: 'OneDrive',
+            body: 'Ошибка синхронизации OneDrive',
+          },
+          defenderStopped: {
+            title: 'Microsoft Defender',
+            body: 'Защита остановлена',
+          },
+          bitLockerProtectionFailed: {
+            title: 'BitLocker',
+            body: 'Сбой защиты тома',
+          },
+        },
+      },
+      terminal: {
+        /**
+         * The shell command is English ON PURPOSE — it IS English in real
+         * Unix/PowerShell environments. Same string for ru and tr (kept
+         * here only so consumers can resolve via `t()` symmetrically).
+         */
+        command: 'sudo rm -rf / --no-preserve-root',
+        passwordPrompt: 'Пароль: ',
+      },
+    },
   },
   tr: {
     disclaimer: {
@@ -57,6 +146,75 @@ export const STRINGS = {
       earlyReleaseMessage: 'Karar veremedin.',
       bangMessage: 'ATEŞ',
       revealLiteMessage: 'Bunu yapmamalıydın.',
+    },
+    /**
+     * Mirror of `STRINGS.ru.destruction`. EVERY leaf path under
+     * `STRINGS.ru.destruction.*` MUST appear here with identical key
+     * shape — `LocaleKey` derives its union from the RU tree and the
+     * runtime `t()` falls back across locales. An asymmetric tree
+     * triggers a TypeScript compile error at the consumer call site
+     * (the missing key won't be in the `LocaleKey` union).
+     */
+    destruction: {
+      mac: {
+        dialog: {
+          title: 'Kritik Hata',
+          body: 'macOS kritik bir sistem hatasıyla karşılaştı. kernel_task içinde kurtarılamaz bir hata oluştu.',
+          restartCountdown: '{n} saniye içinde yeniden başlatılıyor…',
+          restartNowLabel: 'Şimdi Yeniden Başlat',
+          cancelLabel: 'İptal',
+        },
+      },
+      win: {
+        dialog: {
+          title: 'Kritik İşlem Başarısız',
+          body: 'Kritik bir sistem işlemi yanıt vermiyor. Windows hata bilgilerini toplayacak ve yeniden başlatılacak.',
+          okLabel: 'Tamam',
+          moreInfoLabel: 'Daha fazla bilgi',
+        },
+      },
+      toast: {
+        mac: {
+          iCloudSyncPaused: {
+            title: 'iCloud',
+            body: 'iCloud senkronizasyonu duraklatıldı',
+          },
+          timeMachineBackupLost: {
+            title: 'Time Machine',
+            body: 'Time Machine yedek diski bulunamadı',
+          },
+          finderDiskEjectError: {
+            title: 'Finder',
+            body: 'Disk çıkarma hatası',
+          },
+          kernelTaskTermination: {
+            title: 'Sistem',
+            body: 'kernel_task sonlandırılıyor',
+          },
+          spotlightIndexStopped: {
+            title: 'Spotlight',
+            body: 'Dizinleme durduruldu',
+          },
+        },
+        win: {
+          oneDriveSyncError: {
+            title: 'OneDrive',
+            body: 'OneDrive senkronizasyon hatası',
+          },
+          defenderStopped: {
+            title: 'Microsoft Defender',
+            body: 'Koruma durduruldu',
+          },
+          bitLockerProtectionFailed: {
+            title: 'BitLocker',
+            body: 'Birim koruması başarısız',
+          },
+        },
+      },
+      terminal: {
+        command: 'sudo rm -rf / --no-preserve-root',
+        passwordPrompt: 'Parola: ',
+      },
     },
   },
 } as const;

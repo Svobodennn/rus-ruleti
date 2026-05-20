@@ -28,6 +28,15 @@
     -->
     <link rel="stylesheet" href="./styles/hud.css" />
     <!--
+      Destruction sequence styles (Sprint 4 Phase 2B — kraken-faz2-3).
+      Loaded BEFORE crt.css so the CRT scanline composites over the
+      destruction takeover / terminal chrome (consistent with the HUD
+      stacking). Loaded AFTER hud.css so destruction selectors can sit at
+      the bottom of the cascade for the chrome/dialog/toast/terminal
+      surfaces. z-index map documented at top of destruction.css.
+    -->
+    <link rel="stylesheet" href="./styles/destruction.css" />
+    <!--
       CRT atmosphere overlay (Sprint 1 Phase 2 batch B — frontend-dev).
       Loaded AFTER base.css so .crt-overlay rules win on the cascade. The
       overlay element itself is the last child of <body> below.

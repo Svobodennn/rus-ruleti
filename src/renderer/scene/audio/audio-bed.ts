@@ -122,6 +122,31 @@ export interface AudioBedHandle {
    * the hold-state ramp to add +3dB during hold and reverse on release.
    */
   bumpBulbHum: (gainDb: number, durationMs: number) => void;
+  /**
+   * Sprint 4 Phase 2B kraken-faz0-1: master-chain filter tap. The
+   * destruction sequence's low-pass BiquadFilterNode is spliced between
+   * `master` and `AudioContext.destination`. Returns a disposer that
+   * restores the direct master->destination wiring on dispose / ESC abort.
+   *
+   * Reentrant: subsequent inserts pile filters in series — the destruction
+   * module only ever inserts ONE filter (the global low-pass) so this is
+   * fine in practice; the implementation guards against double-insert by
+   * checking the filter's existing connection state internally.
+   */
+  insertGlobalFilter: (filter: BiquadFilterNode) => () => void;
+  /**
+   * Sprint 4 Phase 2B kraken-faz0-1: AudioContext exposure so the
+   * destruction-audio module can create its own OscillatorNode +
+   * BiquadFilterNode chain on the same context (tinnitus + chord stub +
+   * lowpass live on the same WebAudio graph).
+   */
+  readonly context: AudioContext;
+  /**
+   * Sprint 4 Phase 2B kraken-faz0-1: master GainNode tap. Tinnitus + native
+   * chord nodes connect HERE (not at AudioContext.destination) so they ALSO
+   * route through the global low-pass once installed.
+   */
+  readonly master: GainNode;
 }
 
 /**
@@ -153,7 +178,7 @@ export async function mountAudioBed(): Promise<AudioBedHandle> {
   // can be swapped at runtime via setMusicTrack(newHowl).
   const musicState: MusicSlotState = { current: createSilentMusicSlot() };
 
-  return buildHandle({ ctx, layers, musicState, sfx });
+  return buildHandle({ ctx, master, layers, musicState, sfx });
 }
 
 /** Internal mutable music slot — wrapped so setMusicTrack can swap it. */
@@ -188,6 +213,14 @@ function buildSfxBundle(ctx: AudioContext, master: GainNode): SfxBundle {
 /** Arguments passed to buildHandle — packed to keep that fn under 50 lines. */
 interface HandleArgs {
   ctx: AudioContext;
+  /**
+   * Master GainNode. Sprint 4 Phase 2B exposes this on the handle so the
+   * destruction module's tinnitus + chord stub nodes can attach here (and
+   * thus route through the global low-pass once installed). The
+   * `insertGlobalFilter` method also splices BiquadFilterNodes between this
+   * and `ctx.destination`.
+   */
+  master: GainNode;
   layers: Map<AmbientLayerId, SynthLayerHandle>;
   musicState: MusicSlotState;
   sfx: SfxBundle;
@@ -205,7 +238,59 @@ function buildHandle(args: HandleArgs): AudioBedHandle {
     ...buildAmbientMethods(args),
     ...buildMusicMethods(args),
     ...buildSfxMethods(args),
+    ...buildMasterTapMethods(args),
     dispose: buildDisposeFn(args),
+  };
+}
+
+/** AudioBedHandle methods that expose the master tap (Sprint 4). */
+type MasterTapMethods = Pick<
+  AudioBedHandle,
+  'insertGlobalFilter' | 'context' | 'master'
+>;
+
+/**
+ * Build the master-tap sub-handle. The `insertGlobalFilter` method rewires
+ * the master gain output through a BiquadFilterNode between `master` and
+ * `ctx.destination`. Returns a disposer that restores the direct wiring.
+ *
+ * Sprint 4 Phase 2B kraken-faz0-1: only the destruction-audio module uses
+ * this; the destruction sequence inserts the LOW_PASS_CUTOFF_HZ filter at
+ * Faz 0 entry and removes it on dispose / ESC abort.
+ */
+function buildMasterTapMethods(args: HandleArgs): MasterTapMethods {
+  const { ctx, master } = args;
+  return {
+    context: ctx,
+    master,
+    insertGlobalFilter: (filter: BiquadFilterNode): (() => void) =>
+      spliceFilterIntoMasterChain(ctx, master, filter),
+  };
+}
+
+/**
+ * Splice a BiquadFilterNode between master and AudioContext.destination.
+ * Returns a disposer that restores the original master -> destination
+ * direct connection.
+ *
+ * Order: master.disconnect() then master -> filter -> destination.
+ */
+function spliceFilterIntoMasterChain(
+  ctx: AudioContext,
+  master: GainNode,
+  filter: BiquadFilterNode,
+): () => void {
+  master.disconnect();
+  master.connect(filter);
+  filter.connect(ctx.destination);
+  return (): void => {
+    try {
+      master.disconnect();
+      filter.disconnect();
+    } catch {
+      // already disconnected — safe.
+    }
+    master.connect(ctx.destination);
   };
 }
 

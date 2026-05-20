@@ -137,10 +137,14 @@ export interface TerminalLine {
 /* ------------------------------------------------------------------------ */
 
 /**
- * Public handle returned by `mountDestructionDirector(scene)`. Subscribed
+ * Public handle returned by `mountDestructionDirector(deps)`. Subscribed
  * by `scene/index.ts` as the optional `SceneHandle.destructionDirector`
  * field. The director owns its own ESC-hold subscription, OS lookup, and
  * FSM step-through; callers only need `start()` / `abort()` / `dispose()`.
+ * Sprint 4 Phase 2B kraken-faz0-1 expanded the mount arg from a single
+ * `Scene` to a `DestructionDirectorDeps` bag (scene + camera + audio +
+ * lighting + lobbySnapshotGetter) so the director can drive Faz 0 cues
+ * without re-imports across the scene module boundary.
  *
  *   - `start()` — explicit kick (Phase 2B kraken-faz0-1 also wires an
  *     auto-start path via the document `bang-fired` CustomEvent + a

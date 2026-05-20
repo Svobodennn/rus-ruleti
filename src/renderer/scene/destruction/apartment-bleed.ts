@@ -1,49 +1,109 @@
 /**
- * Apartment Bleed overlay — Phase 1 STUB.
+ * Apartment Bleed overlay — Phase 2B (kraken-faz2-3).
  *
- * Owns the `apartment-bleed-overlay` <div> creation and lifecycle. Phase 2B
- * kraken-faz2-3 fleshes out the implementation:
+ * Owns the `apartment-bleed-overlay` <div> lifecycle. Director mounts ONCE
+ * (passing the lobby snapshot data URL). Faz 2 / Faz 3 each call
+ * `triggerBleed(kind)` at their timing milestones (APARTMENT_BLEED_1/2_*).
  *
- *   - Mount overlay element at z-index above the destruction overlay (which
- *     itself sits above the CRT overlay at 9999).
- *   - When `triggerBleed(kind)` fires, swap the overlay's backing image to
- *     the cached lobby Three.js snapshot (data URL captured by
- *     scene/index.ts at scene mount via renderer.domElement.toDataURL()).
- *   - Add `.is-bleeding` class for APARTMENT_BLEED_1_DURATION_MS (kind =
- *     'bleed-1') or APARTMENT_BLEED_2_DURATION_MS (kind = 'bleed-2').
- *   - CSS @keyframes drives the strobe at APARTMENT_BLEED_FLICKER_HZ.
+ *   - Mount overlay at z-index 9500 (above destruction-overlay 9100, below
+ *     CRT 9999).
+ *   - `triggerBleed(kind)`:
+ *       Default — add `.is-bleeding` (kind='bleed-1') / `.is-bleeding-short`
+ *       (kind='bleed-2') so the CSS @keyframes strobe at 12Hz runs for
+ *       APARTMENT_BLEED_1_DURATION_MS / APARTMENT_BLEED_2_DURATION_MS.
+ *       Reduced-motion — CSS @media override replaces the strobe with a
+ *       500ms ease fade to 50% opacity (designer §8 a11y matrix row 17/18).
+ *   - `dispose()` removes the overlay + unsubscribes any matchMedia listeners.
  *
- * If `prefers-reduced-motion: reduce`:
- *   - Strobe replaced with 50% opacity fade over 1s (designer §8 a11y matrix).
- *
- * Called by:
- *   - destruction-director.ts mounts the handle once, then faz2-takeover +
- *     faz3-terminal each call `triggerBleed(kind)` at their timing
- *     milestones (APARTMENT_BLEED_1_TRIGGER_MS / _2_TRIGGER_MS).
- *
- * Phase 2B owner: kraken-faz2-3.
+ * Snapshot fallback: if no lobby data URL is passed (toDataURL threw at
+ * scene mount), the bleed still mounts but the overlay is transparent —
+ * the strobe is a black flicker rather than the apartment leak. The
+ * destruction degrades gracefully rather than crashing.
  */
 
-import type { ApartmentBleedHandle } from './types.js';
+import {
+  APARTMENT_BLEED_1_DURATION_MS,
+  APARTMENT_BLEED_2_DURATION_MS,
+} from '../../../shared/scene-destruction-constants.js';
+import type { ApartmentBleedHandle, ApartmentBleedKind } from './types.js';
+
+/* ------------------------------------------------------------------------ */
+/* Public                                                                   */
+/* ------------------------------------------------------------------------ */
 
 /**
  * Mount the apartment-bleed-overlay element + return a handle whose
  * `triggerBleed(kind)` fires a single bleed event and `dispose()` removes
- * the element + unsubscribes matchMedia listeners.
+ * the element.
  *
- * Phase 2B fills the body. The lobby snapshot is forwarded so the bleed
- * element's backing image is set ONCE at mount (cheap memcpy via setting
- * background-image / <img> src), not on every trigger.
+ * The lobby snapshot is forwarded so the bleed element's backing image is
+ * set ONCE at mount (cheap memcpy via setting background-image), not on
+ * every trigger.
  */
 export function mountApartmentBleedOverlay(
-  _lobbySnapshotDataUrl: string | undefined,
+  lobbySnapshotDataUrl: string | undefined,
 ): ApartmentBleedHandle {
+  const overlay = createOverlayElement(lobbySnapshotDataUrl);
+  document.body.appendChild(overlay);
+
+  let disposed = false;
+
   return {
-    triggerBleed: async (_kind): Promise<void> => {
-      throw new Error('apartment-bleed: Phase 2B kraken-faz2-3 fills triggerBleed()');
+    triggerBleed: async (kind: ApartmentBleedKind): Promise<void> => {
+      if (disposed) {
+        return;
+      }
+      await runBleedCycle(overlay, kind);
     },
     dispose: (): void => {
-      // No-op safe to call on the stub.
+      if (disposed) {
+        return;
+      }
+      disposed = true;
+      overlay.remove();
     },
   };
+}
+
+/* ------------------------------------------------------------------------ */
+/* Internals                                                                */
+/* ------------------------------------------------------------------------ */
+
+function createOverlayElement(
+  lobbySnapshotDataUrl: string | undefined,
+): HTMLDivElement {
+  const el = document.createElement('div');
+  el.classList.add('apartment-bleed-overlay');
+  el.setAttribute('aria-hidden', 'true');
+  if (lobbySnapshotDataUrl !== undefined) {
+    el.style.backgroundImage = `url("${lobbySnapshotDataUrl}")`;
+  }
+  return el;
+}
+
+/**
+ * Add the strobe class for the bleed duration, then remove it. Resolves
+ * when the animation finishes (or duration elapses — whichever fires).
+ */
+function runBleedCycle(
+  overlay: HTMLDivElement,
+  kind: ApartmentBleedKind,
+): Promise<void> {
+  const className =
+    kind === 'bleed-1' ? 'is-bleeding' : 'is-bleeding-short';
+  const durationMs =
+    kind === 'bleed-1'
+      ? APARTMENT_BLEED_1_DURATION_MS
+      : APARTMENT_BLEED_2_DURATION_MS;
+  /* Force reflow so the class swap re-fires the @keyframes from frame 0
+   * even if a previous bleed left the class behind via interrupt. */
+  overlay.classList.remove('is-bleeding', 'is-bleeding-short');
+  void overlay.offsetWidth;
+  overlay.classList.add(className);
+  return new Promise<void>((resolve): void => {
+    window.setTimeout((): void => {
+      overlay.classList.remove(className);
+      resolve();
+    }, durationMs);
+  });
 }

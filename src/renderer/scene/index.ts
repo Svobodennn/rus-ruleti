@@ -159,6 +159,14 @@ interface InternalResources {
    *  because it's captured via rAF AFTER buildResources returns. Explicit
    *  `| undefined` per the exactOptionalPropertyTypes tsconfig posture. */
   lobbySnapshotDataUrl?: string | undefined;
+  /**
+   * Sprint 4 Phase 2B kraken-faz0-1: mutable holder shared with the
+   * destruction-director's lobbySnapshotGetter closure. The director
+   * subscribes BEFORE the snapshot rAF resolves; the post-mount rAF
+   * writes BOTH `lobbySnapshotDataUrl` (for SceneHandle consumers) AND
+   * `snapshotHolder.current` (for the director's lazy read).
+   */
+  readonly snapshotHolder: { current: string | undefined };
   stopLoop: () => void;
   disposeResize: () => void;
   disposeQualitySub: () => void;
@@ -193,10 +201,12 @@ export async function mountScene(
   // designer-§8 a11y matrix has a no-snapshot fallback path).
   requestAnimationFrame((): void => {
     try {
-      resources.lobbySnapshotDataUrl =
-        resources.renderer.domElement.toDataURL('image/png');
+      const dataUrl = resources.renderer.domElement.toDataURL('image/png');
+      resources.lobbySnapshotDataUrl = dataUrl;
+      resources.snapshotHolder.current = dataUrl;
     } catch {
       resources.lobbySnapshotDataUrl = undefined;
+      resources.snapshotHolder.current = undefined;
     }
   });
 
@@ -249,15 +259,29 @@ async function buildResources(
   const smoke = mountSmokeIfReady(scene, initialQuality);
   // Sprint 3 Phase 2B FIX 2: mount procedural texture surfaces (§8.5).
   const proceduralTextures = await mountProceduralTextureSurfaces(scene);
-  // Sprint 4 Phase 1: destruction-director mounted eagerly so its
-  // bang-fired CustomEvent listener is attached before the user can pull
-  // the trigger. Stub bodies in Phase 1; Phase 2B kraken-faz0-1 fills.
-  const destructionDirector = mountDestructionDirector(scene);
+  // Sprint 4 Phase 2B kraken-faz0-1: destruction-director mounted eagerly
+  // so its bang-fired CustomEvent listener is attached before the user can
+  // pull the trigger. The director needs access to camera (Faz 0 shake),
+  // bulb lighting (Faz 0 darken), audio bed (Faz 0 radio fade + master tap
+  // for tinnitus/lowpass) and the lobby snapshot (Faz 2/3 apartment bleed).
+  // Snapshot is read via getter because the rAF capture lands AFTER this
+  // mount returns; the getter resolves at Faz 2 entry by which time the
+  // snapshot exists. We use a mutable holder so the closure can read the
+  // value AFTER the resources object is built (TDZ — `resources` is not
+  // yet initialised at director-mount time).
+  const snapshotHolder: { current: string | undefined } = { current: undefined };
+  const destructionDirector = mountDestructionDirector({
+    scene,
+    camera,
+    audio: audioBed,
+    lighting: bulb,
+    lobbySnapshotGetter: (): string | undefined => snapshotHolder.current,
+  });
 
   const resources: InternalResources = {
     renderer, scene, camera, postFx, room, bulb,
     frameLogger, quality, audioBed, revolver, loader, glbHandles,
-    smoke, proceduralTextures, destructionDirector,
+    smoke, proceduralTextures, destructionDirector, snapshotHolder,
     stopLoop: (): void => undefined,
     disposeResize: (): void => undefined,
     disposeQualitySub: (): void => undefined,
