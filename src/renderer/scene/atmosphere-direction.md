@@ -349,6 +349,94 @@ need to be reduced (the GLB textures will carry their own grime).
 
 ---
 
+## 7. Sprint 2 — Revolver scene polish notes
+
+> Appended 2026-05-20 by designer agent (Sprint 2 Phase 2A). These are
+> Sprint 2 deltas on top of the Sprint 1 atmosphere direction in §1–§6.
+> Revolver-specific tuning lives in
+> `src/renderer/scene/revolver/revolver-direction.md`; this section
+> documents the cross-cutting **atmosphere** decisions for the revolver
+> scene that touch existing §2 lighting and §3 camera reading.
+
+### 7.1 Cylinder spin: motion blur OFF (PLAN §6 literal)
+
+PLAN §6: "spin (4 tur, ease-out, motion blur YOK — CRT trail)". The
+spin's apparent motion smear must come from the CRT post-fx layer's
+scanline persistence, **not** from a Three.js motion-blur pass or a
+multi-sample render. Phase 2B kraken-revolver: do not add a
+`MotionBlurPass` or `taa` accumulation buffer for the cylinder spin.
+
+The CRT trail is already doing the right thing for free — adding
+explicit motion blur on top would render the spin double-blurred and
+read as "modern game with motion blur on" instead of "old CRT
+displaying a moving object". The latter is the desired reading.
+
+### 7.2 Camera shake on kick: +2° transient, sabit recovery
+
+PLAN §6: "+2° kamera shake" on bang. SSOT
+`KICK_CAMERA_SHAKE_DEG = 2` and `KICK_FLASH_FRAMES = 1` together
+specify the shake shape. Designer ratifies the shape as a **single-
+frame snap to +2°** followed by a **200ms recovery curve back to the
+sabit camera transform**. The recovery uses a critically-damped spring
+(no overshoot — overshoot reads as "stylised", we want "physical jolt
+that the camera mount resists").
+
+The Sprint 1 fixed-camera contract from §3 holds: there is no idle
+camera breathing or parallax. The kick shake is the **only** camera
+motion in the entire revolver scene and it is a one-shot tied to the
+bang outcome. It must return exactly to the sabit transform — any
+drift after the kick will accumulate over repeated bangs and break
+the diegetic frame.
+
+### 7.3 Bulb pulse on hold-state final 100ms: 4Hz micro-flicker
+
+When the FSM is in `cocking` and `(nowMs - holdStartMs) >=
+HOLD_ZOOM_DURATION_MS` (i.e. the last 100ms before commit), the bulb
+gains a **4Hz micro-flicker at ±2% intensity** on top of its existing
+14Hz AC ripple (§2 Lissajous + ripple).
+
+This is the "tension threshold" cue from revolver-direction.md §3. The
+two frequencies (4Hz tension pulse + 14Hz ambient pulse) are
+deliberately independent — beating between them produces a brief
+unpredictable brightness wobble that reads as "the bulb knows what's
+about to happen". It's a small effect — Phase 2B implementers may
+wonder if it's worth the wiring. It is. The wobble is the cue that
+sells the hold's last beat.
+
+Phase 2B note: implement the tension pulse as an **additive offset**
+on the lighting.ts intensity calculation. Do not replace the 14Hz
+ripple while the tension pulse is active — they sum.
+
+### 7.4 Cock animation: 250ms snap (no easing — PLAN §6 literal)
+
+PLAN §6: "cock (30° geri, snap)". The cock animation is a linear
+30° hammer rotation over 250ms (`COCK_DURATION_MS = 250` and
+`COCK_ANGLE_DEG = 30` in the SSOT). **No easing.** The animation should
+feel mechanical — a real revolver's hammer has a spring with a defined
+travel and break point; a linear interpolation reads as that
+mechanism. An ease-out curve would read as "soft" and break the
+snap.
+
+The fall animation (`FALL_FRAMES = 1`) is also linear by definition (a
+single-frame transition cannot have a curve). The kick animation's
+recoil curve is the spring-damper from §7.2 above.
+
+### 7.5 Atmosphere reading at click 6 (reveal-lite handoff)
+
+At empty-click 6 the bulb intensity drops to `0.22 ×
+BULB_LIGHT.intensity = 0.22 × 3.4 ≈ 0.75`. This is dim enough that
+the AmbientLight floor (`AMBIENT_LIGHT.intensity = 0.05` from §2.5)
+becomes a meaningful contributor to scene illumination for the first
+time in the lobby. Designer ratifies the lit-by-ambient-floor reading
+as the intended visual for reveal-lite: the room is "lit by the
+darkness itself" — barely visible, but its shape is preserved.
+
+Phase 2B lighting.ts implementers should NOT compensate the
+AmbientLight upward to "rescue" the scene at click 6. The barely-
+visible reading is the point.
+
+---
+
 ## Files touched by designer in Sprint 1 Phase 2
 
 | File                                              | Change                                |

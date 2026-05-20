@@ -83,7 +83,7 @@ export const HOLD_BULB_HUM_GAIN_DB: number = 3;
 export const HOLD_ZOOM_DURATION_MS: number = 900;
 
 /* ------------------------------------------------------------------------ */
-/* Lobby progressive darkening curve — Phase 2 designer (2A) fills          */
+/* Lobby progressive darkening curve — Phase 2A designer TUNED              */
 /* ------------------------------------------------------------------------ */
 
 /**
@@ -91,22 +91,39 @@ export const HOLD_ZOOM_DURATION_MS: number = 900;
  * baseline (full intensity); index N = state AFTER N empty clicks.
  *
  * PLAN §5 progression: 2nd click "ışık bir tık daha karanlık", 6th click is
- * "reveal-lite" so the room is near-pitch. The curve below is a designer
- * placeholder — Phase 2A (designer SOLO) tunes the exact values and may
- * add an explicit 7th entry if the reveal-lite has a distinct light state.
+ * "reveal-lite" so the room is near-pitch. Designer-tuned in Phase 2A
+ * (revolver-direction.md §4) — index 1 lifted from 0.95 → 0.92 so the first
+ * flicker is above the Weber threshold (~5% in low light), and index 6
+ * lowered from 0.28 → 0.22 so reveal-lite reads "abandoned" not "lit but
+ * worried". Middle of the curve (indices 2–5) holds steady ~0.10–0.15
+ * decrements so each empty click feels like the same weight of loss.
+ *
+ * Phase 2B lighting.ts MUST multiply this scalar by the Phase 1 baseline
+ * `BULB_LIGHT.intensity = 3.4`, NOT replace the baseline. The curve is a
+ * scalar; the baseline is the unit. See atmosphere-direction.md §2.
  */
 export const DARKEN_CURVE_PER_CLICK: ReadonlyArray<number> = [
-  1.0, 0.95, 0.85, 0.72, 0.58, 0.42, 0.28,
+  1.0, 0.92, 0.82, 0.68, 0.52, 0.38, 0.22,
 ];
 
 /* ------------------------------------------------------------------------ */
-/* Empty-click audio cues — Phase 2 designer (2A)                           */
+/* Empty-click audio cues — Phase 2A designer VERIFIED                      */
 /* ------------------------------------------------------------------------ */
 
-/** Bulb flicker duration on empty click (ms). PLAN §5: "Ampul bir flicker". */
+/**
+ * Bulb flicker duration on empty click (ms). PLAN §5: "Ampul bir flicker".
+ * 120ms sits in the perceptual-flicker band (long enough to register as a
+ * flicker, short enough to read as a glitch rather than a state change).
+ * See revolver-direction.md §4 note on absolute vs contrast modulation.
+ */
 export const EMPTY_CLICK_FLICKER_MS: number = 120;
 
-/** Empty-click count at which the heartbeat audio cue begins (PLAN §5 #3). */
+/**
+ * Empty-click count at which the heartbeat audio cue begins (PLAN §5 #3).
+ * Verified Phase 2A — this is also the HUD-glow / DARKEN crossover point
+ * (revolver-direction.md §5), which intentionally aligns the first new
+ * audio cue with the visual focus shift to the HUD.
+ */
 export const EMPTY_CLICK_HEARTBEAT_THRESHOLD: number = 3;
 
 /** Empty-click count at which the sweat-drip cue plays (PLAN §5 #4). */
@@ -116,7 +133,7 @@ export const EMPTY_CLICK_SWEAT_THRESHOLD: number = 4;
 export const EMPTY_CLICK_CHAIR_CREAK_THRESHOLD: number = 5;
 
 /* ------------------------------------------------------------------------ */
-/* HUD glow tier curve — Phase 2 frontend-dev fills                         */
+/* HUD glow tier curve — Phase 2A designer VERIFIED, frontend-dev applies   */
 /* ------------------------------------------------------------------------ */
 
 /**
@@ -127,6 +144,11 @@ export const EMPTY_CLICK_CHAIR_CREAK_THRESHOLD: number = 5;
  * is the user's only visual anchor — and the more "the system is leaning
  * toward you" reading we want. Designer atmosphere-direction.md §5 endorses
  * a low-alpha symmetric glow over a directional drop-shadow.
+ *
+ * Phase 2A verified the curve against the tuned DARKEN_CURVE_PER_CLICK —
+ * index 3 (0.70 alpha vs 0.68 bulb scalar) is the visual-anchor crossover,
+ * matching the first new audio cue (heartbeat at click 3). See
+ * revolver-direction.md §5.
  */
 export const HUD_GLOW_ALPHA_BY_CLICK: ReadonlyArray<number> = [
   0.50, 0.55, 0.62, 0.70, 0.78, 0.88, 1.00,
