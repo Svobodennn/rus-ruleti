@@ -33,4 +33,5 @@ export {
 export {
   getProceduralTexture,
   disposeProceduralTexture,
+  disposeAllProceduralTextures,
 } from './procedural-textures';
