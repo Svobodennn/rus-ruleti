@@ -1275,6 +1275,181 @@ Audit confirmed. Sprint 1 ships clean.
 
 ---
 
+## Sprint 2 Security Audit
+
+> **Auditor:** @security-reviewer (Phase 3 QA gate, parallel with @code-reviewer + @verifier + @qa-engineer).
+> **Commit reviewed:** `89a692f` (Sprint 2 Phase 2B — revolver FSM + animations + HUD + DSEG font + audio cues), Sprint 2 cumulative since `23d9c58`.
+> **Mandate:** Extend the Sprint 0+1 baseline to cover the four Sprint 2 surfaces — the revolver subsystem (FSM + RNG + AnimationMixer + mesh placeholder + side-effect ladder + input handlers), the HUD DOM module (counter + transient messages), the audio extensions (WebAudio one-shots + breath layer in `revolver-sfx.ts`), and the DSEG7-Classic OFL font bundle. Sprint 2 directive: NO new IPC channels, NO new preload imports, NO new external asset loads.
+> **Read-only.** No source changes. Findings route to Phase 4 if any BLOCKERS.
+
+### A. BrowserWindow webPreferences — UNCHANGED from Sprint 0+1
+
+`git diff 23d9c58..89a692f -- src/main/window-manager.ts` → **zero hunks**. All eight settings (`sandbox`, `contextIsolation`, `nodeIntegration`, `webSecurity`, `allowRunningInsecureContent`, `setWindowOpenHandler` deny, `will-navigate` block, app-level `web-contents-created` deny-all) preserved verbatim from the Sprint 0 baseline. Re-verified at `window-manager.ts:48-56,65-70,73-80` and `index.ts:144-146`.
+
+Result: PASS
+
+### B. Preload audit — NO NEW SURFACE
+
+`grep -rnE "(require|import).*(fs|child_process|shell|net|http|https|dgram|cluster|vm|^os|node:os)" src/preload/` → **zero hits**.
+
+`git diff 23d9c58..89a692f -- src/preload/` → **zero hunks**. Imports remain `electron` (contextBridge, ipcRenderer) + shared types only (`preload/index.ts:30-42`). The `RusRuletiApi` surface (`shared/api-types.ts`) is unchanged: `getOS`/`quit`/`onEscapeHold`/`toggleKiosk`/`platform`/`sendFrameStats`. None reach fs / shell / network. ESLint preload ban (`.eslintrc.cjs:46-69`) carried forward verbatim.
+
+Sprint 2 directive ("NO new preload imports or exposures") honoured: the entire revolver subsystem (FSM, RNG, animations, HUD, audio one-shots, input handlers) is renderer-only. Nothing crosses the contextBridge.
+
+Result: PASS
+
+### C. IPC channels — UNCHANGED from Sprint 1
+
+`git diff 23d9c58..89a692f -- src/shared/ipc-channels.ts src/main/ipc.ts` → **zero hunks**.
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| Whitelist still 4 channels (`app:quit`, `os:get`, `kiosk:toggle`, `frame:stats`) | `IPC_CHANNELS` const at `shared/ipc-channels.ts:21-26`; `ALLOWED_IPC_CHANNELS` array lines 31-36 | PASS |
+| All handlers retain `isAllowedSender` origin check | `ipc.ts:60,70,81,96` | PASS |
+| `frame:stats` runtime payload guard (`isFrameStatsPayload`) still in force | `ipc.ts:127-141` | PASS |
+| Cleanup symmetry (removeAllListeners + removeHandler) | `ipc.ts:113-118` | PASS |
+| Sprint 2 added zero new IPC channels | `grep "ipcMain\.(on\|handle)" src/main/` → still four handlers | PASS |
+
+Sprint 2 directive ("NO new IPC channels") honoured.
+
+Result: PASS
+
+### D. Session permission handler — STILL INSTALLED
+
+Sprint 0 forward-looking advisory #2 (closed in Sprint 1) remains in force. `git diff 23d9c58..89a692f -- src/main/index.ts` → **zero hunks**. `session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))` at `index.ts:75-77` still denies camera / mic / geolocation / notifications / MIDI / clipboard / etc. unconditionally.
+
+Result: PASS
+
+### E. CSP under Sprint 2 additions
+
+CSP at `renderer/index.html:6-9`: `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; script-src 'self';`. **Unchanged from Sprint 0+1.**
+
+| Directive | Sprint 2 interaction | Result |
+| --- | --- | --- |
+| `script-src 'self'` | Three.js `AnimationMixer` (`revolver-anim.ts:32-40,97`) animates uniforms via `gl.uniform*` / `Object3D.position/rotation/scale` mutations — **does NOT compile new shader programs at clip time**. GLSL was already compiled at scene mount (Sprint 1). The mixer is pure CPU-side keyframe interpolation; no JS-side `eval` / `new Function`. `grep -rnE "eval\(\|new Function" src/` → ZERO hits. | PASS |
+| `style-src 'self' 'unsafe-inline'` | `counter.ts:179` writes a custom CSS variable via `counter.style.setProperty('--hud-glow-alpha', String(glowAlpha))`. This is the **CSSOM JS API**, not an HTML inline-style attribute. CSP `style-src` governs the *source* of stylesheets and `<style>` blocks (and, with `'unsafe-inline'`, inline `style=` attrs in HTML markup); it does **not** restrict runtime DOM property mutation through the CSSOM. `setProperty` is allowed under any CSP. `grep -rn 'style=' src/renderer/` → only a JSDoc comment string at `counter.ts:27` ("`<div ... style=\"--hud-glow-alpha: X\">`" illustrating the rendered shape) — NOT an actual inline-style attribute in source. Sprint 1 carried-forward advisory persists, no new violation. | PASS (advisory carried forward) |
+| `img-src 'self' data:` | No new image sources. Bang overlay flash is `background-color` keyframes in `hud.css`, not an image. | PASS |
+| `font-src 'self'` | DSEG7-Classic bundled at `src/renderer/fonts/dseg/DSEG7-Classic-Regular.{woff2,woff,ttf}`; `@font-face src:` declarations at `fonts.css:346-355` use only **local relative paths** (`url('../fonts/dseg/...')`). No CDN URL, no external font host. `file` command confirms WOFF/WOFF2/TTF — actual font payloads, not executables. | PASS |
+| `media-src` (still not declared) | Sprint 2 added NO real audio file loads. `revolver-sfx.ts` is pure WebAudio synth (OscillatorNode, BiquadFilterNode, AudioBufferSourceNode, GainNode — all built from constants and `Math.random()` noise buffers). The Howler music slot is **still** the silent `data:audio/wav;base64,...` placeholder from Sprint 1 (`audio-bed.ts:344-352`) and `grep -rn "Howl(" src/renderer/` returns only that single instantiation. Howler short-circuits data-URIs (no XHR). Sprint 1 advisory I.2 (add `media-src 'self'` when Sprint 3 ships real `.ogg`) carries forward unchanged. | PASS (advisory carried forward) |
+| `default-src 'self'` (catchall) | `grep -rnE "(https?://\|fetch\(\|XMLHttpRequest\|WebSocket\|axios)" src/` → only OFL license URL strings in font directories (`fonts/dseg/LICENSE.txt`, `fonts/dseg/README.md`, `fonts/pt-serif/OFL.txt`, `fonts/old-standard-tt/OFL.txt`) and the localhost dev-URL origin check at `ipc.ts:47,54`. **No live `fetch` / XHR / WebSocket code paths in Sprint 2.** | PASS |
+
+Result: PASS (Sprint 0+1 advisories carried forward; no new violations)
+
+### F. Asset surface
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| No bundled executables | `find src/ -type f \( -name "*.exe" -o -name "*.dll" -o -name "*.sh" -o -name "*.ps1" -o -name "*.bat" -o -name "*.so" -o -name "*.dylib" -o -name "*.cmd" \)` → ZERO hits | PASS |
+| No live network code | `grep -rnE "(https?://\|fetch\(\|XMLHttpRequest\|WebSocket\|axios\|got\(\|node-fetch)" src/` → only license URL strings + the localhost dev-URL origin check at `ipc.ts:47,54` | PASS |
+| Three / postprocessing / Howler still local, still single-source | `npm ls three postprocessing howler` → `three@0.184.0 + postprocessing@6.39.1 + howler@2.2.4`, all under `node_modules/`, no CDN at runtime. No dependency additions in `package.json`. | PASS |
+| DSEG font bundle integrity | `src/renderer/fonts/dseg/` contains: `DSEG7-Classic-Regular.woff2` (5.2 KB, WOFF2), `DSEG7-Classic-Regular.woff` (7.1 KB, WOFF), `DSEG7-Classic-Regular.ttf` (23 KB, TrueType), `LICENSE.txt` (SIL OFL 1.1 verbatim, 4.5 KB), `README.md` (9.8 KB, source/version/copyright/glyph-coverage). `file` command confirms all three font files are legitimate font payloads (WOFF / WOFF2 / TrueType), not executables. | PASS |
+| `npm audit --omit=dev` | "found 0 vulnerabilities" (matches Sprint 0+1 baseline) | PASS |
+| No new hardcoded credentials | `grep -rnE "(sk-\|ghp_\|gho_\|AKIA\|Bearer \|api[_-]?key\|password\|secret\|token)" src/renderer/scene/revolver/ src/renderer/scene/audio/revolver-sfx.ts src/renderer/styles/hud.css src/renderer/fonts/dseg/` (excluding OFL/LICENSE/README hits) → ZERO functional hits | PASS |
+| No new `.env` committed | `ls .env*` → still no matches; `.gitignore` lines 6-7 still cover `.env`/`.env.local` | PASS |
+
+Result: PASS
+
+### G. AnimationMixer + WebAudio integrity
+
+| Claim | Evidence | Result |
+| --- | --- | --- |
+| `AnimationMixer` does NOT compile new GLSL at runtime | `revolver-anim.ts` builds `NumberKeyframeTrack` arrays and feeds them to `AnimationMixer.clipAction(clip).play()`. The mixer's per-frame `update(delta)` calls (`revolver-loop.ts:36`) interpolate keyframe values and write them into `Object3D.position`/`rotation`/`material uniforms` — no `shaderSource` / `compileShader` calls. GLSL was compiled once at scene mount; AnimationMixer only mutates the already-compiled program's uniforms. | PASS |
+| WebAudio synthesis uses only standard Chromium WebAudio APIs | `revolver-sfx.ts` uses `OscillatorNode`, `BiquadFilterNode`, `GainNode`, `AudioBufferSourceNode`, `StereoPannerNode`. Per `grep -nE "AudioContext\|OscillatorNode\|GainNode\|BiquadFilter\|AudioBufferSource"` — all standard W3C WebAudio. No `AudioWorklet` (which would load worker source from a separate URL — not present here). No native bindings beyond Chromium's audio service. The `spawnSweat*` function names are local helpers (oscillator-node spawning), NOT `child_process.spawn()`. | PASS |
+| `AudioContext.close()` in dispose chain — graceful audio-thread cleanup | `audio-bed.ts:299` — `await ctx.close()` inside `buildDisposeFn`. `scene/index.ts:332-336` — revolver disposes BEFORE audio bed so empty-click cue handlers (`audio.playHeartbeat()` etc.) can no longer reach a closed context. `revolver-sfx.ts:443-451` (`stopBreathLayer`) calls `.stop()` + `.disconnect()` on the breath graph with `try/catch` around the stop so a double-dispose is safe. Per-OneShot graphs self-destruct on the `OscillatorNode.onended` event (`revolver-sfx.ts:124-128,162-166` and similar) so they don't leak past dispose. | PASS |
+| RNG uses CSPRNG, not `Math.random()` | `revolver-rng.ts:40-45` — `crypto.getRandomValues(new Uint32Array(1))`. Predictability is not the concern for *security* here (it's a joke app), but using `crypto.getRandomValues` is the right call: it prevents a curious user from timing-attacking `Math.random()` to predict the bang before the spin animation lands. Modulo bias on `Uint32 % 6` is ~5.96e-9 — invisible at any realistic pull count. Math noted by author at `revolver-rng.ts:31-38`. | PASS |
+
+Result: PASS
+
+### H. New DOM surface (HUD + bang overlay + i18n)
+
+| Claim | Evidence | Result |
+| --- | --- | --- |
+| HUD DOM built via `createElement` + `textContent`, NEVER `innerHTML` | `grep -rnE "innerHTML\|outerHTML" src/renderer/` → ZERO hits. `counter.ts:98-137` builds the counter subtree via `document.createElement(...)` and assigns text via `.textContent` (`counter.ts:108,111,125,129,133`). `messages.ts:82-94` builds the message overlay subtree the same way; `applyCopy` (`messages.ts:152-163`) writes via `.textContent`. `hud.ts:63-85` only composes; no DOM injection. `scene-mount.ts:120-145` creates the HUD/bang overlay siblings via `createElement` + `setAttribute('aria-hidden', 'true')`. | PASS |
+| Bang overlay toggle is a CSS class flip, NOT external DOM injection | `revolver-effects.ts:187-194` — `overlay.classList.add('is-fired')` plus `overlay.dataset['flashMs']` / `overlay.dataset['fadeMs']`. The CSS keyframes that drive the flash + fade-to-black live in `hud.css`. No JS-side innerHTML, no external content. | PASS |
+| `setAttribute` writes only `data-*` and `aria-*` attributes | `grep -rn "setAttribute" src/renderer/scene/revolver/ src/renderer/scene-mount.ts src/renderer/main.ts` → 8 hits, all `data-locale`, `data-kind`, `aria-hidden`, `aria-live`, `aria-label`. NO `setAttribute('src', ...)`, `setAttribute('href', ...)`, or any attribute that could load external content. | PASS |
+| `style.setProperty` mutates one CSS custom property (`--hud-glow-alpha`) | Single call at `counter.ts:179`. CSSOM JS API — CSP-safe (see section E `style-src`). Value is `String(glowAlpha)` where `glowAlpha` is a number from the SSOT constant `HUD_GLOW_ALPHA_BY_CLICK[clamped]` — no user input, no string interpolation of external data. | PASS |
+| i18n strings rendered from compile-time `STRINGS` const, no template injection | `i18n/strings.ts:31-64` — typed `as const` object literal. All RU + TR copy hardcoded in source. `t(key, locale)` (line 115-126) does a typed dot-path lookup; missing keys throw at compile time via the `LocaleKey` discriminated union. No `{user_input}` placeholder mechanism, no `format()` with external data, no runtime string concatenation of attacker-controlled content. | PASS |
+| `aria-live` on transient-messages overlay | `messages.ts:85` — `root.setAttribute('aria-live', 'polite')`. Screen readers re-announce content changes politely; no security implication, but a11y-correct. | PASS |
+
+Result: PASS
+
+### I. Joke-app narrative integrity
+
+Sprint 2 must preserve the marketing/distribution defense: this app performs **zero** real system operations.
+
+| Claim | Evidence | Result |
+| --- | --- | --- |
+| No new fs / shell / network / process spawning in renderer subsystems | `grep -rnE "(spawn\|exec\|fork\|execFile\|child_process)\(\|fs\.\|http\.\|net\." src/renderer/scene/revolver/` → only the local helper-function `spawnSweat*` names in `revolver-sfx.ts` (oscillator-node spawning, NOT `child_process.spawn()`); no `fs.`/`http.`/`net.` namespaces; no imports of `child_process` / `fs` / `http` / `net` (verified by `grep -rnE "(require\|import).*(fs\|child_process\|shell\|net\|http\|https\|dgram\|cluster\|vm)" src/renderer/scene/revolver/ src/renderer/scene/audio/revolver-sfx.ts src/renderer/scene/audio/audio-bed.ts` → ZERO hits) | PASS |
+| Audio synthesis is renderer-only (no system audio API leak) | `revolver-sfx.ts` synth path: `AudioContext` → `GainNode` → `Oscillator/AudioBufferSource/BiquadFilter`. Chromium's WebAudio runs the audio thread in the renderer process under the same sandbox as the rest of the page. No native audio bindings, no MIDI, no Web MIDI API call (the session permission handler at `index.ts:75-77` would refuse it anyway). | PASS |
+| Three.js + AnimationMixer render through Chromium WebGL (sandboxed GPU process) | The WebGL contract is enforced by `webSecurity: true` + `sandbox: true`. AnimationMixer mutates JS-side `Object3D` properties; the renderer uploads to WebGL via the standard pipeline. No native GL bindings, no GL extension that could escape the sandbox. | PASS |
+| No telemetry SDK added | `grep -rnE "(sentry\|amplitude\|mixpanel\|posthog\|datadog\|tracking\|pixel\|telemetry\|analytics)" src/` (excluding comments referencing Sprint 9 future opt-in Sentry) → only the same comment references at `index.ts:13` and `logger.ts:22` already approved in Sprint 0. **No new analytics surface in Sprint 2.** | PASS |
+| `frame:stats` still the only IPC channel that carries any payload, still local-only persistence | `electron-log` config unchanged (`logger.ts`); no `transports.remote` / `transports.http`; the handler at `ipc.ts:104` still calls `logger.info('frame:stats', payload)` and nothing else. | PASS |
+| RNG sanity check (dev-only diagnostic) is read-only, writes to DOM dataset only | `revolver/index.ts:111-121` runs 100 trials of `pullTrigger()` at mount and writes the result to `document.body.dataset['revolverRngSanity']`. No fetch, no logging beyond DOM. Devtools-only audit; promoted to vitest in Sprint 9. | PASS |
+
+Result: PASS
+
+### J. DSEG OFL 1.1 license compliance
+
+| Check | Evidence | Result |
+| --- | --- | --- |
+| `LICENSE.txt` present, SIL OFL 1.1 verbatim | `src/renderer/fonts/dseg/LICENSE.txt` (4.5 KB), header lines 1-12: `Copyright (c) 2017, keshikan (http://www.keshikan.net), with Reserved Font Name "DSEG". This Font Software is licensed under the SIL Open Font License, Version 1.1.` | PASS |
+| `README.md` documents source URL + version + copyright | `src/renderer/fonts/dseg/README.md` cites project URL `https://github.com/keshikan/DSEG`, release v0.46 (2020-03-15), copyright `(c) 2017 keshikan` with the Reserved Font Name clause. | PASS |
+| PLAN.md §10 attribution log appended with DSEG entry | PLAN §10 lines 485-496 contain the DSEG7-Classic block with license, source, bundled files, copyright, reserved-font-name preserved, glyph-coverage caveat, and the `/` (U+002F) slash-fallback workaround documented. | PASS |
+| Reserved Font Name "DSEG" NOT renamed | `font-family: 'DSEG7-Classic'` at `fonts.css:347` and `hud.css:111` preserves the upstream family name verbatim. We did NOT distribute a derivative under the Reserved Font Name — we shipped the original. OFL §3-§4 (Reserved Font Name clause) is honoured. | PASS |
+| No font subset re-derived without rename | Sprint 2 ships the upstream `DSEG7-Classic-Regular.{woff2,woff,ttf}` verbatim (5.2 KB / 7.1 KB / 23 KB matches keshikan v0.46 release). No glyph deletion / re-encoding / merging that would constitute a derivative requiring rename under OFL §3. | PASS |
+
+Result: PASS
+
+### Summary table
+
+| Section | Result |
+| --- | --- |
+| A. BrowserWindow webPreferences (unchanged from Sprint 0+1) | PASS |
+| B. Preload audit (NO new imports or exposures — directive honoured) | PASS |
+| C. IPC channels (NO new channels — directive honoured) | PASS |
+| D. Session permission handler (still installed, still deny-all) | PASS |
+| E. CSP under Sprint 2 (AnimationMixer + WebAudio synth + DSEG + HUD DOM) | PASS (Sprint 0+1 advisories carried forward) |
+| F. Asset surface (no execs, no network code, DSEG verified, audit clean) | PASS |
+| G. AnimationMixer + WebAudio integrity (no eval, graceful close, CSPRNG) | PASS |
+| H. New DOM surface (createElement + textContent only, no innerHTML) | PASS |
+| I. Joke-app narrative integrity (zero real system operations) | PASS |
+| J. DSEG OFL 1.1 license compliance | PASS |
+
+### K. Forward-Looking Advisories (NOT Sprint 2 blockers)
+
+Sprint 0+1 advisories re-affirmed and one Sprint-3-bound item re-emphasised:
+
+1. **CSP `style-src 'unsafe-inline'` — STILL acceptable for Sprint 2.** No inline `style=` attributes added (`grep -rn 'style=' src/renderer/` → only a JSDoc comment string; zero actual inline attrs). `style.setProperty` is CSSOM JS API, not governed by `style-src`. Tighten to nonce-based styles or pure external stylesheets before Sprint 6/7 polish.
+2. **CSP `media-src` — STILL Sprint 3 dependency.** Sprint 2 added zero real audio file loads — `revolver-sfx.ts` is pure WebAudio synth, the Howler music slot is still the silent data-URI placeholder from Sprint 1. **The day Sprint 3 loads `assets/audio/music/temnaya-placeholder.ogg` (or any of the `.ogg` files in PLAN §10), Howler will issue an XHR — `media-src 'self'` MUST be added to CSP at that point, and likely `connect-src 'self'` because Howler uses XMLHttpRequest with `responseType: 'arraybuffer'`. Track in the Sprint 3 ticket where the music file lands.** (Re-affirmed from Sprint 1 advisory I.2.)
+3. **IPC payload runtime validation — STILL adequate, STILL the `frame:stats` precedent.** Sprint 2 added NO new payload-carrying IPC channels. `isFrameStatsPayload` (`ipc.ts:127-141`) remains the canonical pattern. As Sprint 4+ adds destruction-phase telemetry payloads (if any), continue this pattern OR adopt `zod` / `valibot` for type-derived runtime schemas.
+4. **Code signing + notarization — UNCHANGED from Sprint 0+1 advisory #4.** Sprint 7 (mac) and Sprint 8 (win). Placeholders in `electron-builder.yml` correct.
+5. **`revolver-sfx.ts` is 452 lines — exceeds the 400-line ceiling enforced by `.eslintrc.cjs:30-32`.** Style/maintainability concern only, NO security implication. Out of security-reviewer scope; flagged for @code-reviewer / @verifier to assess whether the audio synth helpers should split into `revolver-sfx-cock.ts` / `revolver-sfx-breath.ts` / `revolver-sfx-bang.ts` etc.
+
+### Final verdict
+
+**PASS — all ten sections green.**
+
+Sprint 2 preserves the Sprint 0+1 security posture intact:
+
+1. **Main / preload / IPC contract: zero diff vs Sprint 1.** `git diff 23d9c58..89a692f -- src/main/ src/preload/ src/shared/ipc-channels.ts` returns zero hunks. The four-channel IPC contract (`app:quit`, `os:get`, `kiosk:toggle`, `frame:stats`) is unchanged; all four still origin-checked, `frame:stats` still payload-shape-validated. Sprint 2 directive ("NO new IPC channels per Sprint 2 plan") honoured.
+2. **Renderer surface expanded — but only with synthesis, animation, and DOM mutation.** The revolver subsystem (FSM, RNG, AnimationMixer, mesh, side-effect ladder, input handlers), HUD DOM module, WebAudio one-shots + breath layer, and DSEG font bundle add **zero** new system-touching code paths. AnimationMixer mutates already-compiled Three.js uniforms (no `shaderSource`/`compileShader` at clip time); WebAudio synthesis runs in Chromium's audio thread under the renderer sandbox; HUD DOM is built via `createElement` + `textContent` (no `innerHTML`); i18n strings are typed compile-time constants (no template-injection vector); RNG uses `crypto.getRandomValues` (CSPRNG); the `AudioContext.close()` graceful-shutdown chain at `audio-bed.ts:299` + the OneShot self-destruction on `OscillatorNode.onended` prevent audio-thread leaks.
+3. **DSEG7-Classic OFL 1.1 license compliance: full attribution chain in place.** `src/renderer/fonts/dseg/LICENSE.txt` carries the SIL OFL 1.1 verbatim; `src/renderer/fonts/dseg/README.md` documents source URL, version (v0.46, 2020-03-15), copyright, and the glyph-coverage caveat. PLAN §10 attribution log appended with the DSEG entry (lines 485-496). Reserved Font Name "DSEG" preserved verbatim in `font-family: 'DSEG7-Classic'` at `fonts.css:347` — no derivative-rename violation. The three font payloads (`woff2`/`woff`/`ttf`) are legitimate font binaries per `file` command, sized consistently with the keshikan v0.46 release.
+
+`npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (`electron-log`, `three`, `postprocessing`, `howler` — same set as Sprint 1).
+
+The marketing/distribution defense established by the Sprint 0+1 audits holds verbatim:
+
+- The preload bridge still imports zero modules capable of touching the filesystem, shelling out, opening sockets, or running arbitrary code (re-verified by banned-module grep — zero hits).
+- The IPC contract still has exactly four channels — all four are origin-checked, the one payload-carrying channel (`frame:stats`) is also runtime-shape-validated, none invoke fs / shell / network / process APIs.
+- crashReporter, electron-log, and the `frame:stats` channel all persist locally. There is no telemetry SDK, no analytics, no fetch / XHR / WebSocket, no remote log transport, no submitURL. Nothing leaves the user's machine.
+- The Sprint 2 additions (revolver subsystem + HUD + audio synth + DSEG font) are 100% renderer-side; they expand the *visual* and *auditory* surface but add zero new system-touching code paths.
+
+If a notarization reviewer or SmartScreen analyst asks "what could this app possibly do that's dangerous after Sprint 2?" — the honest, evidence-backed answer is the same as Sprint 0+1: *nothing the sandbox and the four-channel IPC contract don't already prevent.* The revolver subsystem cannot reach beyond the renderer; the DSEG font is a passive woff2 byte stream the WebFont parser consumes; the WebAudio synth runs on the same Chromium audio thread the silent Howl placeholder does. The day Sprint 3 ships real `.ogg` files, the audit MUST be re-opened to add `media-src 'self'` (and probably `connect-src 'self'`) to the CSP — flagged in advisory K.2.
+
+Audit confirmed. Sprint 2 ships clean.
+
+---
+
 ## 18. Open Threads (Cross-Sprint Carry-Forward)
 
 Persistent housekeeping items carried across sprints. Each thread cites its

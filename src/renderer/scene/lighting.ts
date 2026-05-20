@@ -35,7 +35,11 @@ import {
   SphereGeometry,
 } from 'three';
 import { AMBIENT_LIGHT, BULB_LIGHT } from '../../shared/scene-constants';
-import { LIGHTING_FLICKER_DEPTH } from '../../shared/scene-revolver-constants';
+import {
+  LIGHTING_FLICKER_DEPTH,
+  TENSION_MICRO_PULSE_AMP,
+  TENSION_MICRO_PULSE_HZ,
+} from '../../shared/scene-revolver-constants';
 
 /** 2π — precomputed so the per-frame Lissajous math stays cheap. */
 const TWO_PI = Math.PI * 2;
@@ -74,6 +78,12 @@ export interface BulbLightHandle {
    * the timer; the bulb does not pile up multipliers.
    */
   triggerFlicker: (durationMs: number) => void;
+  /**
+   * Activate/deactivate the tension micro-pulse — an additive 4Hz sinusoidal
+   * intensity wobble applied on top of the existing 14Hz AC ripple during the
+   * last 100ms of trigger hold (designer §3).
+   */
+  setMicroPulseActive: (active: boolean) => void;
   /** Tear down. Frees GPU buffers + dispose materials. */
   dispose: () => void;
 }
@@ -98,6 +108,7 @@ export function createBulbLight(): BulbLightHandle {
     baseFactor: 1.0,
     flickerStartMs: -1,
     flickerDurationMs: 0,
+    microPulseActive: false,
   };
 
   const update = buildSwayUpdater(light, dynamicState);
@@ -108,11 +119,14 @@ export function createBulbLight(): BulbLightHandle {
     dynamicState.flickerStartMs = performance.now();
     dynamicState.flickerDurationMs = Math.max(durationMs, 1);
   };
+  const setMicroPulseActive = (active: boolean): void => {
+    dynamicState.microPulseActive = active;
+  };
   const dispose = buildDisposer(bulbMesh);
 
   return {
     light, bulbMesh, update, dispose,
-    setBaseIntensityFactor, triggerFlicker,
+    setBaseIntensityFactor, triggerFlicker, setMicroPulseActive,
   };
 }
 
@@ -125,6 +139,8 @@ interface BulbDynamicState {
   baseFactor: number;
   flickerStartMs: number;
   flickerDurationMs: number;
+  /** True during the tension-threshold window (last 100ms of hold). */
+  microPulseActive: boolean;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -193,12 +209,18 @@ function buildSwayUpdater(
   const pulseW = TWO_PI * BULB_LIGHT.swayPulseHz;
   const pulseA = BULB_LIGHT.swayPulseAmp;
 
+  const microPulseW = TWO_PI * TENSION_MICRO_PULSE_HZ;
+
   return (elapsedSec: number): void => {
     light.position.x = Math.sin(elapsedSec * wX + phaseX) * ampX;
     light.position.z = Math.sin(elapsedSec * wZ + phaseZ) * ampZ;
     const pulse = 1 + Math.sin(elapsedSec * pulseW) * pulseA;
     const flicker = computeFlickerMultiplier(state, performance.now());
-    light.intensity = baseIntensity * state.baseFactor * pulse * flicker;
+    const microPulse = state.microPulseActive
+      ? Math.sin(elapsedSec * microPulseW) * TENSION_MICRO_PULSE_AMP
+      : 0;
+    light.intensity =
+      baseIntensity * state.baseFactor * pulse * flicker + microPulse;
   };
 }
 

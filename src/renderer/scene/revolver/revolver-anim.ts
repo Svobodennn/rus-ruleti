@@ -84,6 +84,12 @@ interface AnimState {
   active: AnimClipName | null;
   clips: Map<AnimClipName, AnimationClip>;
   clock: Clock;
+  /**
+   * Active `finished` listeners keyed to in-flight awaitFinished Promises.
+   * Tracked so dispose() can remove them before stopAllAction(), preventing
+   * the Promise from leaking when dispose runs mid-clip.
+   */
+  finishedListeners: Set<FinishedListener>;
 }
 
 /**
@@ -99,6 +105,7 @@ export function mountAnimation(root: Object3D): AnimHandle {
     active: null,
     clips: buildClipMap(root),
     clock: new Clock(),
+    finishedListeners: new Set(),
   };
 
   const play = (clip: AnimClipName): Promise<void> =>
@@ -111,6 +118,12 @@ export function mountAnimation(root: Object3D): AnimHandle {
     mixer.update(deltaSec);
   };
   const dispose = (): void => {
+    // Remove all tracked 'finished' listeners before stopping actions so
+    // in-flight awaitFinished Promises don't leak (BUG-4 fix).
+    for (const listener of state.finishedListeners) {
+      mixer.removeEventListener('finished', listener);
+    }
+    state.finishedListeners.clear();
     mixer.stopAllAction();
     mixer.uncacheRoot(root);
   };
@@ -248,7 +261,7 @@ function playClip(
   if (clip === 'idle') {
     return Promise.resolve();
   }
-  return awaitFinished(mixer, clip);
+  return awaitFinished(mixer, state, clip);
 }
 
 /** Configure loop mode + clamp-on-end per clip kind. */
@@ -268,14 +281,17 @@ function configureAction(
 /** Promise that resolves on the next `finished` event for the named clip. */
 function awaitFinished(
   mixer: AnimationMixer,
+  state: AnimState,
   clip: AnimClipName,
 ): Promise<void> {
   return new Promise((resolve): void => {
     const listener: FinishedListener = (e): void => {
       if (e.action.getClip().name !== clip) return;
       mixer.removeEventListener('finished', listener);
+      state.finishedListeners.delete(listener);
       resolve();
     };
+    state.finishedListeners.add(listener);
     mixer.addEventListener('finished', listener);
   });
 }

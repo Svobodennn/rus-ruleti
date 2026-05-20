@@ -8,6 +8,7 @@
 
 import { PerspectiveCamera, Vector3 } from 'three';
 import { CAMERA } from '../../shared/scene-constants';
+import { KICK_CAMERA_SHAKE_HZ } from '../../shared/scene-revolver-constants';
 
 /**
  * Construct the fixed-camera. Aspect is computed from the passed container —
@@ -85,33 +86,55 @@ export function startCameraZoom(
 /**
  * Single-shot camera shake — perturbs `camera.rotation.z` over `durationMs`
  * with a decaying-amplitude sine, snapping back to the original rotation.
+ * Returns a disposer that aborts the active RAF, parallel to `startCameraZoom`.
  *
  * Used by the kick animation on bang (PLAN §6 "+2° kamera shake"). Allocates
  * its own RAF; does NOT integrate with the main render loop (scene.ts) so
  * this module stays self-contained. If a second shake is triggered while
  * one is active, the second wins (caller resets the base rotation).
+ *
+ * Early-returns (no-op disposer) when prefers-reduced-motion is active —
+ * audio bang + overlay are sufficient plot beats without motion.
  */
 export function triggerCameraShake(
   camera: PerspectiveCamera,
   maxAngleDeg: number,
   durationMs: number,
-): void {
+): () => void {
+  // Respect prefers-reduced-motion: audio bang + overlay are sufficient
+  // plot beats without motion (consistent with hud.css strobe-disable).
+  if (
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return (): void => undefined;
+  }
   const baseRot = camera.rotation.z;
   const startMs = performance.now();
   const duration = Math.max(durationMs, 1);
   const maxRad = (maxAngleDeg * Math.PI) / 180;
+  let rafId = 0;
+  let active = true;
 
   const tick = (): void => {
+    if (!active) {
+      camera.rotation.z = baseRot;
+      return;
+    }
     const elapsed = performance.now() - startMs;
     if (elapsed >= duration) {
       camera.rotation.z = baseRot;
       return;
     }
     const decay = 1 - elapsed / duration;
-    // ~24Hz shake: fast enough to read as recoil, not chatter.
-    const wobble = Math.sin((elapsed / 1000) * 2 * Math.PI * 24);
+    const wobble = Math.sin((elapsed / 1000) * 2 * Math.PI * KICK_CAMERA_SHAKE_HZ);
     camera.rotation.z = baseRot + wobble * maxRad * decay;
-    requestAnimationFrame(tick);
+    rafId = requestAnimationFrame(tick);
   };
-  requestAnimationFrame(tick);
+  rafId = requestAnimationFrame(tick);
+
+  return (): void => {
+    active = false;
+    cancelAnimationFrame(rafId);
+  };
 }

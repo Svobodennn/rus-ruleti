@@ -34,12 +34,11 @@
  */
 
 import {
-  EARLY_RELEASE_MS,
   HOLD_DURATION_MS,
 } from '../../../shared/scene-revolver-constants';
+import type { AnimClipName } from './revolver-anim';
 
-/** Animation clip names — also exported from revolver-anim.ts. */
-export type AnimClipName = 'idle' | 'cock' | 'spin' | 'fall' | 'kick';
+export type { AnimClipName };
 
 /** Trigger pull outcome from the RNG seam. */
 export type TriggerOutcome = 'empty' | 'bang';
@@ -66,47 +65,66 @@ export function assertNever(s: never): never {
 }
 
 /**
- * Mouse-down transition. Only meaningful from `idle` → `cocking`. Pressing
- * the trigger again from any other state is a no-op (the FSM ignores it; the
- * input layer should also debounce, but defensive equality is cheap).
+ * Mouse-down transition. Only meaningful from `idle` → `cocking`. Every
+ * other state is a no-op (the input layer also debounces, but defensive
+ * exhaustive coverage gives compile-time safety if a new state is added).
  */
 export function onMouseDown(
   state: RevolverState,
   nowMs: number,
 ): RevolverState {
-  if (state.kind !== 'idle') {
-    return state;
+  switch (state.kind) {
+    case 'idle':
+      return { kind: 'cocking', holdStartMs: nowMs };
+    case 'cocking':
+      return state;
+    case 'spinning':
+      return state;
+    case 'firing':
+      return state;
+    case 'reveal-lite':
+      return state;
+    default:
+      return assertNever(state);
   }
-  return { kind: 'cocking', holdStartMs: nowMs };
 }
 
 /**
  * Mouse-up transition.
  *
  * From `cocking`:
- *   - held < EARLY_RELEASE_MS → idle (no spin; "Karar veremedin." message
- *     is surfaced by the mount layer reading the FSM transition).
- *   - held >= EARLY_RELEASE_MS but < HOLD_DURATION_MS → idle (spring-back).
+ *   - held < HOLD_DURATION_MS → idle (mount layer checks against
+ *     EARLY_RELEASE_MS to decide whether to show "Karar veremedin."
+ *     or do a silent spring-back).
  *   - held >= HOLD_DURATION_MS → spinning (rngOutcome resolved now).
  *
- * From any other state → no-op.
+ * All other states → no-op. Exhaustive switch ensures compile error if a
+ * new state variant is added without handling it here.
  */
 export function onMouseUp(
   state: RevolverState,
   nowMs: number,
   rng: () => TriggerOutcome,
 ): RevolverState {
-  if (state.kind !== 'cocking') {
-    return state;
+  switch (state.kind) {
+    case 'cocking': {
+      const heldMs = nowMs - state.holdStartMs;
+      if (heldMs < HOLD_DURATION_MS) {
+        return { kind: 'idle' };
+      }
+      return { kind: 'spinning', rngOutcome: rng() };
+    }
+    case 'idle':
+      return state;
+    case 'spinning':
+      return state;
+    case 'firing':
+      return state;
+    case 'reveal-lite':
+      return state;
+    default:
+      return assertNever(state);
   }
-  const heldMs = nowMs - state.holdStartMs;
-  if (heldMs < EARLY_RELEASE_MS) {
-    return { kind: 'idle' };
-  }
-  if (heldMs < HOLD_DURATION_MS) {
-    return { kind: 'idle' };
-  }
-  return { kind: 'spinning', rngOutcome: rng() };
 }
 
 /**
@@ -117,20 +135,36 @@ export function onMouseUp(
  * The `revealLite` flag is forwarded from the mount layer (which owns the
  * empty-click counter): if the 6th consecutive empty has just resolved,
  * route the final transition to `reveal-lite` instead of back to `idle`.
+ *
+ * Exhaustive switch on state.kind gives compile-time safety when new
+ * states are added.
  */
 export function onAnimationComplete(
   state: RevolverState,
   clip: AnimClipName,
   revealLite: boolean = false,
 ): RevolverState {
-  if (state.kind === 'spinning' && clip === 'spin') {
-    return { kind: 'firing', outcome: state.rngOutcome };
-  }
-  if (state.kind === 'firing' && (clip === 'fall' || clip === 'kick')) {
-    if (state.outcome === 'bang') {
+  switch (state.kind) {
+    case 'spinning':
+      if (clip === 'spin') {
+        return { kind: 'firing', outcome: state.rngOutcome };
+      }
       return state;
-    }
-    return revealLite ? { kind: 'reveal-lite' } : { kind: 'idle' };
+    case 'firing':
+      if (clip === 'fall' || clip === 'kick') {
+        if (state.outcome === 'bang') {
+          return state;
+        }
+        return revealLite ? { kind: 'reveal-lite' } : { kind: 'idle' };
+      }
+      return state;
+    case 'idle':
+      return state;
+    case 'cocking':
+      return state;
+    case 'reveal-lite':
+      return state;
+    default:
+      return assertNever(state);
   }
-  return state;
 }

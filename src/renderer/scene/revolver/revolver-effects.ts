@@ -32,11 +32,14 @@ import {
   EMPTY_CLICK_SWEAT_THRESHOLD,
   HOLD_BREATH_GAIN_DB,
   HOLD_BULB_HUM_GAIN_DB,
+  HOLD_DURATION_MS,
   HOLD_ZOOM_DURATION_MS,
   HOLD_ZOOM_FACTOR,
   KICK_CAMERA_SHAKE_DEG,
   KICK_CAMERA_SHAKE_DURATION_MS,
   SPRING_BACK_MS,
+  TENSION_BREATH_RATE_MULTIPLIER,
+  TENSION_THRESHOLD_OFFSET_MS,
 } from '../../../shared/scene-revolver-constants';
 import { CAMERA } from '../../../shared/scene-constants';
 import type { AudioBedHandle } from '../audio/audio-bed';
@@ -55,7 +58,7 @@ export interface EffectContext {
   readonly hud: HudHandle;
   readonly bangOverlay: HTMLElement;
   /** Mutable RAF disposers — owned by mount layer, mutated here on ramps. */
-  ramps: { zoom: (() => void) | null };
+  ramps: { zoom: (() => void) | null; shake: (() => void) | null };
   /** Cock animation timestamp; used to compute released-held ms. */
   holdStartMs: number;
   /**
@@ -64,6 +67,11 @@ export interface EffectContext {
    * `anim.play('spin')`. `null` outside the spinning state.
    */
   spinPromise: Promise<void> | null;
+  /**
+   * Timer ID for the tension-threshold setTimeout (last 100ms of hold).
+   * Stored so early-release / spin-commit can cancel it. `null` when idle.
+   */
+  tensionTimerId: ReturnType<typeof setTimeout> | null;
 }
 
 /**
@@ -104,6 +112,31 @@ function startHoldRamps(ctx: EffectContext): void {
   const breathTarget = dbToFraction(HOLD_BREATH_GAIN_DB);
   ctx.audio.fadeBreathInOut(breathTarget, HOLD_ZOOM_DURATION_MS);
   ctx.audio.bumpBulbHum(HOLD_BULB_HUM_GAIN_DB, HOLD_ZOOM_DURATION_MS);
+  scheduleTensionThreshold(ctx);
+}
+
+/**
+ * Schedule the tension-threshold callback at (HOLD_DURATION_MS -
+ * TENSION_THRESHOLD_OFFSET_MS) after hold starts — i.e. 900ms into a 1s hold.
+ * Doubles breath rate + activates bulb micro-pulse (designer §3).
+ */
+function scheduleTensionThreshold(ctx: EffectContext): void {
+  const delayMs = HOLD_DURATION_MS - TENSION_THRESHOLD_OFFSET_MS;
+  ctx.tensionTimerId = setTimeout((): void => {
+    ctx.tensionTimerId = null;
+    ctx.audio.setBreathRate(TENSION_BREATH_RATE_MULTIPLIER);
+    ctx.lighting.setMicroPulseActive(true);
+  }, delayMs);
+}
+
+/** Cancel the tension-threshold timer and reset its side effects. */
+function cancelTensionThreshold(ctx: EffectContext): void {
+  if (ctx.tensionTimerId !== null) {
+    clearTimeout(ctx.tensionTimerId);
+    ctx.tensionTimerId = null;
+  }
+  ctx.audio.setBreathRate(1.0);
+  ctx.lighting.setMicroPulseActive(false);
 }
 
 /**
@@ -130,6 +163,7 @@ function onCockingToIdle(
 
 /** Reverse the three hold ramps at 2× speed. */
 function reverseHoldRamps(ctx: EffectContext): void {
+  cancelTensionThreshold(ctx);
   if (ctx.ramps.zoom !== null) {
     ctx.ramps.zoom();
     ctx.ramps.zoom = null;
@@ -167,7 +201,7 @@ export async function playFallAndOutcome(
 async function playBangSequence(ctx: EffectContext): Promise<void> {
   ctx.audio.playBangSound();
   ctx.hud.messages.show('bang');
-  triggerCameraShake(
+  ctx.ramps.shake = triggerCameraShake(
     ctx.camera, KICK_CAMERA_SHAKE_DEG, KICK_CAMERA_SHAKE_DURATION_MS,
   );
   triggerBangOverlay(ctx.bangOverlay);
@@ -181,22 +215,24 @@ async function playBangSequence(ctx: EffectContext): Promise<void> {
  *
  * Coordination contract: kraken-revolver TOGGLES `.is-fired`. frontend-dev
  * defines `.bang-overlay.is-fired .bang-flash { animation: ... }` and
- * `.bang-overlay.is-fired .bang-black { animation: ... }`. Durations come
- * from BANG_FLASH_DURATION_MS / BANG_FADE_TO_BLACK_MS in the SSOT.
+ * `.bang-overlay.is-fired .bang-black { animation: ... }`. Durations flow
+ * from SSOT constants into CSS via custom properties so the values are a
+ * true SSOT (no dead dataset write that CSS never reads).
  */
 function triggerBangOverlay(overlay: HTMLElement): void {
+  overlay.style.setProperty('--bang-flash-ms', `${BANG_FLASH_DURATION_MS}ms`);
+  overlay.style.setProperty('--bang-fade-ms', `${BANG_FADE_TO_BLACK_MS}ms`);
   overlay.classList.add('is-fired');
-  // Stash durations in dataset so frontend-dev's CSS can use them via JS
-  // pickup or animation-duration variables. Defensive — frontend-dev may
-  // alternatively read SSOT constants from a TS module via custom prop.
-  overlay.dataset['flashMs'] = String(BANG_FLASH_DURATION_MS);
-  overlay.dataset['fadeMs'] = String(BANG_FADE_TO_BLACK_MS);
 }
 
 /** Empty sequence — flicker bulb, darken, increment cues, update counter. */
 function playEmptySequence(ctx: EffectContext, emptyClicksAfter: number): void {
   ctx.audio.playEmptyClickSound();
-  ctx.lighting.triggerFlicker(EMPTY_CLICK_FLICKER_MS);
+  // Designer §4 forbids flicker at click 6 (reveal-lite): the room is
+  // near-pitch-dark and the absence of flicker IS the tension cue.
+  if (emptyClicksAfter < 6) {
+    ctx.lighting.triggerFlicker(EMPTY_CLICK_FLICKER_MS);
+  }
   applyDarkenCurve(ctx, emptyClicksAfter);
   playProgressionCues(ctx, emptyClicksAfter);
   ctx.hud.counter.update(emptyClicksAfter);

@@ -111,3 +111,25 @@ export const RADIO_LFO_HZ = 0.45;
 
 /** LFO depth as a fraction of master gain — ±50% crackle. */
 export const RADIO_LFO_DEPTH_FRACTION = 0.5;
+
+/* ------------------------------------------------------------------------ */
+/* Revolver SFX envelope durations (ms)                                     */
+/* ------------------------------------------------------------------------ */
+
+/** Cock sound gain-to-zero envelope duration (ms). */
+export const SFX_COCK_ENVELOPE_MS = 80;
+
+/** Empty-click gain-to-zero envelope duration (ms). */
+export const SFX_EMPTY_CLICK_ENVELOPE_MS = 60;
+
+/** Bang noise-burst gain-to-zero envelope duration (ms). */
+export const SFX_BANG_ENVELOPE_MS = 200;
+
+/** Heartbeat gain-to-zero envelope duration (ms). */
+export const SFX_HEARTBEAT_ENVELOPE_MS = 150;
+
+/** Sweat-drip gain-to-zero envelope duration (ms). */
+export const SFX_SWEAT_DRIP_ENVELOPE_MS = 120;
+
+/** Chair-creak gain-to-zero envelope duration (ms). */
+export const SFX_CHAIR_CREAK_ENVELOPE_MS = 600;

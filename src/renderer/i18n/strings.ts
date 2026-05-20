@@ -39,7 +39,6 @@ export const STRINGS = {
     },
     hud: {
       counterLabel: 'ШАНС',
-      counterFormat: '{n}/6',
       earlyReleaseMessage: 'Не смог решиться.',
       bangMessage: 'ВЫСТРЕЛ',
       revealLiteMessage: 'Не следовало этого делать.',
@@ -55,7 +54,6 @@ export const STRINGS = {
     },
     hud: {
       counterLabel: 'ŞANS',
-      counterFormat: '{n}/6',
       earlyReleaseMessage: 'Karar veremedin.',
       bangMessage: 'ATEŞ',
       revealLiteMessage: 'Bunu yapmamalıydın.',

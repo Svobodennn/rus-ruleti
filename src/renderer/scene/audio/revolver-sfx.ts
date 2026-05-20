@@ -28,6 +28,14 @@
 import {
   COCK_DURATION_MS,
 } from '../../../shared/scene-revolver-constants';
+import {
+  SFX_BANG_ENVELOPE_MS,
+  SFX_CHAIR_CREAK_ENVELOPE_MS,
+  SFX_COCK_ENVELOPE_MS,
+  SFX_EMPTY_CLICK_ENVELOPE_MS,
+  SFX_HEARTBEAT_ENVELOPE_MS,
+  SFX_SWEAT_DRIP_ENVELOPE_MS,
+} from '../../../shared/scene-audio-constants';
 
 /** Public handle returned by `createOneShotPlayer`. */
 export interface OneShotPlayer {
@@ -119,7 +127,7 @@ function playCockBurst(
   const g = ctx.createGain();
   g.gain.value = COCK_INITIAL_GAIN;
   src.connect(bp).connect(g).connect(destination);
-  rampParam(g.gain, 0, 80, ctx);
+  rampParam(g.gain, 0, SFX_COCK_ENVELOPE_MS, ctx);
   src.start();
   src.addEventListener('ended', () => {
     src.disconnect();
@@ -158,7 +166,7 @@ function playEmptyClickTransient(
   const g = ctx.createGain();
   g.gain.value = EMPTY_CLICK_GAIN;
   osc.connect(g).connect(destination);
-  rampParam(g.gain, 0, 60, ctx);
+  rampParam(g.gain, 0, SFX_EMPTY_CLICK_ENVELOPE_MS, ctx);
   osc.start();
   osc.addEventListener('ended', () => {
     osc.disconnect();
@@ -199,7 +207,7 @@ function playBangBurst(
   const g = ctx.createGain();
   g.gain.value = BANG_BURST_GAIN;
   src.connect(g).connect(destination);
-  rampParam(g.gain, 0, 200, ctx);
+  rampParam(g.gain, 0, SFX_BANG_ENVELOPE_MS, ctx);
   src.start();
   src.addEventListener('ended', () => {
     src.disconnect();
@@ -237,7 +245,7 @@ function playHeartbeatPulse(
   const g = ctx.createGain();
   g.gain.value = HEARTBEAT_GAIN;
   osc.connect(g).connect(destination);
-  rampParam(g.gain, 0, 150, ctx);
+  rampParam(g.gain, 0, SFX_HEARTBEAT_ENVELOPE_MS, ctx);
   osc.start();
   osc.addEventListener('ended', () => {
     osc.disconnect();
@@ -292,7 +300,7 @@ function spawnSweatNoise(
   const g = ctx.createGain();
   g.gain.value = SWEAT_GAIN;
   src.connect(bp).connect(g).connect(destination);
-  rampParam(g.gain, 0, 120, ctx);
+  rampParam(g.gain, 0, SFX_SWEAT_DRIP_ENVELOPE_MS, ctx);
   src.start();
   src.addEventListener('ended', () => {
     src.disconnect();
@@ -361,8 +369,8 @@ function playChairCreak(
   const panner = ctx.createStereoPanner();
   panner.pan.value = CHAIR_CREAK_PAN;
   src.connect(bp).connect(g).connect(panner).connect(destination);
-  rampParam(bp.frequency, CHAIR_CREAK_END_HZ, 600, ctx);
-  rampParam(g.gain, 0, 600, ctx);
+  rampParam(bp.frequency, CHAIR_CREAK_END_HZ, SFX_CHAIR_CREAK_ENVELOPE_MS, ctx);
+  rampParam(g.gain, 0, SFX_CHAIR_CREAK_ENVELOPE_MS, ctx);
   src.start();
   src.addEventListener('ended', () => {
     src.disconnect();

@@ -65,6 +65,8 @@ interface RevolverResources {
   readonly state: MutableFsmState;
   readonly effectCtx: EffectContext;
   readonly animLoop: AnimLoopHandle;
+  /** Bang overlay element — cleared on dispose so HMR re-mounts start clean. */
+  readonly bangOverlay: HTMLElement;
 }
 
 /** Mutable FSM state holder. The pure FSM is functions; this is the cell. */
@@ -151,6 +153,7 @@ function allocateResources(args: MountArgs): RevolverResources {
   return {
     scene: args.scene,
     mesh, hud, input, state, effectCtx, animLoop,
+    bangOverlay: args.bangOverlay,
   };
 }
 
@@ -167,9 +170,10 @@ function buildEffectContext(
     anim: mesh.animation,
     hud,
     bangOverlay: args.bangOverlay,
-    ramps: { zoom: null },
+    ramps: { zoom: null, shake: null },
     holdStartMs: 0,
     spinPromise: null,
+    tensionTimerId: null,
   };
 }
 
@@ -272,8 +276,18 @@ function disposeRevolver(resources: RevolverResources): void {
     resources.effectCtx.ramps.zoom();
     resources.effectCtx.ramps.zoom = null;
   }
+  // Cancel any in-flight camera shake.
+  if (resources.effectCtx.ramps.shake !== null) {
+    resources.effectCtx.ramps.shake();
+    resources.effectCtx.ramps.shake = null;
+  }
   // Restore the bulb to baseline so a re-mount lands on a clean room.
   resources.effectCtx.lighting.setBaseIntensityFactor(1.0);
+  // Clear bang overlay state so HMR re-mounts and "play again" flows start
+  // with a clean overlay (MAJOR-B fix).
+  resources.bangOverlay.classList.remove('is-fired');
+  delete resources.bangOverlay.dataset['flashMs'];
+  delete resources.bangOverlay.dataset['fadeMs'];
   resources.hud.dispose();
   resources.scene.remove(resources.mesh.group);
   resources.mesh.dispose();

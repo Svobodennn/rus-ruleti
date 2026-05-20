@@ -81,6 +81,12 @@ export const KICK_DURATION_MS: number = 140;
  */
 export const KICK_CAMERA_SHAKE_DURATION_MS: number = 140;
 
+/**
+ * Camera shake oscillation frequency (Hz). ~24Hz reads as recoil, not
+ * mechanical chatter. Matches the inline comment in camera.ts.
+ */
+export const KICK_CAMERA_SHAKE_HZ: number = 24;
+
 /* ------------------------------------------------------------------------ */
 /* Hold-state feedback — Phase 2 kraken-revolver                            */
 /* ------------------------------------------------------------------------ */
@@ -216,6 +222,26 @@ export const RNG_BANG_MODULUS: number = 6;
 
 /** Remainder treated as "bang". `0` is conventional. Do not change. */
 export const RNG_BANG_REMAINDER: number = 0;
+
+/* ------------------------------------------------------------------------ */
+/* Tension threshold — last 100ms of hold (designer §3)                     */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * How many ms before hold commit the tension-threshold fires. The last
+ * 100ms of HOLD_DURATION_MS (900ms–1000ms after mousedown) enters a
+ * heightened state: breath rate doubles and the bulb micro-pulse activates.
+ */
+export const TENSION_THRESHOLD_OFFSET_MS: number = 100;
+
+/** Breath-layer playbackRate multiplier at the tension threshold. */
+export const TENSION_BREATH_RATE_MULTIPLIER: number = 2.0;
+
+/** Additive micro-pulse frequency (Hz) on the bulb at tension threshold. */
+export const TENSION_MICRO_PULSE_HZ: number = 4;
+
+/** Additive micro-pulse amplitude (intensity units) at tension threshold. */
+export const TENSION_MICRO_PULSE_AMP: number = 0.02;
 
 /* ------------------------------------------------------------------------ */
 /* Bang-blackout overlay — Phase 2 frontend-dev                             */
