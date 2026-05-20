@@ -633,13 +633,24 @@ CC0 / CC-BY low-poly models from Poly Pizza, auto-vendored 2026-05-20. Stored un
 | Telif audit | `@security-reviewer` | Sketchfab CC0 attribution doğrulama (S4) |
 
 **Tasklar:**
-- [ ] revolver.glb (low-poly, dokulu, Sketchfab CC0 attribution doğru)
-- [ ] table, chair, radio, samovar, bottle, ashtray, bulb modelleri
-- [ ] Duvar dokuları, soyulmuş kağıt, soluk afiş
-- [ ] Pencere + buzlanma + sokak lambası backlight
-- [ ] Sigara dumanı particle system
-- [ ] Tüm room ambient ses katmanları layer'lanır
-- [ ] **Sprint 3 sonu: Model freeze checkpoint — Sprint 4 kick/recoil testlerinde gerçek model**
+- [x] revolver.glb (Quaternius CC0 — generic but functional; Sprint 6 Sketchfab Nagant override optional)
+- [x] table, chair, radio, bottle, ashtray, lightbulb modelleri (samovar deferred — no CC0 found Sprint 3, optional user-vendor via incoming/)
+- [x] Cyrillic envelope + faded portrait + Sovyet propaganda afişi (3 procedural textures — designer-fictional content)
+- [ ] Pencere + buzlanma + sokak lambası backlight (deferred to Sprint 4+)
+- [x] Sigara dumanı particle system (16-particle pool, incommensurable drift, prefers-reduced-motion gated)
+- [ ] Tüm room ambient ses katmanları layer'lanır (Sprint 4 — Temnaya music asset still placeholder)
+- [x] **Sprint 3 sonu: Model freeze checkpoint — Sprint 4 kick/recoil testlerinde gerçek model**
+
+#### Sprint 3 Model Freeze Declaration (2026-05-21)
+
+**FROZEN.** 7 GLB models locked at SHA-256 manifest. Sprint 4+ may NOT modify
+these without explicit `chore(model-revision)` sprint + new audit pass.
+
+Manifest: `src/renderer/assets/models/SHA256-MANIFEST.txt`
+Reference: `LEGAL.md` §SHA-256 Manifest section
+
+Revision protocol: see LEGAL.md (vendor incoming/ → README update → regenerate
+manifest → security-reviewer audit → new commit).
 
 ---
 
@@ -1697,7 +1708,7 @@ Threads marked `DONE` are kept here as audit history; do not re-open.
 | **TH-S1-02** | Sprint 1 retro | Sprint 7 | OPEN | Wire `EXT_disjoint_timer_query_webgl2` GPU timer queries so `frame:stats` reports CPU+GPU split, not just wall-clock. Today's logger conflates the two — a GPU-bound machine looks identical to a CPU-bound one in the stats. |
 | **TH-S1-03** | Sprint 1 retro | Sprint 2 Phase 1 | **DONE 2026-05-20** | OS-conditional `getBuildQualityLevel()` default: Windows → `'low'`, macOS unchanged. Implemented in `src/renderer/scene/quality.ts:42`. Auto-promote still kicks in when frames are cheap. |
 | **TH-S1-04** | Sprint 1 retro | Sprint 2 (monitor) | OPEN | Audio mount adds a ~30-50ms one-time noise buffer allocation when `createRadioStatic()` builds its noise buffer. Acceptable today; revisit if Phase 2A designer audio tuning extends the buffer length. Watch the disclaimer→scene transition spinner — if it becomes visible, defer the buffer alloc to after fade-in. |
-| **TH-S1-05** | Sprint 1 dormant | Sprint 3 | OPEN | `src/renderer/scene/shaders/ps1-affine-uv.glsl` activates when textured GLBs arrive (Sprint 3 model freeze). It is unused on the placeholder-room because plain colour materials don't UV-sample. Re-enable the affine UV pass once a texture lands; today it is wired but visually inert. |
+| **TH-S1-05** | Sprint 1 dormant | Sprint 3 | **DONE 2026-05-21** | `ps1-affine-uv.glsl` activated on 5 textured GLB meshes (table/chair/radio/bottle/ashtray) at `quality === 'high'` via `createPs1MaterialFactory` swap in `placeholder-room.ts` GLB load branch. Revolver + lightbulb exempted (focal subject + light anchor — designer §6). |
 
 ### Process note
 
