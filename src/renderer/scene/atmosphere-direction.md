@@ -673,3 +673,154 @@ companion file is the load-bearing artifact for Phase 2B GLB
 integration; §8 here is the atmosphere cross-reference for
 implementers who need the Sprint 1 / Sprint 2 context next to the
 Sprint 3 changes.*
+
+## 9. Sprint 4 — Destruction atmosphere notes
+
+> Appended 2026-05-21 by designer agent (Sprint 4 Phase 2A SOLO retry).
+> These are Sprint 4 cross-cutting atmosphere notes on top of Sprint 1
+> (§1-§7), Sprint 2 (revolver-direction.md), and Sprint 3 (§8) work.
+> The destruction-direction.md companion file is the authoritative
+> Sprint 4 artifact for Phase 2B destruction implementers; this §9
+> documents the **cross-cutting atmosphere** decisions that touch
+> existing Sprint 1+2+3 lighting/camera/composition reading.
+
+### 9.1 The atmosphere collapses, not transitions
+
+Sprint 1-3 built a lobby atmosphere defined by warm-sodium chiaroscuro,
+incommensurable Lissajous motion, and ambient noise layering (bulb hum
++ radio static + wind + water drip). Sprint 4 destruction does NOT
+**transition** out of this atmosphere — it **collapses** it. The
+distinction matters for Phase 2B implementers tempted to add transition
+animations:
+
+- A transition is a graceful crossfade from atmosphere A to atmosphere B.
+  Both atmospheres are valid; the transition smooths the seam.
+- A collapse is the violent loss of atmosphere A with no second
+  atmosphere arriving. The destruction's "sterile OS chrome" is NOT a
+  second atmosphere — it is the ABSENCE of atmosphere. The bulb is
+  gone. The radio is gone. The bulb hum is gone. The room is gone.
+
+This is why Sprint 4 §4 specifies a sterile takeover. The wallpaper +
+menubar + toast + icon-fade reads as "a system, not a room". The user
+is in an OS, not in atmosphere. The atmosphere-direction.md vocabulary
+no longer applies inside the destruction overlay (z 10000).
+
+### 9.2 The apartment bleed = the atmosphere refuses to fully die
+
+The two Sprint 4 apartment bleeds (#1 at 11s, #2 at 16s — see
+destruction-direction.md §6) are the ONLY frames during the
+destruction where atmosphere-direction.md vocabulary returns. The
+bleeds render the lobby snapshot (Sprint 3 model freeze t=0 capture)
+through the destruction overlay at 12Hz strobe for 200-300ms.
+
+The atmospheric reading: the bulb is sönmüş (darkened) in the snapshot,
+the table holds the revolver, the chair is empty, the bottle and
+ashtray bracket the revolver — exactly the Sprint 3 §1 composition
+triangle. The bleed leaks "the room is still there, but the bulb
+isn't lighting it anymore" — a 200-300ms reminder of what was just
+lost.
+
+Sprint 4 atmospheric authoring intent: **the atmosphere refuses to
+fully die**. Even when the destruction has taken over the screen, the
+lobby continues rendering underneath (per destruction-direction.md §2
+visual sequence — the black overlay is a `<div>`, not a render
+pause). The bleeds are the moments where the rendering peeks through.
+
+This is the **counter-melody** to the destruction's main theme. Without
+the bleeds, the destruction would be monothematic ("the OS is
+everything"); with them, the destruction has texture ("the OS is
+everything, BUT the room is bleeding through, BUT the OS is everything,
+BUT..."). The pattern continues into Sprint 5 with bleeds #3 and #4.
+
+### 9.3 Incommensurable frequencies — the Sprint 4 extension
+
+Sprint 1 §2 established the Lissajous sway with 3.7s × 4.9s periods
+(irrational ratio). Sprint 3 §8.6 added smoke drift at 3.33s
+(incommensurable with both Lissajous periods). Sprint 4 adds the
+apartment-bleed strobe at 12Hz.
+
+The full motion frequency palette is now:
+
+| Motion                | Period / frequency      | Sprint origin |
+|-----------------------|-------------------------|---------------|
+| Bulb sway X           | 3.7s period             | Sprint 1      |
+| Bulb sway Z           | 4.9s period             | Sprint 1      |
+| Bulb intensity ripple | 14Hz frequency          | Sprint 1      |
+| Bulb tension pulse    | 4Hz frequency (cocking) | Sprint 2      |
+| Smoke drift           | 3.33s period            | Sprint 3      |
+| Apartment bleed strobe| 12Hz frequency          | Sprint 4      |
+| Bleed #1 trigger      | 11000ms (Faz 2 + 4s)    | Sprint 4      |
+| Bleed #2 trigger      | 16000ms (Faz 3 + 4s)    | Sprint 4      |
+
+No two values in this palette form an integer ratio. The bulb sway X
+and Z are pairwise irrational (3.7/4.9 ≈ 0.755). The bleed flicker
+(12Hz) is incommensurable with the bulb intensity ripple (14Hz) —
+their ratio is 6:7, which over 300ms gives ~3.6 vs 4.2 cycles, far
+from synchronisation. The bleed trigger offsets (11000 / 16000) are
+pairwise incommensurable with all sway periods (verification math in
+destruction-direction.md §6).
+
+The palette is intentionally exhausting to verify — Phase 2B
+implementers introducing a new periodic motion (e.g., kraken-faz2-3
+adding a toast-stack animation) MUST add it to this table AND verify
+it is pairwise incommensurable with every existing entry. Otherwise
+the bulb sway and the new motion will visibly beat together over the
+destruction window, breaking the "two unrelated motions" reading the
+atmosphere depends on.
+
+### 9.4 Audio collapse — the low-pass is the new ambient
+
+Sprint 1+2+3 audio bed had four ambient layers (bulb-hum, wind,
+radio-static, water-drip) plus revolver-mechanic sounds. Sprint 4
+collapses this to:
+
+1. Tinnitus 4kHz pure sine (sustained from Faz 0 onset).
+2. The low-passed remnant of whatever was ringing through the audio
+   bus at Faz 0 — the bulb hum + the last frames of radio static —
+   choked through the 700Hz BiquadFilterNode.
+3. Faz 1 native chord stub (single 750ms ADSR envelope).
+4. By Faz 2 entry: muted ambient channels. The takeover is sterile.
+
+The audio reading: by Faz 2 the player has 4kHz ringing in their ears
+and silence behind it. This is the audio equivalent of the visual
+collapse — atmosphere is gone, only a single steady tone remains.
+
+The 700Hz low-pass is the NEW audio atmospheric register for Sprint
+4-7. It is held through the destruction sequence; Sprint 6 Faz 8
+reveal will release it (the bulb fade-in at reveal is paired with the
+filter cutoff ramping back to 22000Hz).
+
+### 9.5 What Sprint 4 atmosphere does NOT touch
+
+For Phase 2B collision-safety, Sprint 4 atmosphere additions are
+entirely in NEW territory. Sprint 1-3 atmosphere artifacts are NOT
+edited:
+
+- `scene-palette.ts` — Sprint 1 PALETTE / BULB_LIGHT / AMBIENT_LIGHT /
+  CAMERA / FOG_* tuning is LOCKED.
+- `scene-revolver-constants.ts` — Sprint 2 FSM timing / hold ramps /
+  animation curves are LOCKED.
+- `scene-model-constants.ts` — Sprint 3 MODEL_SCALE / MODEL_POSITION /
+  MODEL_ROTATION / SMOKE_* are LOCKED post-model-freeze.
+- `lighting.ts` BulbLightHandle — Sprint 1+3 contract holds; Sprint 4
+  destruction-director calls existing `setBaseIntensityFactor(0)` for
+  the bulb darken (no new lighting API).
+- `audio/audio-bed.ts` AmbientLayer contract — Sprint 1 holds; Sprint 4
+  destruction-director calls existing `fadeOutAmbient()` (no new
+  AmbientLayer enum entries needed).
+- `placeholder-room.ts` — Sprint 3 GLB-vs-placeholder branch is the
+  load mode contract; Sprint 4 destruction-director consumes the lobby
+  snapshot dataURL from SceneHandle and does NOT re-render the room.
+
+Sprint 4 atmosphere is additive — new motion frequencies, new audio
+register, new collapse vocabulary — all in the destruction tree and
+this §9 append. The Sprint 1-3 atmosphere body remains unchanged
+through Sprint 4 ship.
+
+---
+
+*End of Sprint 4 atmosphere addendum. The destruction-direction.md
+companion file is the load-bearing artifact for Phase 2B destruction
+integration; §9 here is the atmosphere cross-reference for
+implementers who need the Sprint 1 / Sprint 2 / Sprint 3 context
+next to the Sprint 4 changes.*
