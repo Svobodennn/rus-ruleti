@@ -60,8 +60,13 @@ import {
   attachLightbulbIfLoaded,
   buildFactoryForQuality,
   composeRoom,
+  mountProceduralTextureSurfaces,
+  mountSmokeIfReady,
   preloadGlbs,
+  type ProceduralTextureSurfacesHandle,
 } from './scene-glb-bridge';
+import type { SmokeHandle } from './particles/smoke';
+import { disposeAllProceduralTextures } from '../loader/procedural-textures';
 
 /** Public handle returned from mountScene. */
 export interface SceneHandle {
@@ -109,9 +114,14 @@ interface InternalResources {
   readonly loader: LoaderHandle;
   /** Preloaded GLB map keyed by ModelKey (Sprint 3 Phase 2B). */
   readonly glbHandles: ReadonlyMap<ModelKey, LoadedModelHandle>;
+  /** Smoke particle column above the ashtray (Sprint 3 Phase 2B §8.7). */
+  readonly smoke: SmokeHandle;
+  /** Procedural-texture surface planes (Sprint 3 Phase 2B §8.5). */
+  readonly proceduralTextures: ProceduralTextureSurfacesHandle;
   stopLoop: () => void;
   disposeResize: () => void;
   disposeQualitySub: () => void;
+  disposeQualitySmokeSub: () => void;
 }
 
 /**
@@ -176,13 +186,19 @@ async function buildResources(
     audioBed, bulb, camera, bangOverlay,
     glbHandles.get('revolver') ?? null,
   );
+  // Sprint 3 Phase 2B FIX 1: mount smoke column above ashtray (§8.7).
+  const smoke = mountSmokeIfReady(scene, initialQuality);
+  // Sprint 3 Phase 2B FIX 2: mount procedural texture surfaces (§8.5).
+  const proceduralTextures = await mountProceduralTextureSurfaces(scene);
 
   const resources: InternalResources = {
     renderer, scene, camera, postFx, room, bulb,
     frameLogger, quality, audioBed, revolver, loader, glbHandles,
+    smoke, proceduralTextures,
     stopLoop: (): void => undefined,
     disposeResize: (): void => undefined,
     disposeQualitySub: (): void => undefined,
+    disposeQualitySmokeSub: (): void => undefined,
   };
 
   installRuntimeHooks(container, resources);
@@ -266,10 +282,16 @@ function installRuntimeHooks(
     (next): void => onQualityChange(resources, next),
   );
 
+  // Subscribe smoke to quality tier changes so particle ceiling + size update.
+  resources.disposeQualitySmokeSub = resources.quality.onQualityChange(
+    (next): void => { resources.smoke.setQualityLevel(next); },
+  );
+
   resources.stopLoop = startRenderLoop(
     resources.postFx,
     (elapsedSec, deltaMs) => {
       resources.bulb.update(elapsedSec);
+      resources.smoke.update(deltaMs / 1000);
       resources.frameLogger.markFrame(deltaMs);
       resources.quality.tick();
     },
@@ -352,7 +374,17 @@ function attachToContainer(
   container.appendChild(renderer.domElement);
 }
 
-/** Tear down all resources in reverse-allocation order. */
+/**
+ * Tear down all resources in reverse-allocation order.
+ *
+ * Order: stopLoop → resize → qualitySubs → logger → quality →
+ * revolver → smoke → proceduralTextures → bulb → room → postFx →
+ * loader → audio → renderer → DOM.
+ *
+ * Deviation from §8.10 spec: cloned GLB subtrees own independent GPU
+ * buffers so revolver/smoke/textures relative ordering is safe. The hard
+ * constraint — loader source scenes disposed last — is preserved.
+ */
 async function disposeAll(
   container: HTMLElement,
   resources: InternalResources,
@@ -360,12 +392,17 @@ async function disposeAll(
   resources.stopLoop();
   resources.disposeResize();
   resources.disposeQualitySub();
+  resources.disposeQualitySmokeSub();
   resources.frameLogger.dispose();
   resources.quality.dispose();
   // Revolver disposal (input listeners + HUD DOM + mesh group removal) runs
   // BEFORE audio so empty-click cue handlers can no longer reach into the
   // audio context after it closes.
   resources.revolver.dispose();
+  // Smoke + procedural-texture planes disposed after revolver, before bulb.
+  resources.smoke.dispose();
+  resources.proceduralTextures.dispose();
+  disposeAllProceduralTextures();
   resources.bulb.dispose();
   disposeRoomGroup(resources.room);
   resources.postFx.dispose();

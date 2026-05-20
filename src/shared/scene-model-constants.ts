@@ -246,6 +246,34 @@ export const SMOKE_PARTICLE_DRIFT_FREQUENCY_HZ = 0.3;
  */
 export const SMOKE_REDUCED_MOTION_VELOCITY_FACTOR = 0.5;
 
+/**
+ * Y-axis offset from MODEL_POSITION_ASHTRAY to the smoke spawn anchor
+ * (world units = metres). Designer §5.4: "smoke rises from the cigarette
+ * tip, ~4cm above the ashtray's own origin".
+ */
+export const SMOKE_Y_OFFSET_M = 0.04;
+
+/* ------------------------------------------------------------------------ */
+/* Procedural texture surface placement — model-freeze §8.5                 */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * World-space position and plane dimensions for the three procedural-texture
+ * surfaces. Positions are (x, y, z) in metres; dimensions are (width, height)
+ * in metres. Values tuned by designer Phase 2A for the 6×6m room layout with
+ * camera at y=1.6.
+ *
+ * Envelope: small plane lying flat on the table surface (rotation.x = -π/2).
+ * Portrait: portrait-aspect plane on the back wall, right half.
+ * Poster: landscape-aspect plane on the back wall, left half.
+ */
+export const PROC_TEXTURE_ENVELOPE_POSITION: readonly [number, number, number] = [-0.3, 0.78, -0.3];
+export const PROC_TEXTURE_ENVELOPE_DIMENSIONS: readonly [number, number] = [0.3, 0.2];
+export const PROC_TEXTURE_PORTRAIT_POSITION: readonly [number, number, number] = [1.0, 1.5, -2.0];
+export const PROC_TEXTURE_PORTRAIT_DIMENSIONS: readonly [number, number] = [0.6, 0.8];
+export const PROC_TEXTURE_POSTER_POSITION: readonly [number, number, number] = [-1.2, 1.4, -2.0];
+export const PROC_TEXTURE_POSTER_DIMENSIONS: readonly [number, number] = [0.7, 1.0];
+
 /* ------------------------------------------------------------------------ */
 /* Budgets — kraken-loader Phase 2B consumes                                */
 /* ------------------------------------------------------------------------ */

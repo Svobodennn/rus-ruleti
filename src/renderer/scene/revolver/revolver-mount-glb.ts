@@ -35,7 +35,6 @@ import {
 } from 'three';
 import {
   MATERIAL_COLOR_OVERRIDE_BY_KEY,
-  MODEL_POSITION_REVOLVER,
   MODEL_REVOLVER_BODY_PIVOT_KEY,
   MODEL_REVOLVER_CYLINDER_PIVOT_KEY,
   MODEL_REVOLVER_HAMMER_PIVOT_KEY,
@@ -196,13 +195,3 @@ function disposeGlbHierarchy(group: Group): void {
   }
 }
 
-/**
- * Compose the designer revolver-position offset over the existing table-top
- * anchor. Currently a no-op because MODEL_POSITION_REVOLVER is [0, 0.79, 0.1] —
- * same as the Sprint 2 table-top default. Kept as a separate helper so
- * future designer tuning lands here, not in `positionOnTable`.
- */
-export function composeRevolverPosition(group: Group, room: Group): void {
-  positionOnTable(group, room);
-  void MODEL_POSITION_REVOLVER;
-}

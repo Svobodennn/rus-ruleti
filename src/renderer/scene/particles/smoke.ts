@@ -43,6 +43,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  DynamicDrawUsage,
   Points,
   PointsMaterial,
   type Scene,
@@ -241,8 +242,14 @@ function createParticleContext(
   const positions = new Float32Array(MAX_PARTICLE_POOL_SIZE * 3);
   const colors = new Float32Array(MAX_PARTICLE_POOL_SIZE * 4);
   initBuffers(positions, colors);
-  geometry.setAttribute('position', new BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new BufferAttribute(colors, 4));
+  // DynamicDrawUsage tells the GPU driver these attributes are updated every
+  // frame (positions + alpha), avoiding static-buffer re-upload stalls.
+  const posAttr = new BufferAttribute(positions, 3);
+  posAttr.setUsage(DynamicDrawUsage);
+  const colorAttr = new BufferAttribute(colors, 4);
+  colorAttr.setUsage(DynamicDrawUsage);
+  geometry.setAttribute('position', posAttr);
+  geometry.setAttribute('color', colorAttr);
   const material = new PointsMaterial({
     size: SMOKE_SIZE_PX_BY_TIER[opts.qualityLevel],
     transparent: true,

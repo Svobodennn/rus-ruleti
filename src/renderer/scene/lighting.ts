@@ -238,13 +238,20 @@ function buildSwayUpdater(
   const pulseA = BULB_LIGHT.swayPulseAmp;
 
   const microPulseW = TWO_PI * TENSION_MICRO_PULSE_HZ;
+  // WCAG 2.3.1 / Sprint 2 retro: 4Hz brightness flash crosses the
+  // photosensitive seizure threshold band. Gate at builder time so the
+  // per-frame hot path has no branch cost.
+  const reducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   return (elapsedSec: number): void => {
     light.position.x = Math.sin(elapsedSec * wX + phaseX) * ampX;
     light.position.z = Math.sin(elapsedSec * wZ + phaseZ) * ampZ;
     const pulse = 1 + Math.sin(elapsedSec * pulseW) * pulseA;
     const flicker = computeFlickerMultiplier(state, performance.now());
-    const microPulse = state.microPulseActive
+    const microPulse = (state.microPulseActive && !reducedMotion)
       ? Math.sin(elapsedSec * microPulseW) * TENSION_MICRO_PULSE_AMP
       : 0;
     light.intensity =
