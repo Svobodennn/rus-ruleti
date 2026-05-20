@@ -115,3 +115,4 @@ export type SceneOsFamily = _OsFamily;
 export * from './scene-palette';
 export * from './scene-audio-constants';
 export * from './scene-shader-constants';
+export * from './scene-revolver-constants';

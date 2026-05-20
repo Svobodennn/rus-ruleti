@@ -52,6 +52,8 @@ import {
 } from './shaders/ps1-material';
 import { mountAudioBed } from './audio/audio-bed';
 import type { AudioBedHandle } from './audio/audio-bed';
+import { mountRevolver, type RevolverHandle } from './revolver';
+import { resolveUserLocale } from '../i18n/strings';
 
 /** Public handle returned from mountScene. */
 export interface SceneHandle {
@@ -68,6 +70,11 @@ export interface SceneHandle {
    * needing to reach back through scene internals.
    */
   audio: AudioBedHandle;
+  /**
+   * Revolver subsystem handle — Sprint 2 Phase 1 wires this in as a stub.
+   * Phase 2 kraken-revolver fleshes out FSM + animations + HUD updates.
+   */
+  revolver: RevolverHandle;
 }
 
 /** Internal bag of resources mountScene needs to track for disposal. */
@@ -81,6 +88,7 @@ interface InternalResources {
   readonly frameLogger: FrameLoggerHandle;
   readonly quality: QualityControllerHandle;
   readonly audioBed: AudioBedHandle;
+  readonly revolver: RevolverHandle;
   stopLoop: () => void;
   disposeResize: () => void;
   disposeQualitySub: () => void;
@@ -92,10 +100,23 @@ interface InternalResources {
  * Returns a handle whose dispose() releases all GPU + audio resources.
  * Must be awaited because audio context creation needs a user gesture
  * and AudioContext.resume() is async on Chromium.
+ *
+ * Sprint 2 Phase 1: the `hudContainer` and `bangOverlay` arguments are
+ * created by scene-mount.ts as siblings of the scene container. They are
+ * forwarded to mountRevolver (which mounts the HUD into hudContainer);
+ * bangOverlay is stashed via dataset for Phase 2 frontend-dev to wire up.
  */
-export async function mountScene(container: HTMLElement): Promise<SceneHandle> {
-  const resources = await buildResources(container);
+export async function mountScene(
+  container: HTMLElement,
+  hudContainer: HTMLElement,
+  bangOverlay: HTMLElement,
+): Promise<SceneHandle> {
+  const resources = await buildResources(container, hudContainer);
   attachToContainer(container, resources.renderer);
+  // Bang overlay is forwarded to Phase 2 frontend-dev via a dataset hook so
+  // the scene composition root doesn't need to grow another resource slot
+  // before Phase 2 actually uses it.
+  bangOverlay.dataset['sceneMounted'] = 'true';
 
   return {
     dispose: async (): Promise<void> => disposeAll(container, resources),
@@ -103,6 +124,7 @@ export async function mountScene(container: HTMLElement): Promise<SceneHandle> {
     getFrameStats: (): FrameStats | undefined =>
       resources.frameLogger.getFrameStats(),
     audio: resources.audioBed,
+    revolver: resources.revolver,
   };
 }
 
@@ -112,6 +134,7 @@ export async function mountScene(container: HTMLElement): Promise<SceneHandle> {
  */
 async function buildResources(
   container: HTMLElement,
+  hudContainer: HTMLElement,
 ): Promise<InternalResources> {
   const renderer = createRenderer(container);
   const camera = createCamera(container);
@@ -123,10 +146,13 @@ async function buildResources(
   const initialQuality = quality.getQualityLevel();
   const { scene, room, bulb } = buildSceneGraph(container, initialQuality);
   const postFx = createPostFxPipeline(renderer, scene, camera, initialQuality);
+  const revolver = mountRevolver(
+    scene, room, hudContainer, resolveUserLocale(), audioBed, bulb,
+  );
 
   const resources: InternalResources = {
     renderer, scene, camera, postFx, room, bulb,
-    frameLogger, quality, audioBed,
+    frameLogger, quality, audioBed, revolver,
     stopLoop: (): void => undefined,
     disposeResize: (): void => undefined,
     disposeQualitySub: (): void => undefined,
@@ -301,6 +327,10 @@ async function disposeAll(
   resources.disposeQualitySub();
   resources.frameLogger.dispose();
   resources.quality.dispose();
+  // Revolver disposal (input listeners + HUD DOM + mesh group removal) runs
+  // BEFORE audio so empty-click cue handlers can no longer reach into the
+  // audio context after it closes.
+  resources.revolver.dispose();
   resources.bulb.dispose();
   disposeRoomGroup(resources.room);
   resources.postFx.dispose();

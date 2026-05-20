@@ -38,9 +38,20 @@ declare const __VITE_QUALITY_LEVEL__: QualityLevel | undefined;
  * `electron.vite.config.ts` `define`). In environments without Vite the
  * identifier is undefined and we use the SSOT default. The typeof guard
  * keeps TypeScript happy when the identifier is not declared at all.
+ *
+ * Sprint 2 Phase 1 (TH-S1-03 close-out): on Windows, default to `'low'`
+ * instead of the SSOT default. Empirically Sprint 1 saw the PS1 shader
+ * pipeline cost Intel iGPU laptops their 60fps budget; auto-demotion
+ * eventually drops the tier but the first 2 seconds look terrible.
+ * Starting at `low` and letting the controller auto-PROMOTE if frames are
+ * cheap is a strictly better user experience on the affected hardware.
+ * macOS unaffected: M1 and Intel Iris Plus both hit `medium` cleanly.
  */
 export function getBuildQualityLevel(): QualityLevel {
   if (typeof __VITE_QUALITY_LEVEL__ === 'undefined') {
+    if (typeof navigator !== 'undefined' && /Windows/.test(navigator.userAgent)) {
+      return 'low';
+    }
     return DEFAULT_QUALITY_LEVEL;
   }
   return __VITE_QUALITY_LEVEL__;

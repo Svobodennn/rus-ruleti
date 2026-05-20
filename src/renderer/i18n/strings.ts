@@ -37,6 +37,13 @@ export const STRINGS = {
       bodyLine3: 'Все сцены — театр.',
       continueButton: 'ПРОДОЛЖИТЬ',
     },
+    hud: {
+      counterLabel: 'ШАНС',
+      counterFormat: '{n}/6',
+      earlyReleaseMessage: 'Не смог решиться.',
+      bangMessage: 'ВЫСТРЕЛ',
+      revealLiteMessage: 'Не следовало этого делать.',
+    },
   },
   tr: {
     disclaimer: {
@@ -45,6 +52,13 @@ export const STRINGS = {
       bodyLine2: 'Sisteminizde gerçek hiçbir işlem yapılmaz.',
       bodyLine3: 'Tüm sahneler tiyatrodur.',
       continueButton: 'DEVAM ET',
+    },
+    hud: {
+      counterLabel: 'ŞANS',
+      counterFormat: '{n}/6',
+      earlyReleaseMessage: 'Karar veremedin.',
+      bangMessage: 'ATEŞ',
+      revealLiteMessage: 'Bunu yapmamalıydın.',
     },
   },
 } as const;

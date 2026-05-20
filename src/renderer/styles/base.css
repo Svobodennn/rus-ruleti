@@ -161,3 +161,60 @@ body {
 #next-screen.is-active #scene-container {
   opacity: 1;
 }
+
+/*
+ * Sprint 2 Phase 1 (kraken) — HUD + bang overlay sibling DIVs.
+ *
+ * Stacking contract (also documented in src/renderer/index.html):
+ *   z-index 0    — #scene-container (Three.js canvas)
+ *   z-index 100  — #hud-overlay (counter, messages — fades in)
+ *   z-index 9000 — #bang-overlay (flash + black, visibility-gated)
+ *   z-index 9999 — .crt-overlay (CRT scanline + grain, always on top)
+ *
+ * pointer-events: none on both so the canvas (and any future click target
+ * the revolver attaches) is never blocked. Phase 2 frontend-dev may switch
+ * the HUD overlay to pointer-events: auto for specific interactive children.
+ *
+ * The bang-overlay timing variable `--bang-fade-ms` is consumed by the
+ * .bang-black transition. Phase 2 frontend-dev should set it inline (or via
+ * a class) from the SSOT's `BANG_FADE_TO_BLACK_MS`.
+ */
+.hud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.hud-overlay.is-visible {
+  opacity: 1;
+}
+
+.bang-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.bang-overlay.is-active {
+  visibility: visible;
+}
+
+.bang-flash {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+}
+
+.bang-black {
+  position: absolute;
+  inset: 0;
+  background: #000000;
+  opacity: 0;
+  transition: opacity var(--bang-fade-ms, 800ms) ease;
+}

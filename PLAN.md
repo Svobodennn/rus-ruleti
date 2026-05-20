@@ -1247,3 +1247,27 @@ The marketing/distribution defense established by the Sprint 0 audit holds:
 - crashReporter, electron-log, and the new `frame:stats` channel all persist locally. There is no telemetry SDK, no analytics, no fetch / XHR / WebSocket, no remote log transport, no submitURL. Nothing leaves the user's machine.
 
 Audit confirmed. Sprint 1 ships clean.
+
+---
+
+## 18. Open Threads (Cross-Sprint Carry-Forward)
+
+Persistent housekeeping items carried across sprints. Each thread cites its
+origin sprint, the sprint that **owns** the fix, and the closing criterion.
+Threads marked `DONE` are kept here as audit history; do not re-open.
+
+| Thread | Origin | Owner sprint | Status | Closing criterion |
+|--------|--------|--------------|--------|-------------------|
+| **TH-S1-01** | Sprint 1 retro | Sprint 7 | OPEN | Cap `WebGLRenderer.setPixelRatio` at 1.5× max and defer Howler instantiation until first revolver interaction. Memory budget (PLAN §13 "Memory < 350MB") risks blowing on 4K external displays + autoplayed silent Howl. Verify via `process.memoryUsage().heapUsed` snapshot after 5min idle session. |
+| **TH-S1-02** | Sprint 1 retro | Sprint 7 | OPEN | Wire `EXT_disjoint_timer_query_webgl2` GPU timer queries so `frame:stats` reports CPU+GPU split, not just wall-clock. Today's logger conflates the two — a GPU-bound machine looks identical to a CPU-bound one in the stats. |
+| **TH-S1-03** | Sprint 1 retro | Sprint 2 Phase 1 | **DONE 2026-05-20** | OS-conditional `getBuildQualityLevel()` default: Windows → `'low'`, macOS unchanged. Implemented in `src/renderer/scene/quality.ts:42`. Auto-promote still kicks in when frames are cheap. |
+| **TH-S1-04** | Sprint 1 retro | Sprint 2 (monitor) | OPEN | Audio mount adds a ~30-50ms one-time noise buffer allocation when `createRadioStatic()` builds its noise buffer. Acceptable today; revisit if Phase 2A designer audio tuning extends the buffer length. Watch the disclaimer→scene transition spinner — if it becomes visible, defer the buffer alloc to after fade-in. |
+| **TH-S1-05** | Sprint 1 dormant | Sprint 3 | OPEN | `src/renderer/scene/shaders/ps1-affine-uv.glsl` activates when textured GLBs arrive (Sprint 3 model freeze). It is unused on the placeholder-room because plain colour materials don't UV-sample. Re-enable the affine UV pass once a texture lands; today it is wired but visually inert. |
+
+### Process note
+
+New open threads are added at the bottom with the next sequential
+`TH-S<N>-<NN>` slug. Closing a thread updates its row to `DONE <date>` plus
+a one-line closing summary. Do not delete closed rows — they are the audit
+trail explaining why a knob exists where it is.
+
