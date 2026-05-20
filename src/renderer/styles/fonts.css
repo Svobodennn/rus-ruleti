@@ -310,3 +310,46 @@
     U+FEFF,
     U+FFFD;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   DSEG7-Classic — 7-segment LCD-style digit font
+   Sprint 2 Phase 2B (babel). Sized for the HUD empty-click
+   counter declared in src/shared/scene-revolver-constants.ts
+   (HUD_COUNTER_FONT_FAMILY = "'DSEG7-Classic', monospace").
+
+   Only Regular 400 is bundled — the counter never needs Bold
+   or Italic. See src/renderer/fonts/dseg/README.md for license,
+   glyph coverage (digits + Latin A–Z + a–z + punctuation,
+   NO slash U+002F → falls through to monospace), and the
+   ergonomic file rename rationale.
+
+   font-display: swap
+     Counter must render from frame 1. Browser draws fallback
+     monospace until the ~5 KB woff2 lands (typically same tick),
+     then swaps in DSEG. Atmosphere over text-invisible-flash
+     for the HUD — the inverse of the disclaimer fonts above
+     which use 'block' because the brutalist serif IS the
+     atmosphere of that screen.
+
+   No unicode-range
+     DSEG defines its own (small) glyph repertoire and we want
+     every glyph it has, not a subset. Listing a unicode-range
+     could artificially exclude future DSEG additions.
+
+   Source order: woff2 → woff → ttf
+     Chromium 90+ (Electron's runtime) prefers woff2. The .woff
+     and .ttf are belt-and-braces in case a future Electron
+     downgrade or a non-Chromium tool consumes the same CSS.
+
+   ───────────────────────────────────────────────────────────── */
+
+@font-face {
+  font-family: 'DSEG7-Classic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    url('../fonts/dseg/DSEG7-Classic-Regular.woff2') format('woff2'),
+    url('../fonts/dseg/DSEG7-Classic-Regular.woff') format('woff'),
+    url('../fonts/dseg/DSEG7-Classic-Regular.ttf') format('truetype');
+}

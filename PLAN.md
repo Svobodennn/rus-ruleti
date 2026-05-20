@@ -470,6 +470,31 @@ shortcut additions live in separate handlers and do not race the IPC path.
 | Old Standard TT (veya benzeri) | OFL | Lobby Cyrillic | EVET |
 | DSEG 7-segment | OFL | Sayaç | EVET |
 
+#### Font attribution log (Sprint 0 → 2)
+
+- **Old Standard TT** — SIL Open Font License 1.1.
+  Source: Google Fonts via Old Standard Project Authors (amkryukov@gmail.com).
+  Bundled: `src/renderer/fonts/old-standard-tt/` (6 woff2 subsets — cyrillic + latin × 3 weights).
+  Sprint: 0 (disclaimer typography).
+
+- **PT Serif** — SIL Open Font License 1.1.
+  Source: ParaType, via Google Fonts.
+  Bundled: `src/renderer/fonts/pt-serif/` (6 woff2 subsets — cyrillic + latin × 3 weights).
+  Sprint: 0 (disclaimer fallback typography).
+
+- **DSEG7-Classic** (7-segment LCD font) — SIL Open Font License 1.1.
+  Source: https://github.com/keshikan/DSEG — release [v0.46](https://github.com/keshikan/DSEG/releases/tag/v0.46) (2020-03-15).
+  Bundled: `src/renderer/fonts/dseg/DSEG7-Classic-Regular.{woff2,woff,ttf}` (~5 KB woff2 / ~7 KB woff / ~23 KB ttf).
+  License copy: `src/renderer/fonts/dseg/LICENSE.txt` (verbatim upstream).
+  Detailed README: `src/renderer/fonts/dseg/README.md` (glyph coverage, slash-fallback workaround).
+  Copyright: (c) 2017 keshikan (http://www.keshikan.net), Reserved Font Name "DSEG".
+  Used for: HUD empty-click counter digits (`ШАНС / ŞANS — N/6`). Sprint 2+.
+  Coverage caveat: `/` (U+002F) is **not** in the DSEG glyph set; the slash falls
+  through to the next family in `font-family: 'DSEG7-Classic', monospace`
+  (system monospaced font). Documented in the dseg/README.md; the @frontend-dev
+  Phase 2 counter is free to split digit/separator into spans if a pure-segment
+  look is required.
+
 ### Görsel
 - **Wallpaper (Faz 2):** Blender procedural render — Mac varyantı için dağ/sis, Win varyantı için bloom-abstract. Apple/Microsoft default kullanılmaz.
 - **Propaganda afişi:** Solgun, okunmaz, kendi tasarım.

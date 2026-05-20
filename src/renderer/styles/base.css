@@ -17,6 +17,17 @@
   --color-sodium: #c89b3c; /* sodyum ampul */
   --color-blood:  #8b1a1a; /* kan kırmızısı */
   --color-neon:   #4a5d3a; /* soğuk neon yeşil */
+
+  /*
+   * Sprint 2 Phase 2B (frontend-dev) — bang overlay tunables.
+   * Mirrors SSOT BANG_FLASH_DURATION_MS / BANG_FADE_TO_BLACK_MS so the
+   * .bang-overlay keyframes (hud.css) read sane defaults even before any
+   * inline override. kraken-revolver may write these inline on the overlay
+   * element from the SSOT at mount time; the :root defaults are the
+   * fallback if that never happens.
+   */
+  --bang-flash-ms: 16ms;
+  --bang-fade-ms: 800ms;
 }
 
 * {

@@ -14,6 +14,14 @@
     <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/base.css" />
     <!--
+      HUD styles (Sprint 2 Phase 2B — frontend-dev). Loaded AFTER base.css so
+      .hud-counter / .hud-messages / .bang-overlay rules can extend the
+      base.css sibling-overlay definitions. Loaded BEFORE crt.css so the CRT
+      scanline + grain composite over the HUD glyphs (HUD reads as part of
+      the CRT broadcast, not floating above it).
+    -->
+    <link rel="stylesheet" href="./styles/hud.css" />
+    <!--
       CRT atmosphere overlay (Sprint 1 Phase 2 batch B — frontend-dev).
       Loaded AFTER base.css so .crt-overlay rules win on the cascade. The
       overlay element itself is the last child of <body> below.

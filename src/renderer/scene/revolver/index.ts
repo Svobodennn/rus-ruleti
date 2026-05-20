@@ -1,36 +1,50 @@
 /**
  * Revolver subsystem — public mount API.
  *
- * Phase 1 STUB orchestrator. Composes the FSM, RNG, input listener, mesh +
- * animation, and HUD into a single `RevolverHandle` consumed by `scene/
- * index.ts`. Phase 2 kraken-revolver wires the FSM transitions into all
- * the side-effect surfaces (lights dim, audio cues, animations play); Phase
- * 1 only locks the shape so other Phase 2 work (frontend-dev HUD,
- * i18n-expert copy) can land independently.
+ * Composes the FSM, RNG, input listener, mesh + animation, HUD, and the
+ * side-effect ladder into a single `RevolverHandle` consumed by
+ * `scene/index.ts`. Phase 2B kraken-revolver implementation; supersedes
+ * the Phase 1 stub which only locked the shape.
  *
- * Public contract for Phase 2:
- *   - `mountRevolver(scene, room, hudContainer, locale, audioBed, lighting)`
- *     returns a `RevolverHandle`.
+ * Public contract:
+ *   - `mountRevolver(scene, room, hudContainer, locale, audioBed,
+ *      lighting, camera, bangOverlay)` returns a `RevolverHandle`.
  *   - The handle's `dispose()` releases input listeners, animation mixer,
- *     HUD DOM, and removes the revolver Group from the scene graph.
- *   - `getEmptyClickCount()` exposes the lobby progression counter so the
- *     scene's lighting hook can dim per `DARKEN_CURVE_PER_CLICK[N]`.
- *   - `getState()` returns the current FSM state for diagnostic/debug use
- *     (not for tight coupling — Phase 2 should observe via events, not poll).
+ *     HUD DOM, camera zoom RAF, audio one-shots, and removes the revolver
+ *     Group from the scene graph + disposes geometries/materials.
+ *   - `getEmptyClickCount()` exposes the lobby progression counter.
+ *   - `getState()` returns the current FSM state.
  *
- * Phase 1 visible behaviour: the revolver Group is added to the room and
- * the HUD overlay is mounted with `.is-visible` applied. No animations
- * play, no input is connected to the FSM, no audio cues fire.
+ * State ownership:
+ *   - The pure FSM lives in `revolver-state.ts`. This module owns the
+ *     **mutable** state holder (`{ value: RevolverState }`) and the
+ *     empty-click counter. Counter increment happens at the FSM
+ *     transition `firing(empty) → idle`.
+ *   - Reveal-lite (6th empty) is a mount-layer decision; the FSM accepts
+ *     a `revealLite` boolean flag from this module on `onAnimationComplete`.
  */
 
-import type { Group, Scene } from 'three';
+import type { Group, PerspectiveCamera, Scene } from 'three';
 import type { AudioBedHandle } from '../audio/audio-bed';
 import type { BulbLightHandle } from '../lighting';
 import type { Locale } from '../../i18n/strings';
 import { mountHud, type HudHandle } from './hud/hud';
 import { attachInput, type InputHandle } from './revolver-input';
 import { mountRevolverMesh, type RevolverMeshHandle } from './revolver-mount';
-import type { RevolverState } from './revolver-state';
+import { pullTrigger } from './revolver-rng';
+import {
+  applyRevealLite,
+  applyTransition,
+  playFallAndOutcome,
+  type EffectContext,
+} from './revolver-effects';
+import {
+  onAnimationComplete,
+  onMouseDown,
+  onMouseUp,
+  type RevolverState,
+} from './revolver-state';
+import { startSceneAnimationLoop, type AnimLoopHandle } from './revolver-loop';
 
 /** Public handle returned from mountRevolver. */
 export interface RevolverHandle {
@@ -38,7 +52,7 @@ export interface RevolverHandle {
   dispose: () => void;
   /** Empty-click counter — drives the progressive darkening curve. */
   getEmptyClickCount: () => number;
-  /** Current FSM state. Phase 1 always returns `{ kind: 'idle' }`. */
+  /** Current FSM state. */
   getState: () => RevolverState;
 }
 
@@ -48,33 +62,43 @@ interface RevolverResources {
   readonly mesh: RevolverMeshHandle;
   readonly hud: HudHandle;
   readonly input: InputHandle;
-  readonly state: { value: RevolverState; emptyClicks: number };
+  readonly state: MutableFsmState;
+  readonly effectCtx: EffectContext;
+  readonly animLoop: AnimLoopHandle;
+}
+
+/** Mutable FSM state holder. The pure FSM is functions; this is the cell. */
+interface MutableFsmState {
+  value: RevolverState;
+  emptyClicks: number;
 }
 
 /**
  * Mount the revolver subsystem.
  *
- * @param scene - Three.js scene root. The revolver Group is added here.
- * @param room - The placeholder-room Group. Phase 1 unused; Phase 2 may
- *   reparent the revolver to the room for transform-relative positioning.
- * @param hudContainer - The `#hud-overlay` DIV (see scene-mount.ts).
- * @param locale - User locale, forwarded to HUD children for copy.
- * @param audioBed - AudioBed handle; Phase 2 fires empty-click cues here.
- * @param lighting - BulbLightHandle; Phase 2 darkens per `DARKEN_CURVE_PER_CLICK`.
- *
- * Underscored parameters match eslint `argsIgnorePattern: '^_'` — they are
- * required by the Phase 2 contract but unused by the Phase 1 stub.
+ * Args bag is kept compact — adds new optional params for Sprint 3 (e.g.
+ * GLB loader callback) without breaking call sites.
  */
 export function mountRevolver(
   scene: Scene,
-  _room: Group,
+  room: Group,
   hudContainer: HTMLElement,
   locale: Locale,
-  _audioBed: AudioBedHandle,
-  _lighting: BulbLightHandle,
+  audioBed: AudioBedHandle,
+  lighting: BulbLightHandle,
+  camera: PerspectiveCamera,
+  bangOverlay: HTMLElement,
 ): RevolverHandle {
-  const resources = allocateResources(scene, hudContainer, locale);
+  const args = { scene, room, hudContainer, locale, audioBed, lighting, camera, bangOverlay };
+  const resources = allocateResources(args);
   resources.hud.setVisible(true);
+  // Start idle bob so the revolver doesn't sit static at mount.
+  void resources.effectCtx.anim.play('idle');
+  // Phase 2B sanity: dev-mode 100-trial RNG fairness audit. Result is stashed
+  // on `document.body.dataset['revolverRngSanity']` so DevTools and the
+  // electron-log → renderer-error transport pick it up. Sprint 9 promotes
+  // this to a vitest assertion.
+  runRngSanityCheck();
 
   return {
     dispose: (): void => disposeRevolver(resources),
@@ -83,36 +107,173 @@ export function mountRevolver(
   };
 }
 
+/** 100-trial pullTrigger fairness audit; result on document.body.dataset. */
+function runRngSanityCheck(): void {
+  const TRIALS = 100;
+  let bangs = 0;
+  for (let i = 0; i < TRIALS; i += 1) {
+    if (pullTrigger() === 'bang') bangs += 1;
+  }
+  // 1/6 = 16.67; ±10% tolerance: [12, 22].
+  const expected = '16.67±10% [12,22]';
+  document.body.dataset['revolverRngSanity'] =
+    `bangs=${bangs}/${TRIALS} (expected ${expected})`;
+}
+
+/** Mount-args bundle. */
+interface MountArgs {
+  scene: Scene;
+  room: Group;
+  hudContainer: HTMLElement;
+  locale: Locale;
+  audioBed: AudioBedHandle;
+  lighting: BulbLightHandle;
+  camera: PerspectiveCamera;
+  bangOverlay: HTMLElement;
+}
+
 /**
  * Allocate every revolver-subsystem resource. Extracted from mountRevolver
- * so the function body stays under the 50-line ceiling.
+ * so each function body stays under the 50-line ceiling.
  */
-function allocateResources(
-  scene: Scene,
-  hudContainer: HTMLElement,
-  locale: Locale,
-): RevolverResources {
-  const mesh = mountRevolverMesh();
-  scene.add(mesh.group);
-  const hud = mountHud(hudContainer, locale);
-
-  // Phase 1 stub: input is wired to no-ops. Phase 2 kraken-revolver replaces
-  // the callbacks with FSM transitions. The body shell uses `document.body`
-  // as the listener target because the scene canvas is inside an overlay
-  // that may not be hit-testable; Phase 2 may switch to the canvas.
-  const target = document.body;
-  const input = attachInput(target, (): void => undefined, (): void => undefined);
-
-  const state = {
-    value: { kind: 'idle' } as RevolverState,
+function allocateResources(args: MountArgs): RevolverResources {
+  const mesh = mountRevolverMesh(args.room);
+  args.scene.add(mesh.group);
+  const hud = mountHud(args.hudContainer, args.locale);
+  const state: MutableFsmState = {
+    value: { kind: 'idle' },
     emptyClicks: 0,
   };
-  return { scene, mesh, hud, input, state };
+
+  const effectCtx: EffectContext = buildEffectContext(args, mesh, hud);
+  const input = wireInput(args, state, effectCtx);
+  const animLoop = startSceneAnimationLoop(effectCtx);
+  return {
+    scene: args.scene,
+    mesh, hud, input, state, effectCtx, animLoop,
+  };
+}
+
+/** Build the EffectContext bag passed to the side-effect ladder. */
+function buildEffectContext(
+  args: MountArgs,
+  mesh: RevolverMeshHandle,
+  hud: HudHandle,
+): EffectContext {
+  return {
+    camera: args.camera,
+    lighting: args.lighting,
+    audio: args.audioBed,
+    anim: mesh.animation,
+    hud,
+    bangOverlay: args.bangOverlay,
+    ramps: { zoom: null },
+    holdStartMs: 0,
+    spinPromise: null,
+  };
+}
+
+/** Attach input listeners; wire mousedown/mouseup to FSM + side effects. */
+function wireInput(
+  _args: MountArgs,
+  state: MutableFsmState,
+  effectCtx: EffectContext,
+): InputHandle {
+  const onDown = (nowMs: number): void => {
+    handleMouseDown(state, effectCtx, nowMs);
+  };
+  const onUp = (nowMs: number): void => {
+    void handleMouseUp(state, effectCtx, nowMs);
+  };
+  return attachInput(document.body, onDown, onUp);
+}
+
+/** mousedown handler — step FSM + apply transition side effects. */
+function handleMouseDown(
+  state: MutableFsmState,
+  ctx: EffectContext,
+  nowMs: number,
+): void {
+  const prev = state.value;
+  const next = onMouseDown(prev, nowMs);
+  applyTransition(prev, next, ctx, nowMs);
+  state.value = next;
+}
+
+/**
+ * mouseup handler — step FSM + apply transition side effects. If the FSM
+ * transitions into `spinning`, we await the spin/fall chain and then
+ * advance through `firing → idle` (or `reveal-lite`) with the right
+ * empty-click bookkeeping.
+ */
+async function handleMouseUp(
+  state: MutableFsmState,
+  ctx: EffectContext,
+  nowMs: number,
+): Promise<void> {
+  const prev = state.value;
+  const next = onMouseUp(prev, nowMs, pullTrigger);
+  applyTransition(prev, next, ctx, nowMs);
+  state.value = next;
+  if (next.kind !== 'spinning') return;
+  await runFiringSequence(state, ctx, next.rngOutcome);
+}
+
+/**
+ * Drive the spinning → firing → idle (or reveal-lite) sequence. The mount
+ * layer owns this chain because the empty-click counter advances here.
+ */
+async function runFiringSequence(
+  state: MutableFsmState,
+  ctx: EffectContext,
+  outcome: 'empty' | 'bang',
+): Promise<void> {
+  // applyTransition stored the spin promise on the context.
+  if (ctx.spinPromise !== null) {
+    await ctx.spinPromise;
+    ctx.spinPromise = null;
+  }
+  // FSM advances spinning → firing on spin-complete.
+  const firing = onAnimationComplete(state.value, 'spin');
+  state.value = firing;
+  const willBeRevealLite = outcome === 'empty' && state.emptyClicks + 1 === 6;
+  const nextEmpty = outcome === 'empty' ? state.emptyClicks + 1 : 0;
+  await playFallAndOutcome(ctx, outcome, nextEmpty);
+  if (outcome === 'empty') {
+    state.emptyClicks = nextEmpty;
+  }
+  finalizeFiring(state, ctx, outcome, willBeRevealLite);
+}
+
+/** Advance through firing → idle (or reveal-lite) and surface side effects. */
+function finalizeFiring(
+  state: MutableFsmState,
+  ctx: EffectContext,
+  outcome: 'empty' | 'bang',
+  revealLite: boolean,
+): void {
+  const nextAfterFall = onAnimationComplete(state.value, 'fall', revealLite);
+  state.value = nextAfterFall;
+  if (outcome === 'bang') {
+    // Bang: state.value === firing(bang), terminal hold for Sprint 4.
+    return;
+  }
+  if (revealLite) {
+    applyRevealLite(ctx);
+  }
 }
 
 /** Reverse-allocation disposal of revolver resources. */
 function disposeRevolver(resources: RevolverResources): void {
+  resources.animLoop.dispose();
   resources.input.dispose();
+  // Cancel any in-flight camera zoom ramp.
+  if (resources.effectCtx.ramps.zoom !== null) {
+    resources.effectCtx.ramps.zoom();
+    resources.effectCtx.ramps.zoom = null;
+  }
+  // Restore the bulb to baseline so a re-mount lands on a clean room.
+  resources.effectCtx.lighting.setBaseIntensityFactor(1.0);
   resources.hud.dispose();
   resources.scene.remove(resources.mesh.group);
   resources.mesh.dispose();

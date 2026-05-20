@@ -35,6 +35,7 @@ import {
   SphereGeometry,
 } from 'three';
 import { AMBIENT_LIGHT, BULB_LIGHT } from '../../shared/scene-constants';
+import { LIGHTING_FLICKER_DEPTH } from '../../shared/scene-revolver-constants';
 
 /** 2π — precomputed so the per-frame Lissajous math stays cheap. */
 const TWO_PI = Math.PI * 2;
@@ -56,6 +57,23 @@ export interface BulbLightHandle {
   readonly bulbMesh: Mesh;
   /** Per-frame sway update. Receives Three.Clock.getElapsedTime(). */
   update: (elapsedSec: number) => void;
+  /**
+   * Set the base-intensity multiplier (Sprint 2 progressive-darkening curve).
+   *
+   * Multiplied into the Sprint 1 baseline (BULB_LIGHT.intensity) before the
+   * Lissajous pulse modulation is applied. Factor=1.0 restores Sprint 1
+   * baseline. Empty-click handler in the revolver mount layer calls this
+   * with `DARKEN_CURVE_PER_CLICK[emptyClicks]` after each empty pull.
+   */
+  setBaseIntensityFactor: (factor: number) => void;
+  /**
+   * Trigger a brief intensity flicker — the bulb dips to
+   * `LIGHTING_FLICKER_DEPTH` × current baseline then snaps back over
+   * `durationMs`. Caller is the empty-click cue (PLAN §5: "Ampul bir
+   * flicker"). Reentrant: a second call during an active flicker resets
+   * the timer; the bulb does not pile up multipliers.
+   */
+  triggerFlicker: (durationMs: number) => void;
   /** Tear down. Frees GPU buffers + dispose materials. */
   dispose: () => void;
 }
@@ -73,10 +91,40 @@ export function createBulbLight(): BulbLightHandle {
   const ambient = createAmbientLight();
   light.add(ambient);
 
-  const update = buildSwayUpdater(light);
+  // Mutable bag the swayUpdater consults each frame so empty-click cues
+  // (setBaseIntensityFactor, triggerFlicker) can write here without
+  // poking the OscillatorNode-style closure of the updater itself.
+  const dynamicState: BulbDynamicState = {
+    baseFactor: 1.0,
+    flickerStartMs: -1,
+    flickerDurationMs: 0,
+  };
+
+  const update = buildSwayUpdater(light, dynamicState);
+  const setBaseIntensityFactor = (factor: number): void => {
+    dynamicState.baseFactor = factor;
+  };
+  const triggerFlicker = (durationMs: number): void => {
+    dynamicState.flickerStartMs = performance.now();
+    dynamicState.flickerDurationMs = Math.max(durationMs, 1);
+  };
   const dispose = buildDisposer(bulbMesh);
 
-  return { light, bulbMesh, update, dispose };
+  return {
+    light, bulbMesh, update, dispose,
+    setBaseIntensityFactor, triggerFlicker,
+  };
+}
+
+/**
+ * Per-frame mutable state read by the sway updater. Lives outside the
+ * updater closure so empty-click handlers can poke it without redoing the
+ * builder math each frame.
+ */
+interface BulbDynamicState {
+  baseFactor: number;
+  flickerStartMs: number;
+  flickerDurationMs: number;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -131,7 +179,10 @@ function createAmbientLight(): AmbientLight {
  * hot path free of property-access overhead. The closure body stays under
  * the 50-line ceiling.
  */
-function buildSwayUpdater(light: PointLight): (elapsedSec: number) => void {
+function buildSwayUpdater(
+  light: PointLight,
+  state: BulbDynamicState,
+): (elapsedSec: number) => void {
   const baseIntensity = BULB_LIGHT.intensity;
   const wX = TWO_PI / BULB_LIGHT.swayPeriodSecX;
   const wZ = TWO_PI / BULB_LIGHT.swayPeriodSecZ;
@@ -146,8 +197,28 @@ function buildSwayUpdater(light: PointLight): (elapsedSec: number) => void {
     light.position.x = Math.sin(elapsedSec * wX + phaseX) * ampX;
     light.position.z = Math.sin(elapsedSec * wZ + phaseZ) * ampZ;
     const pulse = 1 + Math.sin(elapsedSec * pulseW) * pulseA;
-    light.intensity = baseIntensity * pulse;
+    const flicker = computeFlickerMultiplier(state, performance.now());
+    light.intensity = baseIntensity * state.baseFactor * pulse * flicker;
   };
+}
+
+/**
+ * Compute the flicker multiplier (1.0 = no flicker; <1.0 = dipped). Linear
+ * ramp from LIGHTING_FLICKER_DEPTH back to 1.0 over the flicker duration.
+ */
+function computeFlickerMultiplier(
+  state: BulbDynamicState,
+  nowMs: number,
+): number {
+  if (state.flickerStartMs < 0) {
+    return 1.0;
+  }
+  const elapsed = nowMs - state.flickerStartMs;
+  if (elapsed >= state.flickerDurationMs) {
+    return 1.0;
+  }
+  const progress = elapsed / state.flickerDurationMs;
+  return LIGHTING_FLICKER_DEPTH + (1.0 - LIGHTING_FLICKER_DEPTH) * progress;
 }
 
 /**

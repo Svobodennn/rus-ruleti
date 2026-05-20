@@ -1,0 +1,308 @@
+/*
+ * HUD overlay styles — Sprint 2 Phase 2B (frontend-dev).
+ *
+ * Two HUD surfaces sit on top of the Three.js canvas:
+ *
+ *   1. The ШАНС / ŞANS counter (lower-right). Vacuum-tube indicator reading:
+ *      DSEG7-Classic digits in PALETTE.neon (#4a5d3a) with a low-alpha
+ *      symmetric text-shadow that warms up per empty click. Cyrillic + Latin
+ *      labels (RU primary, TR caption) sit ABOVE the digits in dirty-paper
+ *      colour — they should read as silk-screen markings on a panel, not
+ *      glowing UI.
+ *
+ *   2. Transient bilingual messages (top-center). Three kinds —
+ *      'early-release', 'bang', 'reveal-lite'. Old Standard TT serif, RU
+ *      primary at 2rem + TR secondary at 1.5rem (atmosphere-direction.md §5
+ *      type scale). Fade in over 200ms, hold, fade out over 600ms.
+ *
+ * Sibling: the bang-overlay flash + black layers. Their keyframes live here
+ * because they coordinate with the messages.show('bang') animation; kraken-
+ * revolver toggles `.is-fired` on the overlay and the CSS drives the visual.
+ *
+ * Designer tuning surface (atmosphere-direction.md §5 + revolver-direction.md
+ * §5/§7) — the four CSS custom properties below cover everything frontend-
+ * dev exposes:
+ *
+ *   --hud-glow-alpha     : set per-click from HUD_GLOW_ALPHA_BY_CLICK[N].
+ *                          counter.ts writes this onto the .hud-counter root.
+ *   --hud-counter-inset  : 32px viewport inset (atmosphere §5 lower-right).
+ *   --bang-flash-ms      : white flash duration (SSOT 16ms).
+ *   --bang-fade-ms       : fade-to-black duration after flash (SSOT 800ms).
+ *
+ * The bang-* vars also live in base.css :root so the .bang-overlay defaults
+ * apply even before any JS runs. The font-family fallback chain
+ * 'DSEG7-Classic', monospace is FROM THE SSOT (HUD_COUNTER_FONT_FAMILY) so
+ * if babel hasn't shipped the woff2 yet, the digits render in the system
+ * monospace face — visually a placeholder but functionally identical.
+ *
+ * Reduced motion (@media): the flap-display digit flip and the bang-flash
+ * strobe are both disabled. The fade-to-black is preserved — it is a plot
+ * beat, not decoration.
+ */
+
+/* ─────────────────────────────────────────────────────────────
+   Counter — ШАНС / ŞANS, lower-right.
+
+   Block stacking from top to bottom inside .hud-counter:
+     .hud-counter__labels  — two stacked language labels (Cyrillic / Latin)
+     .hud-counter__display — the digit row (current / total)
+
+   Both blocks are right-aligned because the panel reads as a Soviet
+   instrument cluster — labels run flush to a vertical edge, not centered.
+   ───────────────────────────────────────────────────────────── */
+
+.hud-counter {
+  position: absolute;
+  right: var(--hud-counter-inset, 32px);
+  bottom: var(--hud-counter-inset, 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  /* Per-instance glow alpha — counter.ts sets this from
+   * HUD_GLOW_ALPHA_BY_CLICK[N] (clamped at array.length - 1). Default 0.5
+   * matches index 0 of the curve so the counter reads correctly even if the
+   * mount layer never invokes .update(). */
+  --hud-glow-alpha: 0.5;
+}
+
+.hud-counter__labels {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.05;
+  /* 0.15em tracking gives Cyrillic caps the breathing room they need
+   * without pushing the panel out of the corner. Mirrors disclaimer.css
+   * .headline-tr letter-spacing for visual continuity. */
+  letter-spacing: 0.15em;
+}
+
+.hud-counter__label {
+  /* Old Standard TT — the bilingual serif also used on the disclaimer. The
+   * labels are silk-screen markings, NOT vacuum-tube glow — no text-shadow. */
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 400;
+  color: var(--color-paper);
+  text-transform: uppercase;
+}
+
+.hud-counter__label--ru {
+  /* RU stays on top — diegetic primary per i18n/strings.ts contract. */
+  font-weight: 700;
+}
+
+.hud-counter__label--tr {
+  /* TR caption — slightly dimmer + italic so the eye reads RU first. */
+  font-style: italic;
+  opacity: 0.7;
+  font-size: 1rem;
+}
+
+.hud-counter__display {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1em;
+  /* DSEG7-Classic is the vacuum-tube/flap-display face. Falls back to the
+   * system monospace if babel's font bundle hasn't shipped yet (Sprint 2
+   * Phase 2B parallel). Sized in rem per the SSOT
+   * HUD_COUNTER_FONT_SIZE_REM = 3.0; hardcoded here so the CSS reads cleanly
+   * — a constants→CSS bridge would require Vite plugin work out of scope. */
+  font-family: 'DSEG7-Classic', monospace;
+  font-size: 3rem;
+  color: var(--color-neon);
+  /* Symmetric 2px glow — atmosphere-direction.md §5 vacuum-tube reading. NOT
+   * a directional drop-shadow (modern UI tell). Alpha is the per-click
+   * tunable: rises 0.5 → 1.0 across the lobby progression. */
+  text-shadow:
+    0 0 2px rgba(74, 93, 58, var(--hud-glow-alpha)),
+    0 0 4px rgba(74, 93, 58, calc(var(--hud-glow-alpha) * 0.5));
+  /* Slight tracking to separate the digits — DSEG7 segments are already wide
+   * but the slash/total digit at the end needs breathing room. */
+  letter-spacing: 0.05em;
+}
+
+.hud-counter__digit-current,
+.hud-counter__digit-total {
+  /* display: inline-block lets the flip transform have a Z-axis to rotate
+   * around. The :is-flipping modifier on .hud-counter__digit-current
+   * triggers the @keyframes below. */
+  display: inline-block;
+  /* transform-origin centred so the flip looks like a real flap-display
+   * card pivoting around its midline. */
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+
+.hud-counter__separator {
+  /* The "/" between current and total. Slightly dimmer so the active digit
+   * (current) is the visual focus. */
+  opacity: 0.6;
+}
+
+/* Flap-display flip — the moment a digit increments.
+ *
+ * Real flap displays rotate the visible card 180° on the X-axis as the next
+ * card descends. We fake the half of that motion that matters: a 90° tilt
+ * down + back. The whole animation is 0.5s; the digit's textContent is
+ * updated by counter.ts at the midpoint (t=0.25s) where the card is
+ * edge-on to the viewer, so the swap is hidden in the geometry.
+ *
+ * counter.ts handles the timing — it adds .is-flipping, swaps text at the
+ * mid-animation tick, and removes the class on animationend.
+ */
+.hud-counter__digit-current.is-flipping {
+  animation: hud-counter-flip 0.5s ease-in-out;
+}
+
+@keyframes hud-counter-flip {
+  0% {
+    transform: rotateX(0deg);
+  }
+  50% {
+    transform: rotateX(90deg);
+  }
+  100% {
+    transform: rotateX(0deg);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Messages — top-center bilingual transients.
+
+   Three kinds (MessageKind in messages.ts):
+     'early-release' → "Не смог решиться." / "Karar veremedin."
+     'bang'          → "ВЫСТРЕЛ" / "ATEŞ"             (blood-red)
+     'reveal-lite'   → "Не следовало этого делать." / "Bunu yapmamalıydın."
+
+   Bilingual lines render stacked: RU primary on top, TR caption beneath.
+   The container is fixed top-center; the message lines hide via opacity
+   transitions (display: flex stays mounted so layout never reflows).
+   ───────────────────────────────────────────────────────────── */
+
+.hud-messages {
+  position: absolute;
+  top: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  /* Fade-OUT timing. Fade-IN is shorter (200ms) so the message announces
+   * itself crisply and dissolves slowly. messages.ts toggles .is-visible
+   * to ramp opacity from 0 to 1. */
+  transition: opacity 600ms ease-out;
+}
+
+.hud-messages.is-visible {
+  opacity: 1;
+  /* Override the fade-out easing on entry so the appearance is brisk. */
+  transition: opacity 200ms ease-in;
+}
+
+.hud-message {
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--color-paper);
+  /* Sodium-paper text on a dark scene reads through the CRT scanline; no
+   * extra text-shadow is needed for legibility. The blood-red bang message
+   * gets a per-class override below. */
+}
+
+.hud-message--ru {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hud-message--tr {
+  /* TR sits beneath RU as a 1.5rem caption — atmosphere-direction.md §5
+   * type scale (hud-primary). Italic so the eye reads RU first. */
+  font-size: 1.5rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Per-kind colour override. The bang message is the only one that uses
+ * PALETTE.blood — both early-release and reveal-lite stay on paper. The
+ * `data-kind="bang"` attribute is written by messages.ts on .show(). */
+.hud-messages[data-kind='bang'] .hud-message--ru,
+.hud-messages[data-kind='bang'] .hud-message--tr {
+  color: var(--color-blood);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Bang overlay — flash + fade keyframes.
+
+   kraken-revolver toggles .is-fired on .bang-overlay; the CSS animation
+   below drives the visual:
+     - .bang-flash : opacity 0→1→0 over --bang-flash-ms (~16ms; single
+                     frame). This is the photosensitivity-sensitive moment.
+     - .bang-black : opacity 0→1 over --bang-fade-ms (800ms), ease-out.
+                     This is the plot beat — Sprint 4's destruction-
+                     director picks up from the black screen.
+
+   The .bang-black transition is already wired in base.css; this file adds
+   the .is-fired keyframe activation and the keyframes themselves. The
+   base.css transition handles the opacity change; the class toggle here
+   sets the target opacity.
+   ───────────────────────────────────────────────────────────── */
+
+/* `.is-fired` implies visibility so kraken-revolver can toggle a single
+ * class for the entire bang sequence. base.css's `.is-active` (visibility
+ * gate) is preserved for callers that want to pre-show the overlay before
+ * firing — both classes coexist non-conflictingly. */
+.bang-overlay.is-fired {
+  visibility: visible;
+}
+
+.bang-overlay.is-fired .bang-flash {
+  animation: bang-flash var(--bang-flash-ms, 16ms) forwards;
+}
+
+.bang-overlay.is-fired .bang-black {
+  opacity: 1;
+}
+
+@keyframes bang-flash {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Reduced motion — disable strobe / flip, keep plot beats.
+
+   Per revolver-direction.md §7 accessibility note: the white-flash strobe
+   is a photosensitive-seizure hazard. Under prefers-reduced-motion, we:
+     - SKIP the flash keyframe (set opacity 0 → stays 0 forever)
+     - SKIP the flap-display digit flip (instant text swap is fine)
+     - KEEP the fade-to-black (story-critical beat; not a strobe)
+     - KEEP the message opacity fades (200ms/600ms — not vestibular)
+
+   The contract is "user opted out of motion", NOT "user opted out of the
+   game beats" — the bang still happens, the strobe just softens.
+   ───────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-counter__digit-current.is-flipping {
+    animation: none;
+  }
+  .bang-overlay.is-fired .bang-flash {
+    animation: none;
+    opacity: 0;
+  }
+}

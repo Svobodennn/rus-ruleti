@@ -111,11 +111,8 @@ export async function mountScene(
   hudContainer: HTMLElement,
   bangOverlay: HTMLElement,
 ): Promise<SceneHandle> {
-  const resources = await buildResources(container, hudContainer);
+  const resources = await buildResources(container, hudContainer, bangOverlay);
   attachToContainer(container, resources.renderer);
-  // Bang overlay is forwarded to Phase 2 frontend-dev via a dataset hook so
-  // the scene composition root doesn't need to grow another resource slot
-  // before Phase 2 actually uses it.
   bangOverlay.dataset['sceneMounted'] = 'true';
 
   return {
@@ -135,6 +132,7 @@ export async function mountScene(
 async function buildResources(
   container: HTMLElement,
   hudContainer: HTMLElement,
+  bangOverlay: HTMLElement,
 ): Promise<InternalResources> {
   const renderer = createRenderer(container);
   const camera = createCamera(container);
@@ -147,7 +145,8 @@ async function buildResources(
   const { scene, room, bulb } = buildSceneGraph(container, initialQuality);
   const postFx = createPostFxPipeline(renderer, scene, camera, initialQuality);
   const revolver = mountRevolver(
-    scene, room, hudContainer, resolveUserLocale(), audioBed, bulb,
+    scene, room, hudContainer, resolveUserLocale(),
+    audioBed, bulb, camera, bangOverlay,
   );
 
   const resources: InternalResources = {

@@ -66,6 +66,21 @@ export const KICK_CAMERA_SHAKE_DEG: number = 2;
 /** Frames of full-white flash on bang. PLAN §6: "1 frame white flash". */
 export const KICK_FLASH_FRAMES: number = 1;
 
+/**
+ * Kick animation total duration (ms). Recoil-out + snap-back combined.
+ * 140ms reads as "weapon recoiled" without crossing into "ceremony" territory
+ * — the entire kick clip is meant to feel like a single mechanical event,
+ * not a beat with a sustain.
+ */
+export const KICK_DURATION_MS: number = 140;
+
+/**
+ * Camera shake duration (ms) on bang. PLAN §6 "+2° kamera shake" is the
+ * angle; this constant sets how long it lasts. Tied to the kick clip's
+ * total length so they finish together.
+ */
+export const KICK_CAMERA_SHAKE_DURATION_MS: number = 140;
+
 /* ------------------------------------------------------------------------ */
 /* Hold-state feedback — Phase 2 kraken-revolver                            */
 /* ------------------------------------------------------------------------ */
@@ -81,6 +96,20 @@ export const HOLD_BULB_HUM_GAIN_DB: number = 3;
 
 /** Camera zoom ramp duration during hold (ms). */
 export const HOLD_ZOOM_DURATION_MS: number = 900;
+
+/**
+ * Duration the "Karar veremedin." / "Не смог решиться." message sits on
+ * screen after an early release. Designer §3 calls for "long enough to read
+ * both lines comfortably, short enough that the user does not feel berated".
+ */
+export const EARLY_RELEASE_MESSAGE_DURATION_MS: number = 1800;
+
+/**
+ * Bulb-flicker multiplier on empty click — the bulb intensity dips to this
+ * fraction of its current baseline, then snaps back. 0.3 reads as "the bulb
+ * was briefly starved of current". Designer directive D.3 specified 0.3.
+ */
+export const LIGHTING_FLICKER_DEPTH: number = 0.3;
 
 /* ------------------------------------------------------------------------ */
 /* Lobby progressive darkening curve — Phase 2A designer TUNED              */
