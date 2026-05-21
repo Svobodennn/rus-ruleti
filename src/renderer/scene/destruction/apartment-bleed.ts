@@ -24,6 +24,13 @@
 import {
   APARTMENT_BLEED_1_DURATION_MS,
   APARTMENT_BLEED_2_DURATION_MS,
+  APARTMENT_BLEED_4_DURATION_MS,
+  APARTMENT_BLEED_4_MASK_BLUR_PX,
+  APARTMENT_BLEED_4_OPACITY_MAX,
+  APARTMENT_BLEED_4_OPACITY_MIN,
+  APARTMENT_BLEED_4_REDUCED_MOTION_OPACITY,
+  APARTMENT_BLEED_FLICKER_HZ,
+  PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../shared/scene-destruction-constants.js';
 import type { ApartmentBleedHandle, ApartmentBleedKind } from './types.js';
 
@@ -126,9 +133,21 @@ export interface BleedScheduleOptions {
   readonly hostElement: HTMLElement;
 }
 
-/** Bleed #4 carries an extra variant flag for the revolver-on-table payoff. */
+/**
+ * Bleed #4 schedule args — extends BleedScheduleOptions with:
+ *   - `variant`: discriminator for the revolver-on-table composite (currently
+ *     the only Sprint 5 variant; Sprint 6 may add others).
+ *   - `delayMs`: time from `scheduleBleed4()` call until the bleed visually
+ *     fires (PLAN §7 line 288 → ~3sn into Faz 7 absolute).
+ *   - `lobbySnapshotDataUrl`: optional Faz 0 capture of the lobby scene; the
+ *     bleed composites the revolver-on-table overlay atop this image. If
+ *     undefined (toDataURL threw at scene mount), the bleed reads as a
+ *     black-with-overlay flicker (graceful degradation).
+ */
 export interface Bleed4ScheduleOptions extends BleedScheduleOptions {
   readonly variant: 'revolver-on-table';
+  readonly delayMs: number;
+  readonly lobbySnapshotDataUrl: string | undefined;
 }
 
 /**
@@ -158,34 +177,187 @@ export function scheduleBleed3(
   };
 }
 
+/** Bleed #4 overlay element class — destruction.css owns the styling. */
+const BLEED_4_CLASS = 'apartment-bleed-4';
+/** Bleed #4 variant modifier class — revolver-on-table designer §6 payoff. */
+const BLEED_4_REVOLVER_VARIANT_CLASS = 'apartment-bleed-4--revolver-on-table';
+/** Bleed #4 strobe-active modifier — engages the 12Hz @keyframes. */
+const BLEED_4_STROBING_CLASS = 'is-strobing';
+/** Bleed #4 reduced-motion hold modifier — single static frame, no strobe. */
+const BLEED_4_REDUCED_MOTION_CLASS = 'is-reduced-motion';
+/** Z-index for the bleed #4 overlay — matches the apartment-bleed-overlay layer. */
+const BLEED_4_Z_INDEX = '9500';
+
 /**
- * Bleed #4 — Faz 7 (bootloop) at ~48sn (4sn into Faz 7). Duration 0.8sn —
- * LONGEST of the four bleeds.
+ * Bleed #4 — Faz 7 (bootloop) at ~3sn into the phase (PLAN §7 line 288
+ * → ~48sn absolute from bang). Duration `APARTMENT_BLEED_4_DURATION_MS`
+ * = 800ms — LONGEST of the four bleeds.
  *
- * Owner: faz7-bootloop.ts (BLEED_4_OWNER decree — single caller).
+ * Owner: faz7-bootloop.ts (BLEED_4_OWNER decree — single caller). The
+ * scheduling responsibility is Faz 7's; the bleed VISUAL composites the
+ * lobby snapshot with a revolver-on-table overlay variant per designer
+ * §6 (narrative payoff: "what was being aimed in earlier scenes is now
+ * resting on the desk, visible through the bleed").
  *
- * Visual: revolver namlusu masada görünür (designer §6 narrative payoff
- * — what was being aimed in earlier scenes is now resting on the desk
- * in the lobby, visible through the bleed). Camera framing:
- * lobbySnapshot + overlay variant 'revolver-on-table'.
+ * Visual (designer §14 Faz 7 Bleed #4 — revolver-on-table payoff):
+ *   - Base layer: lobbySnapshot data URL (the same Faz 0 capture bleeds
+ *     #1/#2/#3 use). The bulb is dark, the masa is visible, the room is
+ *     in shadow.
+ *   - Overlay class `BLEED_4_REVOLVER_VARIANT_CLASS` — CSS-driven
+ *     emphasis on the desk + revolver position (mask blur 2px via
+ *     `APARTMENT_BLEED_4_MASK_BLUR_PX`). The composite reads as "lobby
+ *     snapshot with a slight halation around the revolver", keeping the
+ *     bleed feeling like a leak, not a clean render.
+ *   - Strobe: 12Hz opacity pulse between
+ *     `APARTMENT_BLEED_4_OPACITY_MIN = 0.4` and
+ *     `APARTMENT_BLEED_4_OPACITY_MAX = 0.6` for 800ms (~10 cycles).
  *
- * Reduced-motion: 0.8sn opacity 0.6 hold (no strobe).
+ * Reduced-motion (designer §14 + a11y matrix row 37): static opacity hold
+ * at `APARTMENT_BLEED_4_REDUCED_MOTION_OPACITY = 0.6` for the full 800ms.
+ * The revolver-on-desk composite STAYS visible — bleed #4 is the
+ * narrative payoff and must remain legible to motion-sensitive users.
  *
- * SPRINT 5 LANE: B — Lane B implements the revolver-table-payoff visual
- * + extends the lobbySnapshot composite (camera framing tweak vs the
- * Sprint 4 bleeds which use the default snapshot frame).
+ * Scheduling: setTimeout fires after `opts.delayMs`. The handle's
+ * `triggerBleed` is also exposed (idempotent — Lane B's runner schedules
+ * via the timer; tests can trigger immediately via the method).
  *
- * TODO Sprint 5 Lane B: implement long-bleed + revolver-on-table variant
- * + reduced-motion gate + AbortSignal teardown + APARTMENT_BLEED_4_
- * DURATION_MS constant.
+ * AbortSignal teardown:
+ *   - If aborted before the timer fires: clearTimeout + overlay never built.
+ *   - If aborted during the bleed: clearTimeout(strobeStop) + overlay
+ *     removed defensively.
  */
 export function scheduleBleed4(
-  _opts: Bleed4ScheduleOptions,
+  opts: Bleed4ScheduleOptions,
 ): ApartmentBleedHandle {
-  // TODO Sprint 5 Lane B: implement long bleed + revolver-on-table variant.
-  const noop = (): void => undefined;
-  return {
-    triggerBleed: async (): Promise<void> => undefined,
-    dispose: noop,
+  const state: Bleed4State = {
+    disposed: false,
+    triggerTimeoutId: null,
+    strobeTimeoutId: null,
+    overlay: null,
   };
+  const teardown = (): void => disposeBleed4(state);
+  opts.signal.addEventListener('abort', teardown, { once: true });
+
+  const trigger = async (): Promise<void> => {
+    if (state.disposed || opts.signal.aborted) return;
+    state.overlay = createBleed4Overlay(opts.lobbySnapshotDataUrl);
+    opts.hostElement.appendChild(state.overlay);
+    await runBleed4Sequence(state, opts.signal);
+  };
+
+  state.triggerTimeoutId = window.setTimeout((): void => {
+    state.triggerTimeoutId = null;
+    void trigger();
+  }, opts.delayMs);
+
+  return {
+    triggerBleed: trigger,
+    dispose: teardown,
+  };
+}
+
+/** Bleed #4 mutable runtime state. */
+interface Bleed4State {
+  disposed: boolean;
+  triggerTimeoutId: ReturnType<typeof setTimeout> | null;
+  strobeTimeoutId: ReturnType<typeof setTimeout> | null;
+  overlay: HTMLDivElement | null;
+}
+
+/**
+ * Build the bleed #4 overlay element. The base layer carries the lobby
+ * snapshot; the variant modifier class adds the revolver-on-table
+ * emphasis (mask blur, slight darker mask weighted toward the desk).
+ * The strobe class is added later by `runBleed4Sequence` — at build time
+ * the element is mounted invisible (opacity 0 via base class).
+ */
+function createBleed4Overlay(
+  lobbySnapshotDataUrl: string | undefined,
+): HTMLDivElement {
+  const el = document.createElement('div');
+  el.classList.add(BLEED_4_CLASS, BLEED_4_REVOLVER_VARIANT_CLASS);
+  el.setAttribute('aria-hidden', 'true');
+  el.style.zIndex = BLEED_4_Z_INDEX;
+  // Inline the SSOT-derived strobe params as CSS custom properties so the
+  // stylesheet's @keyframes can reference them via var(--bleed4-opacity-min)
+  // / var(--bleed4-opacity-max). Keeping the values in inline-style means
+  // the constants are the single source of truth (Sprint 4 rule —
+  // scene-destruction-constants.ts owns every number).
+  el.style.setProperty(
+    '--bleed4-opacity-min',
+    APARTMENT_BLEED_4_OPACITY_MIN.toString(),
+  );
+  el.style.setProperty(
+    '--bleed4-opacity-max',
+    APARTMENT_BLEED_4_OPACITY_MAX.toString(),
+  );
+  el.style.setProperty(
+    '--bleed4-reduced-motion-opacity',
+    APARTMENT_BLEED_4_REDUCED_MOTION_OPACITY.toString(),
+  );
+  el.style.setProperty(
+    '--bleed4-mask-blur',
+    `${String(APARTMENT_BLEED_4_MASK_BLUR_PX)}px`,
+  );
+  el.style.setProperty(
+    '--bleed4-strobe-hz',
+    String(APARTMENT_BLEED_FLICKER_HZ),
+  );
+  if (lobbySnapshotDataUrl !== undefined) {
+    el.style.backgroundImage = `url("${lobbySnapshotDataUrl}")`;
+  }
+  return el;
+}
+
+/**
+ * Run the bleed #4 visible sequence. Adds the strobe class (or the
+ * reduced-motion hold class), waits APARTMENT_BLEED_4_DURATION_MS, then
+ * removes the overlay. Resolves at end of sequence or signal abort.
+ */
+function runBleed4Sequence(
+  state: Bleed4State,
+  signal: AbortSignal,
+): Promise<void> {
+  if (state.overlay === null) return Promise.resolve();
+  const reducedMotion = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY).matches;
+  const overlay = state.overlay;
+  overlay.classList.add(
+    reducedMotion ? BLEED_4_REDUCED_MOTION_CLASS : BLEED_4_STROBING_CLASS,
+  );
+  return new Promise<void>((resolve): void => {
+    if (signal.aborted) {
+      removeOverlay(state);
+      resolve();
+      return;
+    }
+    state.strobeTimeoutId = window.setTimeout((): void => {
+      state.strobeTimeoutId = null;
+      removeOverlay(state);
+      resolve();
+    }, APARTMENT_BLEED_4_DURATION_MS);
+  });
+}
+
+/** Detach and clear the overlay element. Safe to call multiple times. */
+function removeOverlay(state: Bleed4State): void {
+  if (state.overlay === null) return;
+  if (state.overlay.parentNode !== null) {
+    state.overlay.parentNode.removeChild(state.overlay);
+  }
+  state.overlay = null;
+}
+
+/** Full dispose: clear all timers, detach overlay. */
+function disposeBleed4(state: Bleed4State): void {
+  if (state.disposed) return;
+  state.disposed = true;
+  if (state.triggerTimeoutId !== null) {
+    window.clearTimeout(state.triggerTimeoutId);
+    state.triggerTimeoutId = null;
+  }
+  if (state.strobeTimeoutId !== null) {
+    window.clearTimeout(state.strobeTimeoutId);
+    state.strobeTimeoutId = null;
+  }
+  removeOverlay(state);
 }
