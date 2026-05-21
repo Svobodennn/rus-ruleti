@@ -29,3 +29,19 @@ declare module '*.glb?url' {
   const url: string;
   export default url;
 }
+
+/**
+ * Vite `?url` import for PNG image assets.
+ *
+ * Sprint 5 Phase 2B Lane D added the BSOD QR PNG at
+ * `src/renderer/assets/destruction/win-bsod-qr.png`. The `?url` import
+ * yields a hashed bundle URL at build time and a dev-server URL in dev —
+ * same pattern as the GLB models. The `<img src>` attribute consumes
+ * the URL directly. Importing without `?url` would attempt to parse the
+ * binary PNG as a module — broken.
+ */
+declare module '*.png?url' {
+  /** Resolved PNG asset URL produced by Vite's static-asset pipeline. */
+  const url: string;
+  export default url;
+}
