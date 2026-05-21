@@ -356,7 +356,7 @@ async function runFazTakeoverAndTerminal(
     signal,
   });
   if (signal.aborted) return;
-  await runFaz4Through7(runtime, os);
+  await runFaz4Through7(runtime, deps, os);
 }
 
 /**
@@ -365,22 +365,38 @@ async function runFazTakeoverAndTerminal(
  * + threads through the destruction overlay container. faz7 is the
  * terminal active phase — Sprint 6 will add the faz8 reveal hand-off.
  *
+ * Lane B (Faz 6 + Faz 7) consumes the destructionAudio handle to:
+ *   - register the BSOD beep / electrical-tick handles into the owner pool
+ *   - retrieve and silence Faz 4 / Faz 5 audio surfaces (HDD-grind,
+ *     fan-overdrive, electrical-buzz) at Faz 6 end
+ *
+ * Lane B (Faz 7) also consumes the lobbySnapshotDataUrl so bleed #4's
+ * revolver-on-table composite has the apartment image to overlay.
+ *
  * Extracted from runFazTakeoverAndTerminal to stay under the 50-line
  * ESLint cap (max-lines-per-function).
  */
 async function runFaz4Through7(
   runtime: DirectorRuntime,
+  deps: DestructionDirectorDeps,
   os: OsVariant,
 ): Promise<void> {
   const signal = runtime.abortCtrl.signal;
   const container = nonNull(runtime.overlay);
+  const destructionAudio = nonNull(runtime.destructionAudio);
   await startFaz4FileWipe({ os, container, signal });
   if (signal.aborted) return;
   await startFaz5DiskFormat({ os, container, signal });
   if (signal.aborted) return;
-  await startFaz6Bsod({ os, container, signal });
+  await startFaz6Bsod({ os, container, destructionAudio, signal });
   if (signal.aborted) return;
-  await startFaz7Bootloop({ os, container, signal });
+  await startFaz7Bootloop({
+    os,
+    container,
+    destructionAudio,
+    lobbySnapshotDataUrl: deps.lobbySnapshotGetter(),
+    signal,
+  });
 }
 
 /* ------------------------------------------------------------------------ */
