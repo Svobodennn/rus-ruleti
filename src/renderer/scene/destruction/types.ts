@@ -23,6 +23,18 @@
  *   - chrome/mac-menubar.ts     (MacMenubarHandle)
  *   - chrome/win-taskbar.ts     (WinTaskbarHandle)
  *
+ * Sprint 5 Phase 1 — Faz 4-7 surface handles (consumers Phase 2B):
+ *   - faz4-file-wipe.ts             (OsVariant, Mac/WinProgressDialogHandle)
+ *   - faz5-disk-format.ts           (OsVariant; no chrome handle — inline DOM)
+ *   - faz6-bsod.ts                  (OsVariant, MacKernelPanic/WinBsodHandle)
+ *   - faz7-bootloop.ts              (OsVariant, MacBootloop/WinBiosBootloopHandle)
+ *   - chrome/mac-kernel-panic.ts    (MacKernelPanicHandle)
+ *   - chrome/mac-progress-dialog.ts (MacProgressDialogHandle)
+ *   - chrome/mac-bootloop.ts        (MacBootloopHandle)
+ *   - chrome/win-bsod.ts            (WinBsodHandle)
+ *   - chrome/win-progress-dialog.ts (WinProgressDialogHandle)
+ *   - chrome/win-bios-bootloop.ts   (WinBiosBootloopHandle)
+ *
  * External consumer:
  *   - scene/index.ts SceneHandle.destructionDirector field (lazy import).
  */
@@ -46,23 +58,41 @@ export type OsVariant = 'mac' | 'win';
 
 /**
  * Phase enumerator — used for telemetry, DOM dataset attributes, and the
- * DestructionState discriminator. Sprint 4 covers faz0..faz3; Sprint 5 will
- * extend with faz4..faz7; Sprint 6 adds faz8 (reveal).
+ * DestructionState discriminator. Sprint 4 covered faz0..faz3; Sprint 5
+ * extends with faz4..faz7 (file wipe + disk format + BSOD + bootloop);
+ * Sprint 6 will add faz8 (reveal).
  */
-export type DestructionPhase = 'faz0' | 'faz1' | 'faz2' | 'faz3';
+export type DestructionPhase =
+  | 'faz0'
+  | 'faz1'
+  | 'faz2'
+  | 'faz3'
+  | 'faz4'
+  | 'faz5'
+  | 'faz6'
+  | 'faz7';
 
 /**
  * Discriminated union for the destruction-director FSM.
  *
  *   idle               — no bang detected yet; director mounted but inert.
- *   faz0..faz3         — active sequence variant carries OS (where relevant)
- *                        and the start timestamp for telemetry / abort math.
+ *   faz0..faz3         — Sprint 4 variants: BANG → Critical Dialog →
+ *                        Takeover → Terminal.
+ *   faz4..faz7         — Sprint 5 variants: File Wipe → Disk Format → BSOD
+ *                        → Bootloop. faz7 carries `cycleIndex` for the
+ *                        bootloop iteration counter (each 3s cycle ticks
+ *                        the counter; reveal in Sprint 6 reads it to decide
+ *                        when to short-circuit to faz8).
  *   aborted            — terminal state; either user ESC-held or sequence
  *                        completed cleanly. Director can be re-armed only by
  *                        re-mounting (lobby reload).
  *
  * Exhaustive switch on `kind` + `assertNever` (in destruction-state.ts)
  * forces every consumer to handle every variant.
+ *
+ * NOTE: Sprint 6 will add `| { kind: 'faz8'; os: OsVariant; startedAtMs: number }`
+ * (Reveal phase). Keep the assertNever exhaustiveness — adding faz8 will
+ * surface as a compile error until every switch is updated.
  */
 export type DestructionState =
   | { kind: 'idle' }
@@ -70,6 +100,10 @@ export type DestructionState =
   | { kind: 'faz1'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz2'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz3'; os: OsVariant; startedAtMs: number }
+  | { kind: 'faz4'; os: OsVariant; startedAtMs: number }
+  | { kind: 'faz5'; os: OsVariant; startedAtMs: number }
+  | { kind: 'faz6'; os: OsVariant; startedAtMs: number }
+  | { kind: 'faz7'; os: OsVariant; startedAtMs: number; cycleIndex: number }
   | { kind: 'aborted'; reason: 'esc-hold' | 'completed' };
 
 /* ------------------------------------------------------------------------ */
@@ -200,3 +234,124 @@ export type MacMenubarHandle = ChromeHandle;
 
 /** Win11 bottom taskbar handle — owns the live clock RAF. */
 export type WinTaskbarHandle = ChromeHandle;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 5 chrome handles — Faz 4-7 surfaces                               */
+/*                                                                          */
+/* TH-S4-04 closure: every handle carries a `kind` discriminator so callers */
+/* narrow via `handle.kind === '<x>'` instead of `as`-casting. Sprint 4     */
+/* Phase 4 MINOR-10 added the pattern for Mac/WinDialogHandle; Sprint 5     */
+/* Phase 1 pre-declares it for every new surface up-front (eliminates       */
+/* Phase 4 cast cleanup).                                                   */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * macOS kernel panic full-screen handle — Faz 6 Mac branch.
+ *
+ * Owns the full-screen `#1d1d1f` overlay with the 4-language (TR/EN/RU/JP)
+ * "You need to restart your computer" text block + the bottom hex panic
+ * log dump scroll. `animateHexDump()` kicks the bottom scroll animation;
+ * caller (faz6-bsod.ts) invokes it once at mount and the implementation
+ * owns the rAF / setInterval lifecycle through to dispose.
+ */
+export interface MacKernelPanicHandle extends ChromeHandle {
+  readonly kind: 'mac-kernel-panic';
+  readonly element: HTMLElement;
+  /** Start the hex panic-log auto-scroll. Idempotent. */
+  animateHexDump(): void;
+}
+
+/**
+ * macOS file-wipe progress dialog handle — Faz 4 Mac branch.
+ *
+ * Owns the Finder-style "Securely erasing disk…" sheet (designer-fictional
+ * eaten-apple SVG header, progress bar, greyed cancel button). The
+ * setters are pure DOM patches — `setProgress(percent)` updates the bar
+ * width, `setEta(label)` swaps the ETA caption, etc. Faz 4 runner drives
+ * all four setters on independent timers (declared via owner decrees).
+ */
+export interface MacProgressDialogHandle extends ChromeHandle {
+  readonly kind: 'mac-progress-dialog';
+  readonly element: HTMLElement;
+  /** Update progress bar (0-100 percent). Idempotent same-value calls. */
+  setProgress(percent: number): void;
+  /** Update ETA caption ("14 hours, 32 minutes" → "1 day, 14 hours"). */
+  setEta(label: string): void;
+  /** Update items-remaining counter. Localised number formatting in impl. */
+  setItemsRemaining(count: number): void;
+  /** Update the file-path scrolling readout. */
+  setFilePath(path: string): void;
+}
+
+/**
+ * macOS bootloop handle — Faz 7 Mac branch.
+ *
+ * Owns the black-background Apple-bootscreen mimic (designer-fictional
+ * eaten-apple SVG, progress bar that fills to ~40% and freezes, ⊘
+ * overlay, "No bootable OS found" caption). The state machine has three
+ * visible stages: 'apple-loading' (initial) → 'frozen' (progress bar
+ * stops at FAZ7_PROGRESS_FREEZE_PERCENT) → 'no-boot' (⊘ overlay).
+ * `setProgressDrift(percent)` ticks the bar through the per-cycle drift
+ * range FAZ7_PROGRESS_DRIFT_RANGE so each iteration looks slightly
+ * different.
+ */
+export interface MacBootloopHandle extends ChromeHandle {
+  readonly kind: 'mac-bootloop';
+  readonly element: HTMLElement;
+  /** Transition through bootloop stages. Idempotent same-state calls. */
+  setState(state: 'apple-loading' | 'frozen' | 'no-boot'): void;
+  /** Drift progress bar position. Faz 7 runner drives per cycle. */
+  setProgressDrift(percent: number): void;
+}
+
+/**
+ * Win11 BSOD handle — Faz 6 Win branch.
+ *
+ * Owns the full-screen `#0078D4` background, sad-face `:(`, "Your PC ran
+ * into a problem" copy, stop code "CRITICAL_PROCESS_DIED", stuck "0%
+ * complete" progress text, and the bottom-left QR PNG element (real QR
+ * encoded `https://www.windows.com/stopcode` — Lane D ships the asset
+ * at src/renderer/assets/destruction/win-bsod-qr.png).
+ * `startFrownyFlicker()` engages the FAZ6_FROWNY_FLICKER_HZ CRT flicker
+ * on the `:(` glyph; gated by prefers-reduced-motion in the impl.
+ */
+export interface WinBsodHandle extends ChromeHandle {
+  readonly kind: 'win-bsod';
+  readonly element: HTMLElement;
+  /** Engage the CRT frowny-face flicker. Idempotent. */
+  startFrownyFlicker(): void;
+}
+
+/**
+ * Win11 file-wipe progress dialog handle — Faz 4 Win branch.
+ *
+ * Owns the File Explorer "copy dialog" mimic — designer-fictional
+ * four-square SVG header (NOT real Win11 logo per S6 closure), file-by-
+ * file readout, greyed X button. Same setter quartet as the Mac variant;
+ * the two handles are intentionally shape-identical so the Faz 4 runner
+ * can manipulate either through a common interface.
+ */
+export interface WinProgressDialogHandle extends ChromeHandle {
+  readonly kind: 'win-progress-dialog';
+  readonly element: HTMLElement;
+  setProgress(percent: number): void;
+  setEta(label: string): void;
+  setItemsRemaining(count: number): void;
+  setFilePath(path: string): void;
+}
+
+/**
+ * Win11 BIOS bootloop handle — Faz 7 Win branch.
+ *
+ * Owns the full-screen mavi (blue) BIOS-style takeover, "No bootable
+ * device — Press F1 to retry, F2 for setup" caption, auto-loop after 3s
+ * (FAZ7_CYCLE_MS). State machine has two visible stages: 'no-boot' (the
+ * BIOS message itself) → 'restart-pending' (a brief black flash before
+ * the next cycle). Faz 7 runner ticks the state machine via cycleIndex
+ * in the DestructionState.
+ */
+export interface WinBiosBootloopHandle extends ChromeHandle {
+  readonly kind: 'win-bios-bootloop';
+  readonly element: HTMLElement;
+  setState(state: 'no-boot' | 'restart-pending'): void;
+}

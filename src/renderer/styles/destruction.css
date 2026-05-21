@@ -507,3 +507,80 @@
     opacity: 1;
   }
 }
+
+/* ========================================================================== */
+/* SPRINT 5 — FAZ 4-7 placeholder blocks                                     */
+/*                                                                            */
+/* Lane A/B/C/D fill these placeholders during Phase 2B. Designer Phase 2A   */
+/* extends destruction-direction.md with §10-§15 covering Faz 4-7 motion,   */
+/* color, layout, audio mix, a11y matrix. Phase 2B reads the SSOT before    */
+/* writing per-surface CSS.                                                   */
+/*                                                                            */
+/* z-index map (Sprint 4 base + Sprint 5 extensions):                        */
+/*    9100 — destruction-takeover (Faz 2 wallpaper)                          */
+/*    9150 — Faz 1 critical dialog                                           */
+/*    9200 — Faz 4 progress dialog (Mac + Win, mutually exclusive per cycle) */
+/*    9300 — Faz 5 disk-format full-screen                                   */
+/*    9400 — Faz 6 BSOD / kernel panic full-screen                           */
+/*    9500 — apartment-bleed-overlay (above destruction, below CRT)          */
+/*    9600 — Faz 7 bootloop full-screen                                      */
+/*    9999 — CRT atmosphere                                                  */
+/* ========================================================================== */
+
+/* ----- SPRINT 5 — FAZ 4 PROGRESS DIALOG ----- */
+.faz4-progress-dialog {
+  /* TODO Sprint 5 Lane C/D: Finder-style sheet (Mac) /
+   * File Explorer copy-dialog (Win) per directive §4.2. */
+}
+.faz4-mac-progress-dialog {
+  /* TODO Sprint 5 Lane C: Mac variant overrides. */
+}
+.faz4-win-progress-dialog {
+  /* TODO Sprint 5 Lane D: Win variant overrides. */
+}
+
+/* ----- SPRINT 5 — FAZ 5 DISK FORMAT SCREEN ----- */
+.faz5-disk-format-screen {
+  /* TODO Sprint 5 Lane A: full-screen takeover ATTENTION message + sector
+   * counter readout + S.M.A.R.T. error stream styling. */
+}
+
+/* ----- SPRINT 5 — FAZ 6 KERNEL PANIC / BSOD ----- */
+.faz6-mac-kernel-panic {
+  /* TODO Sprint 5 Lane C: full-screen #1d1d1f + Helvetica Neue Light text
+   * block (4-lang) + bottom hex panic-log auto-scroll styling. */
+}
+.faz6-win-bsod {
+  /* TODO Sprint 5 Lane D: full-screen #0078D4 + sad face glyph + stop-code
+   * + QR PNG bottom-left + CRT frowny flicker styling. */
+}
+
+/* ----- SPRINT 5 — FAZ 7 BOOTLOOP ----- */
+.faz7-mac-bootloop {
+  /* TODO Sprint 5 Lane C: black background + eaten-apple SVG + progress
+   * bar (freezes at FAZ7_PROGRESS_FREEZE_PERCENT) + ⊘ overlay + "No
+   * bootable OS found" caption. */
+}
+.faz7-win-bios-bootloop {
+  /* TODO Sprint 5 Lane D: mavi BIOS screen + caption + restart-pending
+   * black-flash transitions. */
+}
+
+/* ----- SPRINT 5 — REDUCED MOTION GATES (Faz 4-7) -----
+ * Lane A/B/C/D each add per-surface gates here per designer §10 matrix.
+ * Phase 3 qa-engineer scans this block to confirm every Faz 4-7 surface
+ * has a reduced-motion override (Sprint 4 carry-forward Lesson 6 — a11y
+ * matrix is cross-system invariant). */
+@media (prefers-reduced-motion: reduce) {
+  /* TODO Sprint 5 Lane A: Faz 4 progress regression — no change
+   * (functional cue), but ensure no decorative transition fights it.
+   * TODO Sprint 5 Lane A: Faz 4 file-path scroll → cap at 1/4 cadence.
+   * TODO Sprint 5 Lane A: Faz 5 disk-format screen → still functional;
+   * just ensure no decorative transitions.
+   * TODO Sprint 5 Lane C: Faz 6 Mac hex-dump auto-scroll → pause.
+   * TODO Sprint 5 Lane D: Faz 6 Win frowny flicker → solid (no flicker).
+   * TODO Sprint 5 Lane C: Faz 7 Mac progress drift → hold at freeze%.
+   * TODO Sprint 5 Lane D: Faz 7 Win restart-pending flash → instant.
+   * TODO Sprint 5 Lane A: Bleed #3 strobe → 0.4sn opacity 0.5 hold.
+   * TODO Sprint 5 Lane B: Bleed #4 strobe → 0.8sn opacity 0.6 hold. */
+}

@@ -107,3 +107,85 @@ function runBleedCycle(
     }, durationMs);
   });
 }
+
+/* ========================================================================== */
+/* SPRINT 5 — Bleed #3 + Bleed #4 single-owner schedulers                    */
+/*                                                                            */
+/* TH-S4-01 closure: each scheduler has a SINGLE caller declared via the     */
+/* owner decree (BLEED_3_OWNER, BLEED_4_OWNER) in scene-destruction-         */
+/* constants.ts. Phase 3 qa-engineer scans for double-callers — Sprint 4    */
+/* BLOCKER (apartment-bleed double-fire from Lane A + Lane B) is prevented  */
+/* by the single-owner contract.                                              */
+/* ========================================================================== */
+
+/* eslint-disable @typescript-eslint/no-unused-vars -- Sprint 5 Lane A/B fill these stubs. */
+
+/** Shared scheduling options for Sprint 5 bleeds. */
+export interface BleedScheduleOptions {
+  readonly signal: AbortSignal;
+  readonly hostElement: HTMLElement;
+}
+
+/** Bleed #4 carries an extra variant flag for the revolver-on-table payoff. */
+export interface Bleed4ScheduleOptions extends BleedScheduleOptions {
+  readonly variant: 'revolver-on-table';
+}
+
+/**
+ * Bleed #3 — Faz 4 (file wipe) at ~26sn (5sn into Faz 4). Duration 0.4sn.
+ *
+ * Owner: faz4-file-wipe.ts (BLEED_3_OWNER decree — single caller).
+ *
+ * Visual: lobby ampul tek flash söner (single flash, then dark) — softer
+ * than the Sprint 4 #1/#2 strobes. Reduced-motion: hold still 0.4sn
+ * opacity 0.5 (no flash).
+ *
+ * SPRINT 5 LANE: A — Lane A implements + wires CSS class (.is-bleeding-flash
+ * or similar) + reduced-motion @media gate in destruction.css.
+ *
+ * TODO Sprint 5 Lane A: implement single-flash visual + matchMedia gate
+ * + AbortSignal teardown + APARTMENT_BLEED_3_DURATION_MS constant
+ * (designer Phase 2A adds the constant if not pre-declared).
+ */
+export function scheduleBleed3(
+  _opts: BleedScheduleOptions,
+): ApartmentBleedHandle {
+  // TODO Sprint 5 Lane A: implement single-flash bleed per spec.
+  const noop = (): void => undefined;
+  return {
+    triggerBleed: async (): Promise<void> => undefined,
+    dispose: noop,
+  };
+}
+
+/**
+ * Bleed #4 — Faz 7 (bootloop) at ~48sn (4sn into Faz 7). Duration 0.8sn —
+ * LONGEST of the four bleeds.
+ *
+ * Owner: faz7-bootloop.ts (BLEED_4_OWNER decree — single caller).
+ *
+ * Visual: revolver namlusu masada görünür (designer §6 narrative payoff
+ * — what was being aimed in earlier scenes is now resting on the desk
+ * in the lobby, visible through the bleed). Camera framing:
+ * lobbySnapshot + overlay variant 'revolver-on-table'.
+ *
+ * Reduced-motion: 0.8sn opacity 0.6 hold (no strobe).
+ *
+ * SPRINT 5 LANE: B — Lane B implements the revolver-table-payoff visual
+ * + extends the lobbySnapshot composite (camera framing tweak vs the
+ * Sprint 4 bleeds which use the default snapshot frame).
+ *
+ * TODO Sprint 5 Lane B: implement long-bleed + revolver-on-table variant
+ * + reduced-motion gate + AbortSignal teardown + APARTMENT_BLEED_4_
+ * DURATION_MS constant.
+ */
+export function scheduleBleed4(
+  _opts: Bleed4ScheduleOptions,
+): ApartmentBleedHandle {
+  // TODO Sprint 5 Lane B: implement long bleed + revolver-on-table variant.
+  const noop = (): void => undefined;
+  return {
+    triggerBleed: async (): Promise<void> => undefined,
+    dispose: noop,
+  };
+}

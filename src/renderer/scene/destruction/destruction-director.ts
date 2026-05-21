@@ -48,6 +48,10 @@ import { runFaz0 } from './faz0-bang.js';
 import { runFaz1 } from './faz1-critical-dialog.js';
 import { runFaz2 } from './faz2-takeover.js';
 import { runFaz3 } from './faz3-terminal.js';
+import { startFaz4FileWipe } from './faz4-file-wipe.js';
+import { startFaz5DiskFormat } from './faz5-disk-format.js';
+import { startFaz6Bsod } from './faz6-bsod.js';
+import { startFaz7Bootloop } from './faz7-bootloop.js';
 import { mountApartmentBleedOverlay } from './apartment-bleed.js';
 import type { ApartmentBleedHandle, DestructionDirectorHandle, OsVariant } from './types.js';
 
@@ -351,6 +355,32 @@ async function runFazTakeoverAndTerminal(
     apartmentBleed,
     signal,
   });
+  if (signal.aborted) return;
+  await runFaz4Through7(runtime, os);
+}
+
+/**
+ * Sprint 5 — Run faz4 (file wipe) → faz5 (disk format) → faz6 (BSOD /
+ * kernel panic) → faz7 (bootloop). Each runner respects the abort signal
+ * + threads through the destruction overlay container. faz7 is the
+ * terminal active phase — Sprint 6 will add the faz8 reveal hand-off.
+ *
+ * Extracted from runFazTakeoverAndTerminal to stay under the 50-line
+ * ESLint cap (max-lines-per-function).
+ */
+async function runFaz4Through7(
+  runtime: DirectorRuntime,
+  os: OsVariant,
+): Promise<void> {
+  const signal = runtime.abortCtrl.signal;
+  const container = nonNull(runtime.overlay);
+  await startFaz4FileWipe({ os, container, signal });
+  if (signal.aborted) return;
+  await startFaz5DiskFormat({ os, container, signal });
+  if (signal.aborted) return;
+  await startFaz6Bsod({ os, container, signal });
+  if (signal.aborted) return;
+  await startFaz7Bootloop({ os, container, signal });
 }
 
 /* ------------------------------------------------------------------------ */

@@ -418,3 +418,152 @@ function scheduleChordEnvelope(ctx: AudioContext, param: AudioParam, startOffset
   param.setValueAtTime(CHORD_PEAK_GAIN * CHORD_SUSTAIN_FRACTION, sustainEnd);
   param.linearRampToValueAtTime(0, releaseEnd);
 }
+
+/* ========================================================================== */
+/* SPRINT 5 — Faz 4-7 procedural synth handle scaffolds (TH-S4-03 closure)   */
+/*                                                                            */
+/* Procedural fallback IS the canonical ship path (Sprint 4 Lesson 3 — bang  */
+/* + tinnitus + native chord all shipped procedural without vendoring .ogg). */
+/* Sprint 5 extends to: HDD-grind, fan-overdrive, BSOD beep, electrical      */
+/* tick — all built from Web Audio primitives. NO .ogg / .wav vendoring     */
+/* required.                                                                  */
+/*                                                                            */
+/* Procedural recipes (Lane A + Lane B implement):                            */
+/*   - HDD-grind:      brown noise filtered band-pass 200-800Hz + periodic   */
+/*                     2Hz amplitude punches via sine LFO                     */
+/*   - Fan-overdrive:  pink noise high-pass 1.5kHz, gain ramped 0→0.8 over   */
+/*                     4sn then sustained                                     */
+/*   - BSOD-beep:      square wave FAZ6_BSOD_BEEP_HZ (800Hz), 200ms, ADSR    */
+/*                     (5/0/1/195ms — short attack, all sustain, brief rel)  */
+/*   - Electrical-tick: low-pass-filtered click @ FAZ7_ELECTRICAL_TICK_HZ    */
+/*                     (0.5Hz = one tick per 2 seconds)                       */
+/* ========================================================================== */
+
+/**
+ * HDD-grind handle — Faz 4 file-wipe ambient layer. Brown-noise band-pass
+ * with periodic amplitude punches simulating mechanical disk grinding.
+ *
+ * Owner: faz4-file-wipe.ts (HDD_GRIND_AUDIO_OWNER decree). Sustained
+ * through Faz 4 + Faz 5 (Faz 5 inherits the handle via shared director
+ * runtime; calls `setVolume()` only, never re-constructs).
+ *
+ * Reduced-motion: amplitude -6dB at start; full amplitude otherwise.
+ */
+export interface HDDGrindHandle {
+  readonly kind: 'hdd-grind';
+  /** Start the brown-noise generator + envelope. Idempotent. */
+  start(): void;
+  /** Set output linear gain (0-1). Faz 5 calls this for sustain shaping. */
+  setVolume(linear: number): void;
+  /** Stop the generator. Safe to call before start (no-op). */
+  stop(): void;
+  /** Disconnect + free nodes. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
+ * Fan-overdrive handle — Faz 4-6 sustained sustained pink-noise high-pass.
+ * Simulates cooling fan ramped past its designed speed.
+ *
+ * Owner: faz4-file-wipe.ts (FAN_OVERDRIVE_AUDIO_OWNER decree). Faz 5
+ * sustains via `setGain`; Faz 6 calls `stop()` at end before Faz 7 entry.
+ *
+ * Reduced-motion: peak gain -6dB.
+ */
+export interface FanOverdriveHandle {
+  readonly kind: 'fan-overdrive';
+  /** Start the pink-noise generator + gain ramp (4sn 0→0.8). Idempotent. */
+  start(): void;
+  /** Set output linear gain (0-1). Faz 5/6 may modulate. */
+  setGain(linear: number): void;
+  /** Stop the generator. Safe to call before start (no-op). */
+  stop(): void;
+  /** Disconnect + free nodes. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
+ * BSOD-beep handle — Faz 6 single-fire square wave + ADSR envelope.
+ *
+ * Owner: faz6-bsod.ts (BSOD_BEEP_AUDIO_OWNER decree). One-shot — `play()`
+ * fires once at Faz 6 entry; the OscillatorNode auto-cleans via `ended`
+ * event. Reduced-motion: -6dB amplitude.
+ */
+export interface BSODBeepHandle {
+  readonly kind: 'bsod-beep';
+  /** Fire the beep. Idempotent within FAZ6_BSOD_BEEP_MS — re-plays after. */
+  play(): void;
+  /** Free any retained references. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
+ * Electrical-tick handle — Faz 7 0.5Hz low-pass-filtered click loop.
+ * Simulates dead system stray-current twitch.
+ *
+ * Owner: faz7-bootloop.ts (ELECTRICAL_TICK_AUDIO_OWNER decree).
+ * Reduced-motion: silence (functional cue, not necessary).
+ */
+export interface ElectricalTickHandle {
+  readonly kind: 'electrical-tick';
+  /** Start the 0.5Hz click loop. Idempotent. */
+  start(): void;
+  /** Stop the loop. Safe to call before start (no-op). */
+  stop(): void;
+  /** Disconnect + free nodes. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
+ * Factory for HDDGrindHandle. Constructed from AudioContext; Lane A wires
+ * the brown-noise generator + band-pass + LFO punch chain in Phase 2B.
+ *
+ * Phase 1 stub throws — Lane A MUST replace before any caller hits this.
+ * The factory signature is stable so the call sites can be written first.
+ */
+export function createHDDGrindHandle(
+  _context: AudioContext,
+  _destination: GainNode,
+): HDDGrindHandle {
+  // TODO Sprint 5 Lane A: brown-noise band-pass 200-800Hz + 2Hz LFO punch.
+  throw new Error('TODO Sprint 5 Lane A: createHDDGrindHandle not implemented');
+}
+
+/**
+ * Factory for FanOverdriveHandle. Pink-noise high-pass + 4sn gain ramp.
+ *
+ * Phase 1 stub throws — Lane A MUST replace before any caller hits this.
+ */
+export function createFanOverdriveHandle(
+  _context: AudioContext,
+  _destination: GainNode,
+): FanOverdriveHandle {
+  // TODO Sprint 5 Lane A: pink-noise HP 1.5kHz + gain ramp 0→0.8 over 4sn.
+  throw new Error('TODO Sprint 5 Lane A: createFanOverdriveHandle not implemented');
+}
+
+/**
+ * Factory for BSODBeepHandle. Square wave + ADSR.
+ *
+ * Phase 1 stub throws — Lane B MUST replace before any caller hits this.
+ */
+export function createBSODBeepHandle(
+  _context: AudioContext,
+  _destination: GainNode,
+): BSODBeepHandle {
+  // TODO Sprint 5 Lane B: square wave 800Hz, 200ms, ADSR (5/0/1/195ms).
+  throw new Error('TODO Sprint 5 Lane B: createBSODBeepHandle not implemented');
+}
+
+/**
+ * Factory for ElectricalTickHandle. Low-pass-filtered click loop.
+ *
+ * Phase 1 stub throws — Lane B MUST replace before any caller hits this.
+ */
+export function createElectricalTickHandle(
+  _context: AudioContext,
+  _destination: GainNode,
+): ElectricalTickHandle {
+  // TODO Sprint 5 Lane B: low-pass-filtered click @ 0.5Hz.
+  throw new Error('TODO Sprint 5 Lane B: createElectricalTickHandle not implemented');
+}

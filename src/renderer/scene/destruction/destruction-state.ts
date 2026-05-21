@@ -9,9 +9,11 @@
  *   - Output: next state.
  *   - Exhaustive `switch (state.kind)` with `assertNever` default.
  *
- * Sprint 4 covers idle → faz0 → faz1 → faz2 → faz3 → aborted{completed}
- * plus the ESC-hold short-circuit (any active faz → aborted{esc-hold}).
- * Sprint 5 will extend with faz4..faz7; Sprint 6 adds faz8 (reveal).
+ * Sprint 4 covered idle → faz0 → faz1 → faz2 → faz3 → aborted{completed}.
+ * Sprint 5 extends with faz3 → faz4 → faz5 → faz6 → faz7. The bootloop
+ * (faz7) is the new terminal active state — it does NOT auto-transition;
+ * Sprint 6 will add the faz7 → faz8 (reveal) transition. ESC-hold short-
+ * circuit (any active faz → aborted{esc-hold}) remains.
  *
  * Called by:
  *   - destruction-director.ts (orchestrator — feeds each transition's
@@ -58,6 +60,10 @@ export function onBangFired(
     case 'faz1':
     case 'faz2':
     case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
     case 'aborted':
       return state;
     default:
@@ -87,6 +93,10 @@ export function onFaz0Complete(
     case 'faz1':
     case 'faz2':
     case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
     case 'aborted':
       return state;
     default:
@@ -111,6 +121,10 @@ export function onFaz1Complete(
     case 'faz0':
     case 'faz2':
     case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
     case 'aborted':
       return state;
     default:
@@ -136,6 +150,10 @@ export function onFaz2Complete(
     case 'faz0':
     case 'faz1':
     case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
     case 'aborted':
       return state;
     default:
@@ -144,21 +162,150 @@ export function onFaz2Complete(
 }
 
 /**
- * Transition: Faz 3 Terminal complete (faz3 → aborted{reason:'completed'}).
+ * Transition: Faz 3 Terminal complete (faz3 → faz4).
  *
- * Sprint 4 closes at faz3; Sprint 5 will replace this transition with a
- * faz3 → faz4 path.
+ * Sprint 5 promotes this transition out of the terminal `aborted{completed}`
+ * state; the FSM now continues to faz4 (file wipe). OS preserved from
+ * the faz3 variant.
  *
  * Called by: destruction-director.ts after faz3-terminal.runFaz3 resolves.
  */
-export function onFaz3Complete(state: DestructionState): DestructionState {
+export function onFaz3Complete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
   switch (state.kind) {
     case 'faz3':
-      return { kind: 'aborted', reason: 'completed' };
+      return { kind: 'faz4', os: state.os, startedAtMs: nowMs };
     case 'idle':
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 4 File Wipe complete (faz4 → faz5).
+ *
+ * OS preserved. Called by: destruction-director.ts after
+ * faz4-file-wipe.startFaz4FileWipe resolves.
+ */
+export function onFaz4Complete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz4':
+      return { kind: 'faz5', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 5 Disk Format complete (faz5 → faz6).
+ *
+ * OS preserved. Called by: destruction-director.ts after
+ * faz5-disk-format.startFaz5DiskFormat resolves.
+ */
+export function onFaz5Complete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz5':
+      return { kind: 'faz6', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz6':
+    case 'faz7':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 6 BSOD / Kernel Panic complete (faz6 → faz7).
+ *
+ * OS preserved. faz7 starts at cycleIndex 0 — the bootloop runner ticks
+ * it forward via `onFaz7CycleAdvance`. Called by: destruction-director.ts
+ * after faz6-bsod.startFaz6Bsod resolves.
+ */
+export function onFaz6Complete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz6':
+      return { kind: 'faz7', os: state.os, startedAtMs: nowMs, cycleIndex: 0 };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz7':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 7 bootloop cycle advance (faz7 → faz7 with incremented
+ * cycleIndex). NOT a phase transition — same-kind self-transition that
+ * carries the bootloop iteration counter forward. Sprint 6 will replace
+ * the Faz 7 terminal nature with a faz7 → faz8 transition; until then,
+ * the loop is open-ended (director cancels via signal abort or Sprint 6
+ * reveal hand-off).
+ *
+ * Called by: destruction-director.ts faz7 setInterval @ FAZ7_CYCLE_MS.
+ */
+export function onFaz7CycleAdvance(
+  state: DestructionState,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz7':
+      return {
+        kind: 'faz7',
+        os: state.os,
+        startedAtMs: state.startedAtMs,
+        cycleIndex: state.cycleIndex + 1,
+      };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
     case 'aborted':
       return state;
     default:
@@ -180,6 +327,10 @@ export function onEscHold(state: DestructionState): DestructionState {
     case 'faz1':
     case 'faz2':
     case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
       return { kind: 'aborted', reason: 'esc-hold' };
     case 'idle':
     case 'aborted':

@@ -1,0 +1,16 @@
+# Sprint 5 Phase 1 — assets/destruction/ placeholder.
+#
+# Lane D will commit `win-bsod-qr.png` here in Phase 2B (S3 closure +
+# TH-S4-05 carry-forward: real QR encoding `https://www.windows.com/stopcode`
+# is required for the Faz 6 Win BSOD chrome — telif-safe and more
+# believable per the Sprint 5 directive).
+#
+# CSP verification (Phase 1): renderer/index.html declares
+#   img-src 'self' data: blob:
+# which covers `./assets/destruction/win-bsod-qr.png` (loaded from the
+# bundled renderer). No CSP change required.
+#
+# Other destruction-asset candidates (deferred to later sprints):
+#   - mac-bootloop-apple.svg (currently inlined — designer §11 may
+#     extract if cross-surface reuse grows)
+#   - Faz 8 reveal art (Sprint 6).

@@ -499,3 +499,186 @@ export const PREFERS_REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
  * username-reveal joke degrades gracefully.
  */
 export const USERNAME_PLACEHOLDER = 'USER';
+
+/* ========================================================================== */
+/* SPRINT 5 — Faz 4-7 timing constants                                        */
+/*                                                                            */
+/* PLAN §7 lines 268-289 narrative spec. Faz 4 = 21-30sn (file wipe), Faz 5  */
+/* = 30-37sn (disk format), Faz 6 = 37-44sn (BSOD), Faz 7 = 44-50sn          */
+/* (bootloop). Designer Phase 2A may add color/motion knobs alongside these  */
+/* timing constants; kraken Phase 1 declares the timing scaffolding only.   */
+/* ========================================================================== */
+
+/* ------------------------------------------------------------------------ */
+/* Faz 4 — File Wipe Progress (21-30sn)                                     */
+/* ------------------------------------------------------------------------ */
+
+/** Faz 4 duration. PLAN §7: 21-30sn = 9 second window. */
+export const FAZ4_DURATION_MS = 9000;
+/** Faz 4 start offset from bang (cumulative: 2+5+5+10-1=21sn). */
+export const FAZ4_START_MS = 21000;
+/**
+ * Progress bar initial position. Designer choice: starts at 80% so the
+ * regression to 12% reads as "the disk is being eaten BACKWARDS" — the
+ * joke depends on seeing the bar UNDO progress, which requires a high
+ * starting point.
+ */
+export const FAZ4_PROGRESS_INITIAL_PERCENT = 80;
+/** Progress bar floor — it never goes below this. 12% reads "almost gone". */
+export const FAZ4_PROGRESS_FLOOR_PERCENT = 12;
+/**
+ * Stochastic decrement cadence — every 600ms the bar drops by 1-3%.
+ * Slower than 600ms reads as "the system froze"; faster reads as
+ * "intentional reset" rather than "leak".
+ */
+export const FAZ4_PROGRESS_TICK_MS = 600;
+/** Items-remaining initial count. PLAN §7 line 270: 1,847,293. */
+export const FAZ4_ITEMS_REMAINING_INITIAL = 1_847_293;
+/**
+ * ETA growth sequence — the ETA gets WORSE over time, signaling "this is
+ * never going to finish". Each step is shown for FAZ4_DURATION_MS /
+ * length seconds before the next replaces it.
+ */
+export const FAZ4_ETA_GROWTH_STEPS = [
+  '14 hours, 32 minutes',
+  '17 hours, 8 minutes',
+  '22 hours, 17 minutes',
+  '1 day, 14 hours',
+  '3 days, 8 hours',
+] as const;
+/** File-path scrolling cadence — 12 paths per second across the readout. */
+export const FAZ4_FILE_PATH_SCROLL_HZ = 12;
+
+/* ------------------------------------------------------------------------ */
+/* Faz 5 — Disk Format (30-37sn)                                            */
+/* ------------------------------------------------------------------------ */
+
+/** Faz 5 duration. PLAN §7: 30-37sn = 7 second window. */
+export const FAZ5_DURATION_MS = 7000;
+/** Faz 5 start offset from bang (cumulative end of Faz 4). */
+export const FAZ5_START_MS = 30000;
+/** Sector total — PLAN §7 line 276: 2,000,000,000 sectors. */
+export const FAZ5_SECTOR_TOTAL = 2_000_000_000;
+/** Sector counter initial value — PLAN §7 line 276: 8,492,103. */
+export const FAZ5_SECTOR_INITIAL = 8_492_103;
+/**
+ * Sector counter increment per second. Designer choice: 40 — the counter
+ * visibly ticks but barely moves against the 2-billion total (visually
+ * conveys "this will take forever"; mathematically the joke).
+ */
+export const FAZ5_SECTOR_INCREMENT_PER_SEC = 40;
+/**
+ * S.M.A.R.T. error / bad-sector reallocation interval. PLAN §7 line 277:
+ * "Bad sector. Reallocating." / "S.M.A.R.T. error: drive failing." /
+ * "WARN: SSD wear level 142%" — one error message every ~900ms.
+ */
+export const FAZ5_SMART_ERROR_INTERVAL_MS = 900;
+
+/* ------------------------------------------------------------------------ */
+/* Faz 6 — Kernel Panic / BSOD (37-44sn)                                    */
+/* ------------------------------------------------------------------------ */
+
+/** Faz 6 duration. PLAN §7: 37-44sn = 7 second window. */
+export const FAZ6_DURATION_MS = 7000;
+/** Faz 6 start offset from bang (cumulative end of Faz 5). */
+export const FAZ6_START_MS = 37000;
+/**
+ * Mac hex-dump line auto-scroll rate. Designer choice: 6Hz — the hex
+ * dump scrolls fast enough to feel "the system is dumping kernel
+ * memory" but slow enough that the player notices individual hex bytes
+ * tick past.
+ */
+export const FAZ6_HEX_DUMP_LINE_HZ = 6;
+/**
+ * Win BSOD frowny-face `:(` CRT flicker rate. Designer choice: 5Hz — the
+ * frowny visibly flickers but doesn't strobe-jitter. Reduced-motion gate
+ * disables the flicker entirely.
+ */
+export const FAZ6_FROWNY_FLICKER_HZ = 5;
+/** BSOD beep fundamental. Square wave 800Hz, 200ms, ADSR. */
+export const FAZ6_BSOD_BEEP_HZ = 800;
+/** BSOD beep duration. PLAN §7 line 283: classic short beep. */
+export const FAZ6_BSOD_BEEP_MS = 200;
+
+/* ------------------------------------------------------------------------ */
+/* Faz 7 — Bootloop (44-50sn)                                               */
+/* ------------------------------------------------------------------------ */
+
+/** Faz 7 duration. PLAN §7: 44-50sn = 6 second window. */
+export const FAZ7_DURATION_MS = 6000;
+/** Faz 7 start offset from bang (cumulative end of Faz 6). */
+export const FAZ7_START_MS = 44000;
+/** Bootloop cycle length. PLAN §7 line 287: "3sn sonra otomatik tekrar". */
+export const FAZ7_CYCLE_MS = 3000;
+/**
+ * Mac progress-bar freeze position. PLAN §7 line 286: "yarıda donar" —
+ * designer interpretation: ~40% gives "almost reached the halfway
+ * milestone, abandoned just before". Above 50% reads "the boot was
+ * nearly done"; below 30% reads "the boot barely started".
+ */
+export const FAZ7_PROGRESS_FREEZE_PERCENT = 40;
+/**
+ * Per-cycle drift range around FAZ7_PROGRESS_FREEZE_PERCENT. Each cycle
+ * the bar lands somewhere in [38, 42]% to telegraph "different attempt,
+ * same failure pattern" rather than "the same frame is being repeated".
+ */
+export const FAZ7_PROGRESS_DRIFT_RANGE = [38, 42] as const;
+/**
+ * Electrical-tick (low-frequency stray-current click) cadence. 0.5Hz =
+ * one tick per 2 seconds. Reads as "the dead system is still drawing
+ * trickle current and twitching". Reduced-motion gate silences entirely.
+ */
+export const FAZ7_ELECTRICAL_TICK_HZ = 0.5;
+
+/* ========================================================================== */
+/* SPRINT 5 — Apartment bleed single-owner decree (TH-S4-01 closure)         */
+/*                                                                            */
+/* SHARED-RESOURCE OWNERSHIP DECREE — Sprint 5 architectural rule.            */
+/*                                                                            */
+/* Every shared resource (timer, audio node, scheduled bleed) MUST declare    */
+/* a SINGLE owner module. Phase 3 qa-engineer SCANS for double-ownership      */
+/* violations. Sprint 4 BLOCKER (apartment-bleed double-fire) was caused by  */
+/* Lane A and Lane B both scheduling bleeds; Sprint 5 forecloses by         */
+/* PRE-declaring every owner in the shared SSOT before Phase 2B lanes start. */
+/*                                                                            */
+/* Adding a new shared resource? Add its owner decree HERE FIRST. Phase 3    */
+/* QA double-ownership scan will REJECT any owner string that appears on    */
+/* multiple resources where coordination is suspect.                          */
+/* ========================================================================== */
+
+/** Bleed #3 owner — Faz 4 (file wipe) at ~26sn (5sn into Faz 4). 0.4sn. */
+export const BLEED_3_OWNER = 'faz4-file-wipe' as const;
+/** Bleed #4 owner — Faz 7 (bootloop) at ~48sn (4sn into Faz 7). 0.8sn longest. */
+export const BLEED_4_OWNER = 'faz7-bootloop' as const;
+/** HDD-grind audio owner — starts in Faz 4. */
+export const HDD_GRIND_AUDIO_OWNER = 'faz4-file-wipe' as const;
+/**
+ * Fan-overdrive audio owner — starts in Faz 4, extends through Faz 5 +
+ * Faz 6. Single-owner is the START site; Faz 5/6 import the handle and
+ * call `setGain()` / `stop()` but never re-construct.
+ */
+export const FAN_OVERDRIVE_AUDIO_OWNER = 'faz4-file-wipe' as const;
+/** Electrical-buzz audio owner — Faz 5 disk-format ambient buzz. */
+export const ELECTRICAL_BUZZ_AUDIO_OWNER = 'faz5-disk-format' as const;
+/** BSOD-beep audio owner — Faz 6 single fire. */
+export const BSOD_BEEP_AUDIO_OWNER = 'faz6-bsod' as const;
+/** Electrical-tick audio owner — Faz 7 0.5Hz click loop. */
+export const ELECTRICAL_TICK_AUDIO_OWNER = 'faz7-bootloop' as const;
+/** Mac hex panic-log dump scroll RAF owner — Faz 6 Mac branch. */
+export const HEX_PANIC_DUMP_OWNER = 'faz6-bsod' as const;
+/** Win BSOD frowny-flicker setInterval owner — Faz 6 Win branch. */
+export const FROWNY_FLICKER_TIMER_OWNER = 'faz6-bsod' as const;
+/** Faz 5 sector-counter increment timer owner. */
+export const SECTOR_COUNTER_TIMER_OWNER = 'faz5-disk-format' as const;
+/** Faz 5 S.M.A.R.T. error stream interval owner. */
+export const SMART_ERROR_STREAM_TIMER_OWNER = 'faz5-disk-format' as const;
+/** Faz 4 progress-bar regression decrement timer owner. */
+export const PROGRESS_BAR_REGRESSION_TIMER_OWNER = 'faz4-file-wipe' as const;
+/** Faz 4 ETA-growth advance timer owner. */
+export const ETA_GROWTH_TIMER_OWNER = 'faz4-file-wipe' as const;
+/** Faz 4 items-remaining counter decrement timer owner. */
+export const ITEMS_REMAINING_TIMER_OWNER = 'faz4-file-wipe' as const;
+/** Faz 4 file-path scrolling readout timer owner. */
+export const FILE_PATH_SCROLL_TIMER_OWNER = 'faz4-file-wipe' as const;
+/** Faz 7 bootloop cycle-advance setInterval owner. */
+export const BOOTLOOP_CYCLE_TIMER_OWNER = 'faz7-bootloop' as const;
