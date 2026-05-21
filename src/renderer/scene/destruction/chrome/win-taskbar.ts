@@ -33,7 +33,7 @@ export function mountWinTaskbar(container: HTMLElement): WinTaskbarHandle {
   /* Win11 native taskbar clock updates per minute. Designer §4 specifies
    * 1/60Hz cadence. setInterval at 60000ms is enough granularity. */
   const interval = window.setInterval((): void => {
-    clock.innerHTML = formatClockHtml();
+    setClockContent(clock, new Date());
   }, 60000);
 
   let disposed = false;
@@ -63,7 +63,7 @@ function createBarElement(): HTMLDivElement {
 function createClockElement(): HTMLSpanElement {
   const span = document.createElement('span');
   span.classList.add('win-taskbar__clock');
-  span.innerHTML = formatClockHtml();
+  setClockContent(span, new Date());
   return span;
 }
 
@@ -199,8 +199,11 @@ function buildVolumeGlyph(): SVGElement {
 /* Util                                                                     */
 /* ------------------------------------------------------------------------ */
 
-function formatClockHtml(): string {
-  const now = new Date();
+/**
+ * Populate the clock element with time (HH:MM) and date lines using
+ * safe DOM APIs — no innerHTML smell.
+ */
+function setClockContent(span: HTMLElement, now: Date): void {
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
   const date = now.toLocaleDateString(undefined, {
@@ -208,5 +211,8 @@ function formatClockHtml(): string {
     day: 'numeric',
     year: 'numeric',
   });
-  return `${hh}:${mm}<br>${date}`;
+  span.textContent = '';
+  span.appendChild(document.createTextNode(`${hh}:${mm}`));
+  span.appendChild(document.createElement('br'));
+  span.appendChild(document.createTextNode(date));
 }

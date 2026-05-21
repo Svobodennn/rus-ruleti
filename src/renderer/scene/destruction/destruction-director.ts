@@ -50,10 +50,6 @@ import { runFaz2 } from './faz2-takeover.js';
 import { runFaz3 } from './faz3-terminal.js';
 import { mountApartmentBleedOverlay } from './apartment-bleed.js';
 import type { ApartmentBleedHandle, DestructionDirectorHandle, OsVariant } from './types.js';
-import {
-  APARTMENT_BLEED_1_TRIGGER_MS,
-  APARTMENT_BLEED_2_TRIGGER_MS,
-} from '../../../shared/scene-destruction-constants';
 
 /**
  * Dependencies the director needs from scene/index.ts. Bag arg keeps the
@@ -340,7 +336,6 @@ async function runFazTakeoverAndTerminal(
 ): Promise<void> {
   const signal = runtime.abortCtrl.signal;
   const apartmentBleed = nonNull(runtime.apartmentBleed);
-  scheduleApartmentBleeds(runtime, apartmentBleed);
   await runFaz2({
     os,
     container: nonNull(runtime.overlay),
@@ -356,29 +351,6 @@ async function runFazTakeoverAndTerminal(
     apartmentBleed,
     signal,
   });
-}
-
-/**
- * Schedule the two apartment-bleed triggers relative to bang t=0. Lane B
- * fills the bleed body — the trigger calls are no-ops until that lands.
- * Stored in the abort tracker so ESC-hold cancels them.
- */
-function scheduleApartmentBleeds(
-  runtime: DirectorRuntime,
-  bleed: ApartmentBleedHandle,
-): void {
-  const id1 = setTimeout(
-    (): void => { void bleed.triggerBleed('bleed-1'); },
-    APARTMENT_BLEED_1_TRIGGER_MS,
-  );
-  const id2 = setTimeout(
-    (): void => { void bleed.triggerBleed('bleed-2'); },
-    APARTMENT_BLEED_2_TRIGGER_MS,
-  );
-  runtime.abortCtrl.signal.addEventListener('abort', (): void => {
-    clearTimeout(id1);
-    clearTimeout(id2);
-  }, { once: true });
 }
 
 /* ------------------------------------------------------------------------ */

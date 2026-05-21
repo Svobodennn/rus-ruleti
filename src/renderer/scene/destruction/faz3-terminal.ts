@@ -29,6 +29,7 @@ import {
   FAZ_3_TERMINAL_DURATION_MS,
   PREFERS_REDUCED_MOTION_QUERY,
   TYPEWRITER_COMMAND_CHARS_PER_SEC,
+  TYPEWRITER_CURSOR_BLINK_HZ,
   TYPEWRITER_OUTPUT_LINES_PER_SEC,
   USERNAME_PLACEHOLDER,
 } from '../../../shared/scene-destruction-constants.js';
@@ -297,6 +298,9 @@ function markActiveTypingLine(terminal: TerminalChrome, _initial: string): void 
 function buildCursorElement(): HTMLSpanElement {
   const cursor = document.createElement('span');
   cursor.classList.add('destruction-typewriter-cursor');
+  // Drive blink speed from SSOT constant so CSS and JS stay in sync.
+  const blinkMs = Math.round(1000 / TYPEWRITER_CURSOR_BLINK_HZ);
+  cursor.style.setProperty('--cursor-blink-ms', `${blinkMs}ms`);
   return cursor;
 }
 

@@ -178,17 +178,22 @@ export interface ChromeHandle {
 }
 
 /**
- * Mac dialog handle — extends ChromeHandle with the live countdown updater.
- * Phase 2B swift-expert reads the countdown value once per second so the
- * "Restarting in 5..." label decrements smoothly.
+ * Mac dialog handle — extends ChromeHandle with a discriminator and the
+ * live countdown updater. The `kind` field enables type narrowing without
+ * `as` casts in faz1-critical-dialog.ts.
  */
 export interface MacDialogHandle extends ChromeHandle {
+  /** Discriminator for narrowing MacDialogHandle vs WinDialogHandle. */
+  readonly kind: 'mac-dialog';
   /** Set the countdown number rendered in the dialog body. */
   readonly setCountdown: (n: number) => void;
 }
 
 /** Win dialog handle — Win11 fluent variant. No countdown (PLAN §7). */
-export type WinDialogHandle = ChromeHandle;
+export interface WinDialogHandle extends ChromeHandle {
+  /** Discriminator for narrowing MacDialogHandle vs WinDialogHandle. */
+  readonly kind: 'win-dialog';
+}
 
 /** macOS top menubar handle — owns the live clock RAF. */
 export type MacMenubarHandle = ChromeHandle;

@@ -43,8 +43,8 @@ export interface Faz1RunArgs {
 export async function runFaz1(args: Faz1RunArgs): Promise<void> {
   if (args.signal.aborted) return;
   const handle = mountOsDialog(args.os, args.container);
-  args.destructionAudio.playNativeChord();
-  const countdownStop = startCountdownIfMac(args.os, handle);
+  args.destructionAudio.playNativeChord(args.os);
+  const countdownStop = startCountdownIfMac(handle);
   await waitForFaz1End(args.signal);
   countdownStop();
   handle.dispose();
@@ -68,19 +68,18 @@ function mountOsDialog(
 /**
  * Start the Mac countdown if this is a Mac dialog. Win has no countdown
  * (designer §3 Win variant explicitly omits per PLAN §7). Returns a stop
- * function that clears the setInterval.
+ * function that clears the setInterval. Narrows via `kind` discriminator
+ * to avoid unsafe `as` cast.
  */
 function startCountdownIfMac(
-  os: OsVariant,
   handle: MacDialogHandle | WinDialogHandle,
 ): () => void {
-  if (os !== 'mac') return (): void => undefined;
-  const macHandle = handle as MacDialogHandle;
+  if (handle.kind !== 'mac-dialog') return (): void => undefined;
   let remaining = DIALOG_COUNTDOWN_START;
   const id = setInterval((): void => {
     remaining -= 1;
     if (remaining < 0) return;
-    macHandle.setCountdown(remaining);
+    handle.setCountdown(remaining);
   }, DIALOG_COUNTDOWN_INTERVAL_MS);
   return (): void => clearInterval(id);
 }

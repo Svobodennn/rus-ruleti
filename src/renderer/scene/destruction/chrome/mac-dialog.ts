@@ -45,6 +45,7 @@ import {
   DIALOG_MAC_HEIGHT_PX,
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../../shared/scene-destruction-constants';
+import { resolveUserLocale, t } from '../../../i18n/strings';
 
 /* ------------------------------------------------------------------------ */
 /* Palette + typography constants (designer §3 spec values, named here so   */
@@ -140,10 +141,10 @@ function buildDialogBox(): HTMLDivElement {
 }
 
 /**
- * Build the title row: Apple silhouette (16x16) + "Critical Error" title.
+ * Build the title row: Apple silhouette (16x16) + localised title text.
  * The icon sits left of the title (designer §3 — top-left placement).
  */
-function buildTitleRow(): HTMLDivElement {
+function buildTitleRow(locale: ReturnType<typeof resolveUserLocale>): HTMLDivElement {
   const row = document.createElement('div');
   row.className = 'mac-dialog-title-row';
   const s = row.style;
@@ -162,7 +163,7 @@ function buildTitleRow(): HTMLDivElement {
   const title = document.createElement('div');
   title.id = 'mac-dialog-title';
   title.className = 'mac-dialog-title';
-  title.textContent = 'Critical Error';
+  title.textContent = t('destruction.mac.dialog.title', locale);
   title.style.fontSize = '14px';
   title.style.fontWeight = '700';
   title.style.lineHeight = '1.2';
@@ -174,10 +175,15 @@ function buildTitleRow(): HTMLDivElement {
 /**
  * Build the body paragraph + countdown line. The countdown text node is
  * returned alongside so `setCountdown(n)` can patch its textContent in O(1).
+ * `countdownTemplate` is captured at mount time for re-substitution.
  */
-function buildBodyBlock(initialCountdown: number): {
+function buildBodyBlock(
+  initialCountdown: number,
+  locale: ReturnType<typeof resolveUserLocale>,
+): {
   block: HTMLDivElement;
   countdownNode: HTMLDivElement;
+  countdownTemplate: string;
 } {
   const block = document.createElement('div');
   block.className = 'mac-dialog-body-block';
@@ -188,16 +194,16 @@ function buildBodyBlock(initialCountdown: number): {
 
   const body = document.createElement('div');
   body.id = 'mac-dialog-body';
-  body.textContent =
-    'macOS encountered a critical system error. An unrecoverable failure occurred in kernel_task.';
+  body.textContent = t('destruction.mac.dialog.body', locale);
   body.style.fontSize = '13px';
   body.style.fontWeight = '400';
   body.style.lineHeight = '1.4';
   body.style.maxWidth = '340px';
 
+  const countdownTemplate = t('destruction.mac.dialog.restartCountdown', locale);
   const countdown = document.createElement('div');
   countdown.className = 'mac-dialog-countdown';
-  countdown.textContent = `Restarting in ${initialCountdown}…`;
+  countdown.textContent = countdownTemplate.replace('{n}', String(initialCountdown));
   // Designer §3 line 268: 13px italic (authoritative — overrides Lane C
   // brief's 11px hint, which conflicts with the designer spec).
   countdown.style.fontSize = '13px';
@@ -206,7 +212,7 @@ function buildBodyBlock(initialCountdown: number): {
   countdown.style.lineHeight = '1.4';
 
   block.append(body, countdown);
-  return { block, countdownNode: countdown };
+  return { block, countdownNode: countdown, countdownTemplate };
 }
 
 /**
@@ -232,6 +238,7 @@ function buildButton(label: string, primary: boolean): HTMLButtonElement {
   s.fontWeight = primary ? '600' : '400';
   s.padding = '0 14px';
   s.cursor = primary ? 'default' : 'not-allowed';
+  btn.tabIndex = -1; // visual only — no focus, no real interaction
   if (!primary) {
     btn.disabled = true;
     s.opacity = '0.55';
@@ -242,8 +249,9 @@ function buildButton(label: string, primary: boolean): HTMLButtonElement {
 /**
  * Build the right-aligned button row. "Cancel" (disabled) sits left of
  * "Restart Now" (primary) per Apple HIG button order convention.
+ * Labels are resolved via i18n at mount time.
  */
-function buildButtonRow(): HTMLDivElement {
+function buildButtonRow(locale: ReturnType<typeof resolveUserLocale>): HTMLDivElement {
   const row = document.createElement('div');
   row.className = 'mac-dialog-button-row';
   const s = row.style;
@@ -252,32 +260,37 @@ function buildButtonRow(): HTMLDivElement {
   s.gap = '8px';
   s.marginTop = 'auto';
 
-  const cancel = buildButton('Cancel', false);
-  const restart = buildButton('Restart Now', true);
+  const cancel = buildButton(t('destruction.mac.dialog.cancelLabel', locale), false);
+  const restart = buildButton(t('destruction.mac.dialog.restartNowLabel', locale), true);
   row.append(cancel, restart);
   return row;
 }
 
 /**
  * Compose the full mac dialog: backdrop > dialog box > [title row, body
- * block, button row]. Returns the backdrop root plus the countdown node
- * so the caller can patch the countdown text in O(1) per setInterval tick.
+ * block, button row]. Returns the backdrop root, countdown node, and the
+ * countdown template string so setCountdown can substitute `{n}` efficiently.
  */
 function composeDialog(
   countdownStart: number,
   reducedMotion: boolean,
+  locale: ReturnType<typeof resolveUserLocale>,
 ): {
   backdrop: HTMLDivElement;
   countdownNode: HTMLDivElement;
+  countdownTemplate: string;
 } {
   const backdrop = buildBackdrop(reducedMotion);
   const box = buildDialogBox();
-  const titleRow = buildTitleRow();
-  const { block: bodyBlock, countdownNode } = buildBodyBlock(countdownStart);
-  const buttonRow = buildButtonRow();
+  const titleRow = buildTitleRow(locale);
+  const { block: bodyBlock, countdownNode, countdownTemplate } = buildBodyBlock(
+    countdownStart,
+    locale,
+  );
+  const buttonRow = buildButtonRow(locale);
   box.append(titleRow, bodyBlock, buttonRow);
   backdrop.append(box);
-  return { backdrop, countdownNode };
+  return { backdrop, countdownNode, countdownTemplate };
 }
 
 /* ------------------------------------------------------------------------ */
@@ -297,8 +310,13 @@ export function mountMacDialog(
   container: HTMLElement,
   countdownStart: number,
 ): MacDialogHandle {
+  const locale = resolveUserLocale();
   const mql = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY);
-  const { backdrop, countdownNode } = composeDialog(countdownStart, mql.matches);
+  const { backdrop, countdownNode, countdownTemplate } = composeDialog(
+    countdownStart,
+    mql.matches,
+    locale,
+  );
   container.append(backdrop);
 
   // Trigger the fade-in on the next paint frame (CSS transition needs the
@@ -310,9 +328,10 @@ export function mountMacDialog(
 
   let disposed = false;
   const handle: MacDialogHandle = {
+    kind: 'mac-dialog',
     setCountdown: (n: number): void => {
       if (disposed) return;
-      countdownNode.textContent = `Restarting in ${n}…`;
+      countdownNode.textContent = countdownTemplate.replace('{n}', String(n));
     },
     dispose: (): void => {
       if (disposed) return;

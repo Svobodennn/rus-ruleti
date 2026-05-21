@@ -83,7 +83,6 @@ function runSequentialFade(
   isAborted: () => boolean,
 ): Promise<void> {
   return new Promise<void>((resolve): void => {
-    const totalDelay = icons.length * ICON_FADE_OUT_INTERVAL_MS;
     icons.forEach((icon, idx): void => {
       const delay = idx * ICON_FADE_OUT_INTERVAL_MS;
       const id = window.setTimeout((): void => {
@@ -94,8 +93,9 @@ function runSequentialFade(
       }, delay);
       timeouts.add(id);
     });
-    /* Resolve once the last icon's transition would have completed. */
-    const resolveAfter = totalDelay + ICON_FADE_OUT_MS;
+    /* Resolve once the last icon's transition has completed.
+     * Last icon triggers at (length-1)*interval, then needs ICON_FADE_OUT_MS. */
+    const resolveAfter = (icons.length - 1) * ICON_FADE_OUT_INTERVAL_MS + ICON_FADE_OUT_MS;
     const id = window.setTimeout((): void => resolve(), resolveAfter);
     timeouts.add(id);
   });

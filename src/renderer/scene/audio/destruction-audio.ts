@@ -69,10 +69,15 @@ const CHORD_SUSTAIN_MS = 100;
 const CHORD_RELEASE_MS = 400;
 const CHORD_PEAK_GAIN = 0.316; // -10dB linear (Math.pow(10, -10/20)).
 const CHORD_SUSTAIN_FRACTION = 0.6;
-/** Native chord 3-sine layer frequencies (designer §7). */
+/** Mac chord: 3-sine layer frequencies (designer §7). */
 const CHORD_LAYER_HZ_TOP = 800;
 const CHORD_LAYER_HZ_MID = 600;
 const CHORD_LAYER_HZ_LOW = 400;
+/** Win chord: descending 2-note (designer §7 Win variant). */
+const WIN_CHORD_HZ_HIGH = 600;
+const WIN_CHORD_HZ_LOW = 400;
+/** Win chord stagger between the two notes (ms). */
+const WIN_CHORD_STAGGER_MS = 100;
 /** Path to optional bang.ogg asset (may be absent during dev). */
 const BANG_OGG_PATH = 'assets/audio/bang.ogg';
 /** Procedural fallback bang burst gain (-3dB ~ 0.708 linear). */
@@ -97,8 +102,11 @@ export interface DestructionAudioHandle {
    * Idempotent.
    */
   readonly applyLowPass: () => void;
-  /** Play the procedural native chord stub (Faz 1 entry). */
-  readonly playNativeChord: () => void;
+  /**
+   * Play the procedural native chord stub (Faz 1 entry).
+   * Mac: 3-sine 800+600+400Hz. Win: descending 2-note 600→400Hz.
+   */
+  readonly playNativeChord: (os: 'mac' | 'win') => void;
   /** Stop tinnitus, remove lowpass, unload Howl. Safe to call twice. */
   readonly dispose: () => void;
 }
@@ -133,7 +141,7 @@ export function mountDestructionAudio(
     playBang: bang.play,
     startTinnitus: tinnitus.start,
     applyLowPass: lowpass.apply,
-    playNativeChord: chord.play,
+    playNativeChord: (os: 'mac' | 'win'): void => chord.play(os),
     dispose: (): void => {
       tinnitus.stop();
       lowpass.dispose();
@@ -285,7 +293,9 @@ function loadBangHowl(state: BangBranchState): void {
     });
     howl.on('loaderror', () => {
       // Asset missing during dev (PLAN §10 CC0 asset not yet shipped). Drop
-      // to procedural fallback. No console.* — electron-log.
+      // to procedural fallback. Unload first to release Howler-internal
+      // tracking before clearing the reference. No console.* — electron-log.
+      howl.unload();
       state.howl = null;
       log.warn('destruction-audio: bang.ogg loaderror — using procedural fallback');
     });
@@ -348,16 +358,21 @@ function buildBangFallbackBuffer(ctx: AudioContext): AudioBuffer {
 /* ------------------------------------------------------------------------ */
 
 interface ChordBranch {
-  readonly play: () => void;
+  readonly play: (os: 'mac' | 'win') => void;
   readonly dispose: () => void;
 }
 
 function buildChordBranch(ctx: AudioContext, destination: GainNode): ChordBranch {
   return {
-    play: (): void => {
-      playChordLayer(ctx, destination, CHORD_LAYER_HZ_TOP);
-      playChordLayer(ctx, destination, CHORD_LAYER_HZ_MID);
-      playChordLayer(ctx, destination, CHORD_LAYER_HZ_LOW);
+    play: (os: 'mac' | 'win'): void => {
+      if (os === 'mac') {
+        playChordLayer(ctx, destination, CHORD_LAYER_HZ_TOP, 0);
+        playChordLayer(ctx, destination, CHORD_LAYER_HZ_MID, 0);
+        playChordLayer(ctx, destination, CHORD_LAYER_HZ_LOW, 0);
+      } else {
+        playChordLayer(ctx, destination, WIN_CHORD_HZ_HIGH, 0);
+        playChordLayer(ctx, destination, WIN_CHORD_HZ_LOW, WIN_CHORD_STAGGER_MS);
+      }
     },
     dispose: (): void => undefined, // one-shots self-clean via `ended`.
   };
@@ -367,6 +382,7 @@ function playChordLayer(
   ctx: AudioContext,
   destination: GainNode,
   hz: number,
+  startOffsetMs: number,
 ): void {
   const osc = ctx.createOscillator();
   osc.type = 'sine';
@@ -374,19 +390,20 @@ function playChordLayer(
   const gain = ctx.createGain();
   gain.gain.value = 0;
   osc.connect(gain).connect(destination);
-  scheduleChordEnvelope(ctx, gain.gain);
-  osc.start();
+  const startOffset = startOffsetMs / 1000;
+  scheduleChordEnvelope(ctx, gain.gain, startOffset);
+  osc.start(ctx.currentTime + startOffset);
   const totalSec =
     (CHORD_ATTACK_MS + CHORD_DECAY_MS + CHORD_SUSTAIN_MS + CHORD_RELEASE_MS) / 1000;
-  osc.stop(ctx.currentTime + totalSec + 0.01);
+  osc.stop(ctx.currentTime + startOffset + totalSec + 0.01);
   osc.addEventListener('ended', () => {
     osc.disconnect();
     gain.disconnect();
   });
 }
 
-function scheduleChordEnvelope(ctx: AudioContext, param: AudioParam): void {
-  const now = ctx.currentTime;
+function scheduleChordEnvelope(ctx: AudioContext, param: AudioParam, startOffset: number): void {
+  const now = ctx.currentTime + startOffset;
   const attackEnd = now + CHORD_ATTACK_MS / 1000;
   const decayEnd = attackEnd + CHORD_DECAY_MS / 1000;
   const sustainEnd = decayEnd + CHORD_SUSTAIN_MS / 1000;

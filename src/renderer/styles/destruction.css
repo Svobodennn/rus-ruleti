@@ -356,7 +356,7 @@
   height: 1.1em;
   vertical-align: text-bottom;
   margin-left: 1px;
-  animation: destruction-cursor-blink 1000ms steps(1, end) infinite;
+  animation: destruction-cursor-blink var(--cursor-blink-ms, 500ms) steps(2, jump-none) infinite;
 }
 
 @keyframes destruction-cursor-blink {
@@ -490,11 +490,14 @@
     transition: none;
   }
 
-  /* Row 17,18: Bleed strobe → static fade fallback. */
+  /* Row 17,18: Bleed strobe → static fade fallback. Base selector gets
+   * the transition so the fade-out (class removal) is also animated. */
+  .apartment-bleed-overlay {
+    transition: opacity 500ms ease-in-out;
+  }
   .apartment-bleed-overlay.is-bleeding,
   .apartment-bleed-overlay.is-bleeding-short {
     animation: none;
-    transition: opacity 500ms ease-in-out;
     opacity: 0.5;
   }
 

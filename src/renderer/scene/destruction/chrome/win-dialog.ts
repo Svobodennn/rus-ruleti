@@ -47,6 +47,7 @@ import {
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../../shared/scene-destruction-constants.js';
 import type { WinDialogHandle } from '../types.js';
+import { resolveUserLocale, t } from '../../../i18n/strings.js';
 
 /* ------------------------------------------------------------------------ */
 /* Win11 fluent design tokens — local to this lane (no SSOT bleed)          */
@@ -215,7 +216,10 @@ function createButton(label: string, kind: 'primary' | 'secondary'): HTMLButtonE
  * Layout uses flexbox column with `justify-content: space-between` so
  * the buttons hug the bottom inset.
  */
-function createModalPanel(reduceMotion: boolean): HTMLDivElement {
+function createModalPanel(
+  reduceMotion: boolean,
+  locale: ReturnType<typeof resolveUserLocale>,
+): HTMLDivElement {
   const panel = document.createElement('div');
   panel.dataset.role = 'win-dialog-panel';
   const s = panel.style;
@@ -235,14 +239,14 @@ function createModalPanel(reduceMotion: boolean): HTMLDivElement {
   s.transition = reduceMotion
     ? 'none'
     : `transform ${MODAL_FADE_IN_MS}ms ease-out`;
-  panel.appendChild(createTitleSection());
-  panel.appendChild(createBodySection());
-  panel.appendChild(createButtonRow());
+  panel.appendChild(createTitleSection(locale));
+  panel.appendChild(createBodySection(locale));
+  panel.appendChild(createButtonRow(locale));
   return panel;
 }
 
-/** Title row: 16x16 four-square logo + 14px semibold "Critical Process Failed". */
-function createTitleSection(): HTMLDivElement {
+/** Title row: 16x16 four-square logo + localised title text. */
+function createTitleSection(locale: ReturnType<typeof resolveUserLocale>): HTMLDivElement {
   const row = document.createElement('div');
   const s = row.style;
   s.display = 'flex';
@@ -250,7 +254,7 @@ function createTitleSection(): HTMLDivElement {
   s.gap = '10px';
   row.appendChild(createWinLogo());
   const title = document.createElement('div');
-  title.textContent = 'Critical Process Failed';
+  title.textContent = t('destruction.win.dialog.title', locale);
   const ts = title.style;
   ts.fontSize = '14px';
   ts.fontWeight = '600';
@@ -259,11 +263,10 @@ function createTitleSection(): HTMLDivElement {
   return row;
 }
 
-/** Body paragraph: 13px regular, ~360px wrap. Win11 stock error copy. */
-function createBodySection(): HTMLParagraphElement {
+/** Body paragraph: 13px regular, ~360px wrap. Localised error copy. */
+function createBodySection(locale: ReturnType<typeof resolveUserLocale>): HTMLParagraphElement {
   const body = document.createElement('p');
-  body.textContent =
-    'A critical system process has stopped responding. Windows will collect error info and restart.';
+  body.textContent = t('destruction.win.dialog.body', locale);
   const s = body.style;
   s.fontSize = '13px';
   s.fontWeight = '400';
@@ -273,16 +276,16 @@ function createBodySection(): HTMLParagraphElement {
   return body;
 }
 
-/** Button row: right-aligned "More info" (text) + "OK" (primary blue). 8px gap. */
-function createButtonRow(): HTMLDivElement {
+/** Button row: right-aligned localised labels. 8px gap. */
+function createButtonRow(locale: ReturnType<typeof resolveUserLocale>): HTMLDivElement {
   const row = document.createElement('div');
   const s = row.style;
   s.display = 'flex';
   s.justifyContent = 'flex-end';
   s.alignItems = 'center';
   s.gap = '8px';
-  row.appendChild(createButton('More info', 'secondary'));
-  row.appendChild(createButton('OK', 'primary'));
+  row.appendChild(createButton(t('destruction.win.dialog.moreInfoLabel', locale), 'secondary'));
+  row.appendChild(createButton(t('destruction.win.dialog.okLabel', locale), 'primary'));
   return row;
 }
 
@@ -298,8 +301,9 @@ function createButtonRow(): HTMLDivElement {
  */
 export function mountWinDialog(container: HTMLElement): WinDialogHandle {
   const reduceMotion = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY).matches;
+  const locale = resolveUserLocale();
   const backdrop = createBackdrop(reduceMotion);
-  const panel = createModalPanel(reduceMotion);
+  const panel = createModalPanel(reduceMotion, locale);
   backdrop.appendChild(panel);
   container.appendChild(backdrop);
   // Trigger the fade-in on the next frame so the initial opacity:0
@@ -312,7 +316,8 @@ export function mountWinDialog(container: HTMLElement): WinDialogHandle {
     }
   });
   let disposed = false;
-  return {
+  const handle: WinDialogHandle = {
+    kind: 'win-dialog',
     dispose: (): void => {
       if (disposed) {
         return;
@@ -323,4 +328,5 @@ export function mountWinDialog(container: HTMLElement): WinDialogHandle {
       }
     },
   };
+  return handle;
 }
