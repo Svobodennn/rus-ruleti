@@ -682,3 +682,161 @@ export const ITEMS_REMAINING_TIMER_OWNER = 'faz4-file-wipe' as const;
 export const FILE_PATH_SCROLL_TIMER_OWNER = 'faz4-file-wipe' as const;
 /** Faz 7 bootloop cycle-advance setInterval owner. */
 export const BOOTLOOP_CYCLE_TIMER_OWNER = 'faz7-bootloop' as const;
+
+/* ========================================================================== */
+/* SPRINT 5 PHASE 2A — designer color + motion FILL                          */
+/*                                                                            */
+/* Phase 1 declared timing + owner decrees only. Phase 2A (this block) fills */
+/* every Faz 4-7 color, opacity, stroke, font-weight, and motion knob the    */
+/* lane teams will reference. Rationale lives in destruction-direction.md     */
+/* §10-§15. NO timing knobs added here (Phase 1 owns timing — single owner).  */
+/* ========================================================================== */
+
+/* ------------------------------------------------------------------------ */
+/* Faz 4 — File Wipe color + chrome dimensions                              */
+/* ------------------------------------------------------------------------ */
+
+/** Mac Finder progress-sheet background. PLAN §7 line 269: "Securely erasing disk…". */
+export const FAZ4_MAC_DIALOG_BG_COLOR = '#ECECEC';
+/** Mac Finder progress-sheet foreground (body + count text). */
+export const FAZ4_MAC_DIALOG_FG_COLOR = '#1D1D1F';
+/** Mac progress-bar track (the empty rail behind the fill). */
+export const FAZ4_PROGRESS_BAR_TRACK_MAC = '#D6D6D6';
+/** Mac progress-bar fill — system blue family but designer-shifted toward cyan. */
+export const FAZ4_PROGRESS_BAR_FG_MAC = '#0096FF';
+/** Win File Explorer copy-dialog background. PLAN §7 line 269: "File Explorer is wiping files…". */
+export const FAZ4_WIN_DIALOG_BG_COLOR = '#FAFAFA';
+/** Win File Explorer copy-dialog foreground. */
+export const FAZ4_WIN_DIALOG_FG_COLOR = '#1B1B1B';
+/** Win progress-bar track. */
+export const FAZ4_PROGRESS_BAR_TRACK_WIN = '#E5E5E5';
+/** Win progress-bar fill — Win11 accent blue (matches Faz 1 button family). */
+export const FAZ4_PROGRESS_BAR_FG_WIN = '#0078D4';
+/** Greyed-out Cancel button background (both OSes). Designer choice: neutral 60% grey. */
+export const FAZ4_CANCEL_BUTTON_BG_COLOR = '#A0A0A0';
+/** Mac progress-dialog modal width. Apple HIG sheet width is typically 460-520. */
+export const FAZ4_MAC_DIALOG_WIDTH_PX = 480;
+/** Mac progress-dialog modal height — fits title + bar + 3-line caption stack + Cancel button. */
+export const FAZ4_MAC_DIALOG_HEIGHT_PX = 220;
+/** Win progress-dialog modal width — Win11 File Explorer copy sheet is wider than Mac. */
+export const FAZ4_WIN_DIALOG_WIDTH_PX = 520;
+/** Win progress-dialog modal height. */
+export const FAZ4_WIN_DIALOG_HEIGHT_PX = 240;
+/** File-path readout viewport height (CSS px). 4-5 lines of monospace 12px visible. */
+export const FAZ4_FILE_PATH_VIEWPORT_HEIGHT_PX = 64;
+
+/* ------------------------------------------------------------------------ */
+/* Faz 5 — Disk Format color + typography                                   */
+/* ------------------------------------------------------------------------ */
+
+/** Mac low-level-format fullscreen background. PLAN §7 line 275 conventions. */
+export const FAZ5_MAC_BG_COLOR = '#000000';
+/** Mac fullscreen foreground monospace fill. */
+export const FAZ5_MAC_FG_COLOR = '#FFFFFF';
+/** Mac S.M.A.R.T. amber emphasis color. Drawn from sodium-bulb family for cross-faz callback. */
+export const FAZ5_MAC_SMART_AMBER_COLOR = '#FFAA00';
+/** Win low-level-format BIOS-POST blue background. */
+export const FAZ5_WIN_BG_COLOR = '#0B0F8B';
+/** Win foreground monospace fill. */
+export const FAZ5_WIN_FG_COLOR = '#FFFFFF';
+/** Win ASCII border emphasis amber. Matches Mac SMART amber for cross-OS audio-visual coherence. */
+export const FAZ5_WIN_BORDER_AMBER_COLOR = '#FFAA00';
+/**
+ * 60Hz electrical-buzz fundamental (Faz 5 ambient). Mains-hum frequency in
+ * NA/JP regions; common cellar-electrical reference. Sits well below the
+ * 700Hz low-pass cutoff so it survives the global filter as a felt-not-
+ * heard rumble.
+ */
+export const FAZ5_ELECTRICAL_BUZZ_HZ = 60;
+
+/* ------------------------------------------------------------------------ */
+/* Faz 6 — Kernel Panic / BSOD color + typography                           */
+/* ------------------------------------------------------------------------ */
+
+/** Mac kernel-panic background. Real macOS panic background is #1d1d1f-family. */
+export const FAZ6_MAC_BG_COLOR = '#1D1D1F';
+/** Mac panic foreground — pure white for the 4-language headline + hex dump. */
+export const FAZ6_MAC_FG_COLOR = '#FFFFFF';
+/** Mac panic 4-language headline font-weight. PLAN §7 line 281: thin Helvetica Neue Light. */
+export const FAZ6_MAC_PANIC_FONT_WEIGHT = 300;
+/** Mac panic 4-language headline font-size (CSS px). Calm, legible, NOT alarming. */
+export const FAZ6_MAC_PANIC_FONT_SIZE_PX = 18;
+/** Mac panic 4-language inter-line vertical gap (CSS px). Generous breathing room. */
+export const FAZ6_MAC_PANIC_LINE_GAP_PX = 12;
+/** Win BSOD background — Win10/11 BSOD blue (`#0078D4` accent family). */
+export const FAZ6_WIN_BG_COLOR = '#0078D4';
+/** Win BSOD foreground. */
+export const FAZ6_WIN_FG_COLOR = '#FFFFFF';
+/** Win sad-face `:(` glyph font-size — Win11 BSOD spec is ~120-160px. */
+export const FAZ6_WIN_FROWNY_FONT_SIZE_PX = 140;
+/** Win BSOD body font weight (per Segoe UI Variable family). */
+export const FAZ6_WIN_BODY_FONT_WEIGHT = 300;
+/** Win BSOD QR PNG render dimension (square). Real Win11 BSOD is ~120-160px. */
+export const FAZ6_WIN_QR_DIMENSION_PX = 128;
+/** BSOD beep ADSR envelope (ms). Per `destruction-direction.md` §11 audio mix. */
+export const FAZ6_BSOD_BEEP_ATTACK_MS = 5;
+export const FAZ6_BSOD_BEEP_DECAY_MS = 0;
+export const FAZ6_BSOD_BEEP_SUSTAIN_LEVEL = 1;
+export const FAZ6_BSOD_BEEP_RELEASE_MS = 195;
+
+/* ------------------------------------------------------------------------ */
+/* Faz 7 — Bootloop color + state                                           */
+/* ------------------------------------------------------------------------ */
+
+/** Mac bootloop background. Real Mac boot screen is pure black. */
+export const FAZ7_MAC_BG_COLOR = '#000000';
+/** Mac bootloop foreground (apple SVG fill + caption + ⊘ stroke). */
+export const FAZ7_MAC_FG_COLOR = '#FFFFFF';
+/** Mac bootloop progress-bar track (empty rail). */
+export const FAZ7_MAC_PROGRESS_BAR_TRACK_COLOR = '#3A3A3A';
+/** Mac bootloop progress-bar fill (the bar that freezes at ~40%). */
+export const FAZ7_MAC_PROGRESS_BAR_FILL_COLOR = '#FFFFFF';
+/**
+ * Mac bootloop progress-bar fill percent shown WHILE the "loading" state is
+ * active (before freeze). Designer choice: ramps 0 → FAZ7_PROGRESS_FREEZE_PERCENT
+ * over 800ms, then halts. Reuses FAZ7_PROGRESS_FREEZE_PERCENT for the freeze
+ * target — kept separate here to make the LOAD-PHASE animation knob explicit.
+ */
+export const FAZ7_MAC_PROGRESS_BAR_FILL_PCT = 40;
+/** Mac no-boot ⊘ glyph stroke width (CSS px). Thin, clinical, NOT alarming. */
+export const FAZ7_NO_ENTRY_STROKE_PX = 4;
+/** Mac no-boot ⊘ glyph diameter (CSS px). */
+export const FAZ7_NO_ENTRY_DIAMETER_PX = 96;
+/** Mac eaten-apple SVG dimension on bootloop screen (CSS px). Larger than 16px dialog version. */
+export const FAZ7_MAC_APPLE_DIMENSION_PX = 72;
+/** Win bootloop BIOS-blue background — same hue as Faz 5 disk-format. */
+export const FAZ7_WIN_BG_COLOR = '#0B0F8B';
+/** Win bootloop foreground. */
+export const FAZ7_WIN_FG_COLOR = '#FFFFFF';
+
+/* ------------------------------------------------------------------------ */
+/* Apartment bleed #3 + #4 — color + motion (Phase 1 declared owners only)  */
+/* ------------------------------------------------------------------------ */
+
+/** Bleed #3 trigger offset from bang. PLAN §7 line 278: ~34sn. */
+export const APARTMENT_BLEED_3_TRIGGER_MS = 34000;
+/** Bleed #3 visible duration. PLAN §7 line 278: 0.4sn = ~5 cycles at 12Hz. */
+export const APARTMENT_BLEED_3_DURATION_MS = 400;
+/** Bleed #4 trigger offset from bang. PLAN §7 line 288: ~48sn. */
+export const APARTMENT_BLEED_4_TRIGGER_MS = 48000;
+/** Bleed #4 visible duration. PLAN §7 line 288: 0.8sn — the longest bleed in the sequence. */
+export const APARTMENT_BLEED_4_DURATION_MS = 800;
+/**
+ * Bleed #4 strobe opacity range. The bleed pulses between these two values
+ * at 12Hz. Higher floor (0.4) than #1/#2/#3 because #4 is the narrative
+ * payoff bleed (revolver-on-table) — the user MUST be able to read it.
+ */
+export const APARTMENT_BLEED_4_OPACITY_MIN = 0.4;
+export const APARTMENT_BLEED_4_OPACITY_MAX = 0.6;
+/**
+ * Bleed #4 reduced-motion hold opacity. Single still frame, no strobe.
+ * 0.6 (the upper end of the strobe) so motion-sensitive users still get
+ * a clear read of the revolver-on-desk composition.
+ */
+export const APARTMENT_BLEED_4_REDUCED_MOTION_OPACITY = 0.6;
+/**
+ * Bleed #4 mask blur (CSS px). Applied to the revolver-on-desk overlay so
+ * the composite reads as "lobby snapshot with a slight halation around the
+ * revolver" — keeps the bleed feeling like a leak, not a clean render.
+ */
+export const APARTMENT_BLEED_4_MASK_BLUR_PX = 2;

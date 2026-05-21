@@ -1258,3 +1258,943 @@ should revisit §6 apartment bleed timing after the Sprint 5 #3 and
 
 *End of Phase 2A designer pass. See atmosphere-direction.md §9 for
 the cross-cutting destruction atmosphere addendum.*
+
+---
+
+# Sprint 5 Phase 2A extension — Faz 4-7
+
+> Designer note. Authored 2026-05-21 by designer agent (Sprint 5 Phase 2A
+> SOLO) for the Sprint 5 Phase 2B parallel implementers: `i18n-expert`
+> (Lane 0, SEQUENCE-LOCK FIRST), `kraken-faz4-5`, `kraken-faz6-7`,
+> `swift-expert`, `frontend-dev`. Sprint 4 §1-§9 above is the prerequisite
+> reading — DO NOT re-read Faz 0-3 specs from this section; reference them
+> by line. Sprint 5 caps NEW content at 700-900L per Sprint 4 retro
+> Lesson 6.
+>
+> Sprint 4 carried the player from cathartic violence (Faz 0) into named
+> personal violence (Faz 3). Sprint 5 carries them from named violence
+> into **named-and-irreversible** violence: the wipe, the format, the
+> kernel panic, the bootloop. The arc is no longer "did I just die?" —
+> the user has accepted the destruction. The arc is now **"is there
+> anything left to save?"** — and the destruction's job is to keep
+> answering **"no"** four different ways, each more terminal than the
+> last. The apartment bleeds keep leaking, and the final bleed (#4 at
+> ~48sn, 800ms — the longest of the entire sequence) shows the revolver
+> at REST on the desk, primed for the Sprint 6 reveal.
+
+---
+
+## Table of contents (Sprint 5 extension)
+
+- [§10 Decision philosophy — emotional arc Faz 4-7](#10-decision-philosophy--emotional-arc-faz-4-7)
+- [§11 Faz 4 File Wipe Progress (21-30sn)](#11-faz-4-file-wipe-progress-21-30sn)
+- [§12 Faz 5 Disk Format (30-37sn)](#12-faz-5-disk-format-30-37sn)
+- [§13 Faz 6 Kernel Panic / BSOD (37-44sn)](#13-faz-6-kernel-panic--bsod-37-44sn)
+- [§14 Faz 7 Bootloop (44-50sn)](#14-faz-7-bootloop-44-50sn)
+- [§15 Audio mix Faz 4-7](#15-audio-mix-faz-4-7)
+- [§16 prefers-reduced-motion matrix — Sprint 5 NEW surfaces only](#16-prefers-reduced-motion-matrix--sprint-5-new-surfaces-only)
+- [§17 Lane scope assignment](#17-lane-scope-assignment)
+
+---
+
+## 10. Decision philosophy — emotional arc Faz 4-7
+
+### The four-beat continuation
+
+| Faz | Window | Player feels                                                       | Designer beat                            |
+|----:|--------|--------------------------------------------------------------------|------------------------------------------|
+|   4 | 21-30s | "Wait, the bar is going BACKWARDS?"                                | Time inversion. Hope inverts to dread.   |
+|   5 | 30-37s | "There's no UI left. Just a counter that never finishes."          | Resignation. The system stops pretending.|
+|   6 | 37-44s | "The OS itself just gave up."                                      | Capitulation. Multi-language collapse.   |
+|   7 | 44-50s | "It can't even reboot. It's just looping."                         | Eternal damnation. Reboot as purgatory.  |
+
+Sprint 4 attacked **ears → trust → frame → identity**. Sprint 5 attacks
+**time → fidelity → language → recovery**:
+
+- **Faz 4 attacks time.** The progress bar is supposed to fill up. This
+  one empties. The ETA grows. The items-remaining counter goes UP, not
+  down. The user's mental model of "progress" collapses inside an OS
+  surface they have used 10,000 times.
+- **Faz 5 attacks fidelity.** No chrome, no window, no buttons, no Cancel.
+  Just a monospace ATTENTION banner and a sector counter ticking toward
+  a number two-billion away. The system has stopped trying to render a
+  user-facing surface — it is dumping its own logs to the foreground.
+- **Faz 6 attacks language.** The kernel panic appears in FOUR languages
+  simultaneously (TR / EN / RU / JP per PLAN §7 line 281). No one
+  language wins. The user reads the one they understand FIRST, then
+  registers the other three. Mac's hex-dump scrolls underneath; Win's
+  QR code points to a real Microsoft URL. The system has stopped
+  speaking a single user's language and has begun speaking ALL of them.
+- **Faz 7 attacks recovery.** The reboot happens. The Apple loads. The
+  bar fills to 40%. It freezes. ⊘ appears. The screen goes black.
+  Apple loads again. 40%. Freeze. ⊘. Loop. Win does the same with the
+  BIOS post screen and "No bootable device". The user sees that even
+  the *escape route* is broken.
+
+### Why not accelerate into climax?
+
+Sprint 5 covers 29 seconds (Faz 4 + 5 + 6 + 7 = 9 + 7 + 7 + 6). A
+shock-comedy structure would accelerate — faster cuts, louder beeps,
+more visual density. Sprint 5 does the OPPOSITE: each faz is **slower**
+than the last in terms of decision-making for the user.
+
+- Faz 4 has the most UI (a full dialog with title, progress bar, ETA,
+  items-remaining counter, file path readout, greyed Cancel). The user
+  reads the dialog like any other progress dialog they've seen.
+- Faz 5 strips the UI down to a counter and a banner.
+- Faz 6 strips it further: just an alert text. The hex-dump on Mac and
+  the QR PNG on Win are not interactive — they are ornament.
+- Faz 7 strips it to almost nothing: a logo, a bar that doesn't fill,
+  a ⊘ glyph, and a 3-second cycle that repeats until the user ESC-holds.
+
+The visual density decreases over the four fazes; the **dread density**
+increases. The room has been replaced by an OS, the OS has been replaced
+by a counter, the counter has been replaced by an error, the error has
+been replaced by a loop. Each replacement removes one more degree of
+freedom from the user's mental model of "the computer".
+
+### Bleed #4 is the narrative payoff
+
+Sprint 4 established bleeds #1 (300ms doubt) and #2 (200ms
+confirmation-without-resolution). Sprint 5 adds:
+
+- **Bleed #3** at ~34sn (mid-Faz 5), 400ms, 5 visible flicker cycles —
+  "the longest bleed yet; the user finally reads the table content
+  clearly". The lobby snapshot is the SAME Faz 0 capture (darkened
+  bulb, masa, revolver — unchanged from #1/#2).
+- **Bleed #4** at ~48sn (mid-Faz 7), 800ms, the longest of the entire
+  sequence. The lobby snapshot is **CHANGED** — the revolver is now
+  resting on the desk, namlu pointed at the table (per PLAN §7 line
+  288). This is the bleed that the Sprint 6 reveal will pay off: the
+  revolver was being aimed in Faz 0; now it rests on the lobby desk
+  visible through bleed #4. The user reads it as "the room is still
+  there, the revolver is still there, the violence was always in the
+  same room".
+
+Bleeds #3 and #4 break the Sprint 4 4-second-into-faz cadence — #3 lands
+4000ms into Faz 5 (which started at 30000ms; bleed at 34000ms is +4000ms,
+SAME cadence), but #4 lands at 4000ms into Faz 7 (which started at
+44000ms; bleed at 48000ms is +4000ms). The cadence holds, but the
+DURATION accelerates — 300, 200, 400, 800ms — the bleeds are getting
+longer as the destruction deepens. Reading: "the room is leaking back
+more strongly the closer the user gets to the reveal".
+
+### What Sprint 5 does NOT do
+
+- **Sprint 5 does NOT reveal the joke.** That is still Sprint 6 Faz 8.
+- **Sprint 5 does NOT touch the filesystem.** Every file path, sector
+  number, hex byte, and panic-log line is a literal string render. No
+  `fs.unlink`, no `process.exit`, no real OS panic invocation.
+- **Sprint 5 does NOT show real Apple/MS assets.** Designer-fictional
+  eaten-apple (reused from Sprint 4 mac-dialog) and four-square (reused
+  from Sprint 4 win-dialog) SVG paths only. The QR PNG is REAL but
+  contains a URL TEXT (`https://www.windows.com/stopcode`), not any
+  Microsoft-owned IP.
+- **Sprint 5 does NOT bundle proprietary fonts.** Helvetica Neue Light
+  is referenced via `-apple-system, "Helvetica Neue"` font-family
+  fallback — no .ttf/.woff bundled (C4 closure). Segoe UI same story
+  (already bundled OFL Segoe UI Variable Sprint 0).
+
+---
+
+## 11. Faz 4 File Wipe Progress (21-30sn)
+
+PLAN §7 lines 268-272. 9-second window. Designer brief: the player sees
+a familiar OS progress dialog (Securely Erase on Mac, File Explorer
+Copy on Win) — but every readout is regressing.
+
+### Mac variant — Finder "Securely erase" sheet (designer-fictional)
+
+**Modal container**
+- `FAZ4_MAC_DIALOG_WIDTH_PX = 480` × `FAZ4_MAC_DIALOG_HEIGHT_PX = 220px`.
+- Centered viewport horizontally; vertically positioned at 35% from
+  top (Apple Finder sheets attach below the window title bar, not at
+  vertical centre).
+- Background `FAZ4_MAC_DIALOG_BG_COLOR = #ECECEC`.
+- Foreground `FAZ4_MAC_DIALOG_FG_COLOR = #1D1D1F`.
+- Rounded corners 12px (matches Sprint 4 §3 Mac dialog).
+- Drop shadow `0 16px 48px rgba(0, 0, 0, 0.4)` — slightly heavier than
+  Sprint 4 §3 because the sheet sits on top of a fullscreen takeover
+  background, not just a blurred backdrop.
+
+**Title bar (top, 24px)**
+- Background continuous with modal.
+- Title text "Securely erasing disk…" — 14px regular, system font
+  `-apple-system`, left-inset 16px.
+- NO close button (the user cannot dismiss).
+
+**Progress bar (centred horizontally, 32px below title)**
+- Width 80% of modal = 384px.
+- Height 6px.
+- Track `FAZ4_PROGRESS_BAR_TRACK_MAC = #D6D6D6`.
+- Fill `FAZ4_PROGRESS_BAR_FG_MAC = #0096FF`.
+- Rounded ends.
+- Starts at `FAZ4_PROGRESS_INITIAL_PERCENT = 80%`.
+- Every `FAZ4_PROGRESS_TICK_MS = 600ms` decrements by 1-3% (stochastic).
+- Floor `FAZ4_PROGRESS_FLOOR_PERCENT = 12%`.
+
+**Caption stack (below progress bar)**
+- Line 1: "Items remaining: {N}" where N counts UP from
+  `FAZ4_ITEMS_REMAINING_INITIAL = 1_847_293` (the counter visibly grows
+  — the destruction is GAINING items to delete). Font 13px regular.
+- Line 2: "Estimated time remaining: {ETA}" cycling through
+  `FAZ4_ETA_GROWTH_STEPS` ("14 hours, 32 minutes" → "17 hours, 8 minutes"
+  → "22 hours, 17 minutes" → "1 day, 14 hours" → "3 days, 8 hours" —
+  each step shown for ~1.8s = 9000/5). Font 13px regular.
+- Line 3: File-path readout inside a monospace `<pre>` block at
+  `FAZ4_FILE_PATH_VIEWPORT_HEIGHT_PX = 64px` height. Renders the
+  current "being erased" path scrolling at `FAZ4_FILE_PATH_SCROLL_HZ
+  = 12Hz`. Reuses `FAKE_FILE_PATHS_MAC` (Sprint 4 SSOT); 18 templates
+  cycle. Font 11px monospace `ui-monospace, "SF Mono", Menlo, monospace`.
+
+**Cancel button (bottom-right, inset 16px)**
+- 80px wide × 28px tall.
+- Background `FAZ4_CANCEL_BUTTON_BG_COLOR = #A0A0A0` (visibly disabled).
+- Foreground `#FFFFFF` (low contrast — reads as greyed).
+- Text "Cancel" — 13px regular.
+- Cursor: `not-allowed` on hover.
+- `aria-disabled="true"`.
+
+### Win variant — File Explorer Copy sheet (designer-fictional)
+
+**Modal container**
+- `FAZ4_WIN_DIALOG_WIDTH_PX = 520` × `FAZ4_WIN_DIALOG_HEIGHT_PX = 240px`.
+- Centered viewport.
+- Background `FAZ4_WIN_DIALOG_BG_COLOR = #FAFAFA`.
+- Foreground `FAZ4_WIN_DIALOG_FG_COLOR = #1B1B1B`.
+- Rounded corners 8px (Win11 spec — matches Sprint 4 §3).
+- Win11 3-layer elevation shadow stack (same as Sprint 4 §3).
+
+**Title bar (top, 32px)**
+- Background continuous.
+- Title text "File Explorer — Removing files…" — 14px bold (Win Explorer
+  copy-dialog convention), font-family `'Segoe UI Variable', 'Segoe UI',
+  sans-serif`, left-inset 16px.
+- "More details" caret toggle right-inset 16px (decorative — no toggle
+  behaviour).
+- NO X button.
+
+**Progress bar (centred horizontally, 48px below title)**
+- Width 85% of modal = 442px.
+- Height 4px (Win11 spec — thinner than Mac).
+- Track `FAZ4_PROGRESS_BAR_TRACK_WIN = #E5E5E5`.
+- Fill `FAZ4_PROGRESS_BAR_FG_WIN = #0078D4` (Win11 accent blue).
+- Square ends (Win11 spec — Mac uses rounded; Win uses square).
+- Same regression logic as Mac.
+
+**Caption stack (below progress bar)**
+- Line 1: "{N} items remaining" — symmetric with Mac but Win order.
+- Line 2: "Estimated time remaining: {ETA}" — same ETA growth.
+- Line 3: File-path readout via `FAKE_FILE_PATHS_WIN`. Font 12px
+  monospace `'Cascadia Code', 'Consolas', monospace` (Sprint 4 Cascadia
+  bundled).
+
+**Cancel button (bottom-right, inset 24px — Win11 button spacing wider)**
+- 96px × 32px.
+- Background `FAZ4_CANCEL_BUTTON_BG_COLOR = #A0A0A0`.
+- Foreground `#FFFFFF`.
+- Text "Cancel" — 13px regular Segoe UI Variable.
+- 4px rounded corners (Win11 button spec).
+- `aria-disabled="true"`.
+
+### Faz 4 reduced-motion notes
+
+- Progress bar **holds steady at 80%** (no regression animation; the
+  bar still reads as "in progress" but stops doing the inverted-progress
+  trick).
+- Items-remaining counter **holds at initial 1,847,293** (no growth).
+- ETA caption **holds at first step** "14 hours, 32 minutes" (no
+  cycling through the growth steps).
+- File-path readout **holds at single static line** (no scroll;
+  `aria-live="polite"` gated OFF so screen readers don't flood).
+- Cancel button unchanged (greyed; non-interactive).
+
+### Faz 4 apartment bleed: bleed #3 ownership note
+
+Bleed #3 owner is `BLEED_3_OWNER = 'faz4-file-wipe'` (Phase 1 decree),
+but the bleed *visually* fires inside Faz 5's window (34000ms = mid
+Faz 5). Faz 4 schedules a `setTimeout(scheduleBleed3, 13000)` — 21000
+(Faz 4 start) + 13000 = 34000ms = trigger. Faz 5 runner MUST NOT
+schedule its own bleed; the SSOT decree forbids double-ownership.
+
+---
+
+## 12. Faz 5 Disk Format (30-37sn)
+
+PLAN §7 lines 274-278. 7-second window. Designer brief: no chrome, no
+window, no buttons — just a monospace fullscreen takeover that reads
+as "the OS has handed control to the disk firmware".
+
+### Mac variant — fullscreen monospace dump
+
+**Layer composition**
+- Fullscreen `<div>` (100vw × 100vh) at z-index 10001 (above prior
+  Faz 4 modal which exits at Faz 5 entry).
+- Background `FAZ5_MAC_BG_COLOR = #000000` (pure black — the system
+  has stopped pretending to render a UI).
+- Foreground `FAZ5_MAC_FG_COLOR = #FFFFFF`.
+- Font `ui-monospace, "SF Mono", Menlo, monospace`.
+- Font size 14px (slightly larger than the 11-12px file-path readouts
+  — this is the OS shouting, not the dialog whispering).
+- Line height 1.6 (relaxed monospace — readable as logs).
+
+**Content block (centred horizontally, top-anchored at 15% from top)**
+
+```
+ATTENTION: Low-level format in progress.
+Do not power off your computer.
+
+Wiping sector 8,492,103 / 2,000,000,000
+
+[ S.M.A.R.T. error stream — see below ]
+```
+
+- "ATTENTION:" line in `FAZ5_MAC_SMART_AMBER_COLOR = #FFAA00`,
+  font-weight 600 (bold).
+- "Do not power off your computer." line in `FAZ5_MAC_FG_COLOR
+  = #FFFFFF`, regular.
+- 24px gap.
+- "Wiping sector X / Y" line in white, regular. X is the sector counter
+  ticking from `FAZ5_SECTOR_INITIAL = 8_492_103` at
+  `FAZ5_SECTOR_INCREMENT_PER_SEC = 40` per second. After 7 seconds the
+  counter has advanced ~280 — visibly ticking but mathematically still
+  microscopic against `FAZ5_SECTOR_TOTAL = 2_000_000_000`. The visual
+  reading: "this will take forever".
+
+**S.M.A.R.T. error stream (below "Wiping sector" line, 24px gap)**
+
+Every `FAZ5_SMART_ERROR_INTERVAL_MS = 900ms` one error line appends.
+The cycle (per PLAN §7 line 277):
+1. `Bad sector. Reallocating.` — white text, regular.
+2. `S.M.A.R.T. error: drive failing.` — `FAZ5_MAC_SMART_AMBER_COLOR
+   #FFAA00`, bold.
+3. `WARN: SSD wear level 142%` — white text, regular.
+
+Cycle repeats throughout Faz 5 (~7-8 lines visible at end).
+Implementation: i18n keys per Lane 0 (`STRINGS.destruction.faz5.smartErrors[*]`)
+allow translation of "Bad sector" / "Reallocating" / "drive failing" /
+"wear level" into Russian + Turkish (the literal English form survives
+as the third fallback if locale is unmapped).
+
+### Win variant — BIOS-blue monospace dump
+
+**Layer composition**
+- Same fullscreen overlay, background `FAZ5_WIN_BG_COLOR = #0B0F8B`
+  (BIOS POST blue — distinctive from Faz 6 BSOD `#0078D4`).
+- Foreground `FAZ5_WIN_FG_COLOR = #FFFFFF`.
+- Font `'Consolas', ui-monospace, monospace`.
+- Font size 14px, line height 1.6.
+
+**Content block (same vertical anchor, ASCII border box)**
+
+```
+╔══════════════════════════════════════════════════════════╗
+║   ATTENTION: Low-level format in progress.               ║
+║   Do not power off your computer.                        ║
+╚══════════════════════════════════════════════════════════╝
+
+Wiping sector 8,492,103 / 2,000,000,000
+
+[ S.M.A.R.T. error stream — same content as Mac ]
+```
+
+- Border box characters `═ ║ ╔ ╗ ╚ ╝` in
+  `FAZ5_WIN_BORDER_AMBER_COLOR = #FFAA00` (same amber as Mac's S.M.A.R.T.
+  emphasis — cross-OS visual coherence).
+- "ATTENTION:" line in white inside the box.
+- Same sector counter, same S.M.A.R.T. error stream as Mac.
+
+### Faz 5 reduced-motion notes
+
+- Sector counter **holds at initial 8,492,103** (no increment).
+- S.M.A.R.T. error stream **holds at single static line** (Bad sector.
+  Reallocating.) — `aria-live="polite"` gated OFF.
+- Background, ATTENTION banner, "Do not power off" all unchanged
+  (these are static — no gate needed).
+
+---
+
+## 13. Faz 6 Kernel Panic / BSOD (37-44sn)
+
+PLAN §7 lines 280-283. 7-second window. Designer brief: the OS has
+given up. Mac shows the 4-language kernel panic; Win shows the
+familiar BSOD with sad face + QR code.
+
+### Mac variant — kernel panic 4-language layout (PLAN §7 line 281)
+
+**Layer composition**
+- Fullscreen `<div>` at z-index 10002.
+- Background `FAZ6_MAC_BG_COLOR = #1D1D1F` (Apple's real macOS panic
+  background — neutral graphite, NOT pure black, NOT pure white).
+- Foreground `FAZ6_MAC_FG_COLOR = #FFFFFF`.
+- Font `-apple-system, "Helvetica Neue", sans-serif` weight
+  `FAZ6_MAC_PANIC_FONT_WEIGHT = 300` (Light — Apple's real panic
+  screen uses Helvetica Neue Light). NO bundle — system reference only.
+
+**4-language headline block (centred horizontally, top-anchored at 30%)**
+
+The headline is FOUR languages stacked vertically, centred horizontally.
+Designer-mandated order:
+
+```
+You need to restart your computer.
+コンピュータを再起動する必要があります。
+Перезагрузите компьютер.
+Bilgisayarınızı yeniden başlatın.
+```
+
+**Layout spec**:
+- Font size `FAZ6_MAC_PANIC_FONT_SIZE_PX = 18px`.
+- Inter-line vertical gap `FAZ6_MAC_PANIC_LINE_GAP_PX = 12px`.
+- Each line CENTRED horizontally (not left-aligned — the panic addresses
+  all four locales equally; left-alignment would prioritise one).
+- Font-weight 300 across all 4 lines.
+- All 4 lines visible simultaneously (this is the design — multi-language
+  panic IS the visual).
+
+**Language ordering rationale**:
+1. **EN first** — the "default" Apple panic language; everyone has
+   seen this in screenshots even if they don't speak English.
+2. **JP second** — Apple's strong Japanese localisation; the
+   double-byte glyphs visually disrupt the Latin-alphabet rhythm,
+   reinforcing "this is not a normal error message".
+3. **RU third** — Cyrillic. Continues the alphabet break. PLAN §7
+   line 281 lists RU as part of the multilingual panic.
+4. **TR last** — Latin alphabet returns but with diacritics
+   (ş, ı). The "anchor home" position — Turkish-locale users see
+   their own language last, which lands as "even YOU are not
+   exempt from this".
+
+**Runtime locale switching note (i18n-expert Lane 0 contract)**:
+- EN line is ALWAYS the literal "You need to restart your computer."
+  (presentation-string, not locale-switched).
+- JP line is ALWAYS the literal Japanese (presentation-string).
+- RU line is locale-switched: `STRINGS.destruction.faz6.mac.panic.ru`.
+  If runtime locale is Russian, this is "Перезагрузите компьютер."; if
+  runtime locale is Turkish, the same key still renders Russian
+  (the panic stays multilingual regardless of UI language).
+- TR line is locale-switched the same way: `STRINGS.destruction.faz6.mac.panic.tr`.
+
+The runtime-locale switching of RU/TR is a hint to the Russian or
+Turkish player that the game KNOWS their locale (the user picked
+Russian or Turkish during onboarding; the panic confirms the system
+read that choice). The EN+JP lines are the presentation-constant
+visual that makes the panic READ as multilingual regardless of locale.
+
+### Mac hex panic-log dump (below headline, scrolling)
+
+**Layout**:
+- Position: 80px below the 4-language headline block.
+- Width 80% of viewport, centred.
+- Height: viewport bottom-edge minus 32px inset.
+- Background: transparent (sits on `FAZ6_MAC_BG_COLOR` panel).
+- Font `ui-monospace, "SF Mono", Menlo, monospace` 12px, line height 1.3.
+- Foreground: white at 0.7 opacity (visibly less prominent than the
+  headline — the user reads the panic message FIRST).
+
+**Content**: Synthetic hex-dump rows. Each row format:
+```
+0x00007fff8a1c2340  41 6c 6c 65 6e 64 73 e9 64 65 ad 0a c7 23 91 5c
+```
+
+- 16-byte rows. Address column at left, then 16 hex bytes space-
+  separated.
+- Scrolls upward continuously at `FAZ6_HEX_DUMP_LINE_HZ = 6Hz` (1 line
+  every ~166ms). Reads as "the kernel is dumping memory pages to
+  console".
+- All bytes are randomly generated at module load (no real memory
+  content). Address column increments by 16 per line.
+
+### Win variant — Win11 BSOD (designer-fictional)
+
+**Layer composition**
+- Fullscreen `<div>` at z-index 10002.
+- Background `FAZ6_WIN_BG_COLOR = #0078D4` (Win10/11 BSOD blue —
+  matches Faz 1 Win dialog button family for cross-faz coherence).
+- Foreground `FAZ6_WIN_FG_COLOR = #FFFFFF`.
+- Font `system-ui, "Segoe UI", "Segoe UI Variable", sans-serif`
+  (Sprint 0 bundled Segoe UI Variable OFL).
+- Font-weight `FAZ6_WIN_BODY_FONT_WEIGHT = 300` (Light — Win11 BSOD
+  uses Light weight for body).
+
+**Sad face glyph (top, 20% from top, left-anchored 12% inset)**
+
+```
+:(
+```
+
+- Font size `FAZ6_WIN_FROWNY_FONT_SIZE_PX = 140px`.
+- Bold (font-weight 600).
+- Flickers at `FAZ6_FROWNY_FLICKER_HZ = 5Hz` via CSS @keyframes
+  opacity 1 → 0.7 → 1.
+- Reduced-motion gate: static opacity 1 (no flicker).
+
+**Headline + body (right of sad face, vertical centre of headline
+section)**
+- Headline: "Your PC ran into a problem and needs to restart. We're
+  just collecting some error info, and then we'll restart for you."
+  — 28px font-weight 300, max-width 60% viewport, wraps freely.
+- Body progress: "0% complete" — 18px font-weight 300, 32px below
+  headline. PROGRESS PERCENT IS HARD-CODED 0 — the system has not
+  even started recovering.
+
+**QR PNG (bottom-left, inset 12% from left + 24% from bottom)**
+
+- Dimensions `FAZ6_WIN_QR_DIMENSION_PX = 128 × 128px`.
+- Content: REAL QR code encoding `https://www.windows.com/stopcode`
+  (the Microsoft documentation URL; LEGITIMATE link, NOT MS-owned
+  IP since it's a URL not a logo).
+- Asset path: `src/renderer/assets/destruction/win-bsod-qr.png`
+  (Lane D vendors during Phase 2B per Phase 1 handoff).
+- `<img>` tag with `alt="QR code linking to Windows stop code reference"`.
+- Caption below QR (10px Segoe UI Light): "For more information about
+  this issue and possible fixes, visit https://www.windows.com/stopcode"
+
+**Stop code (bottom-right, mirror of QR position)**
+
+```
+Stop code: CRITICAL_PROCESS_DIED
+```
+
+- 18px font-weight 400 (regular — more prominent than QR caption).
+- Position: inset 12% from right + 24% from bottom.
+- All-caps stop-code string is the only fully-rendered piece of code-
+  family text in the BSOD.
+
+### Faz 6 reduced-motion notes
+
+- Mac hex panic-log dump **holds at first frame** (no scroll;
+  `aria-live="off"` so screen readers don't try to read random hex).
+- Win sad face `:(` **holds opacity 1** (no flicker).
+- Win QR PNG is naturally static (no animation needed).
+- Mac 4-language headline is naturally static.
+- Win BSOD headline + body + stop code naturally static.
+- BSOD beep audio fires regardless (audio is gated separately — see §15).
+
+---
+
+## 14. Faz 7 Bootloop (44-50sn)
+
+PLAN §7 lines 285-288. 6-second window. Designer brief: the reboot
+happens. It fails. It happens again. The user watches the system fail
+to even die.
+
+### Mac bootloop state diagram
+
+The bootloop runs a **3-second cycle** that repeats twice through the
+6-second Faz 7 window. Each cycle has three discrete 1-second states:
+
+| State | Duration | Visual |
+|-------|----------|--------|
+| 1: apple-loading | 1.0s | Background `FAZ7_MAC_BG_COLOR #000000`. Eaten-apple SVG centred at `FAZ7_MAC_APPLE_DIMENSION_PX=72`. Progress bar below apple (200×4px). Bar ramps 0% → `FAZ7_MAC_PROGRESS_BAR_FILL_PCT=40%` over 800ms then HALTS for 200ms. Bar fill `#FFFFFF` on track `#3A3A3A`. |
+| 2: frozen | 1.0s | Apple + bar rendered at 40%. Nothing animates. Per-cycle drift: bar lands in `FAZ7_PROGRESS_DRIFT_RANGE [38, 42]%` (telegraphs "different attempt, same failure pattern" rather than "the same frame repeats"). The screen FEELS hung. |
+| 3: no-boot | 1.0s | Apple SVG fades to 0.3 opacity over 200ms. ⊘ "no entry" glyph fades in centred, replacing apple. Glyph: white circle ø crossed by diagonal stroke; `FAZ7_NO_ENTRY_DIAMETER_PX=96`, stroke `FAZ7_NO_ENTRY_STROKE_PX=4` white. Caption "No bootable OS found" below, 14px -apple-system Light. Hold 800ms, then black-cut to STATE 1 (cycle restart). |
+
+Cycle repeats from STATE 1 every `FAZ7_CYCLE_MS=3000ms`.
+
+**State machine implementation note**: Each STATE transition is
+driven by `BOOTLOOP_CYCLE_TIMER_OWNER = 'faz7-bootloop'` setInterval
+firing every `FAZ7_CYCLE_MS = 3000ms`. Within a cycle, the three
+sub-states are driven by nested setTimeouts (state-1 → +1000ms
+state-2 → +1000ms state-3 → +1000ms back to state-1).
+
+### Win bootloop variant — BIOS POST + restart
+
+Same 3-second cycle, different content per state:
+
+| State | Visual                                                          |
+|-------|-----------------------------------------------------------------|
+| 1     | `FAZ7_WIN_BG_COLOR = #0B0F8B` BIOS-blue. White "American Megatrends Inc." top header. Designer-fictional motherboard model line. "Detecting drives..." text scrolls 3 lines. |
+| 2     | Same screen FROZEN. Detection-line text stops mid-word.        |
+| 3     | "No bootable device — Press F1 retry, F2 setup" caption       |
+|       | (PLAN §7 line 287). Below: "Auto-restart in 3s..." countdown. |
+|       | Black-cut to STATE 1 at 1000ms.                               |
+
+**Win bootloop typography**:
+- Font `'Consolas', ui-monospace, monospace` 14px (matches Faz 5 Win).
+- Foreground `FAZ7_WIN_FG_COLOR = #FFFFFF`.
+
+### Faz 7 Bleed #4 — revolver-on-table payoff (PLAN §7 line 288)
+
+The Sprint 6 reveal's narrative payoff is staged HERE. Bleed #4 fires at
+`APARTMENT_BLEED_4_TRIGGER_MS = 48000ms` (mid-Faz 7, 4000ms into the
+window) for `APARTMENT_BLEED_4_DURATION_MS = 800ms` — the longest
+single bleed in the entire destruction sequence.
+
+**Composite frame spec**:
+- Base layer: `SceneHandle.lobbySnapshotDataUrl` (the same Faz 0
+  capture used by bleeds #1/#2/#3). The bulb is dark, the masa is
+  visible, the room is in shadow.
+- Overlay layer: a SEPARATE static PNG/Canvas2D composite of the
+  revolver-positioned-on-desk frame. The revolver's silhouette is
+  rendered at the same masa position as the lobbySnapshot's masa,
+  ROTATED so the namlu (barrel) points toward the table surface (PLAN
+  §7 line 288: "Revolver bu sefer farklı — namlusu masaya bakıyor").
+- Mask blur: `APARTMENT_BLEED_4_MASK_BLUR_PX = 2px` Gaussian on the
+  revolver-overlay so it composites with halation against the lobby
+  snapshot. Reads as "leak" not "clean render".
+- Opacity strobe: 12Hz pulse between `APARTMENT_BLEED_4_OPACITY_MIN
+  = 0.4` and `APARTMENT_BLEED_4_OPACITY_MAX = 0.6` for 800ms = ~10
+  visible flicker cycles.
+
+**Implementation contract (Lane B kraken-faz6-7)**:
+- The revolver-on-desk overlay is a SEPARATE asset — NOT the
+  lobbySnapshot. It is composited ON TOP of the lobbySnapshot during
+  the bleed window. Designer suggests a Canvas2D approach: at Faz 7
+  entry, render once to a hidden `<canvas>`, then composite the
+  canvas as `background-image: var(--bleed-overlay-url)` during the
+  bleed setTimeout window.
+- The revolver position MUST align with the masa center in the
+  lobbySnapshot. Per Sprint 3 model-freeze spec, the masa sits at
+  viewport (50%, 60%). The revolver overlay anchors there.
+
+**Reduced-motion gate**:
+- `APARTMENT_BLEED_4_REDUCED_MOTION_OPACITY = 0.6` — single static
+  hold for the full 800ms duration (the user with reduced-motion
+  preference STILL sees the revolver-on-desk composite at full
+  legibility; the strobe is what gets disabled, not the content).
+- This is intentional: bleed #4 is the narrative payoff bleed. Hiding
+  it under reduced-motion would deny motion-sensitive users the
+  Sprint 6 reveal setup.
+
+### Faz 7 reduced-motion notes
+
+- Mac bootloop: bypass the cycle entirely; hold STATE 3 (⊘ + "No
+  bootable OS found" caption) for the full 6-second Faz 7 window.
+- Win bootloop: bypass the cycle; hold "No bootable device — Press F1
+  retry, F2 setup" caption for the full 6 seconds.
+- Bleed #4: per above — 0.6 opacity static hold for 800ms (no strobe).
+- Electrical-tick audio is gated separately (silenced under reduced-
+  motion; see §15).
+
+---
+
+## 15. Audio mix Faz 4-7
+
+Sprint 4 §7 covered Faz 0-3 audio (tinnitus + low-pass + native chord +
+toast cadence + bleed flickers). Sprint 5 adds FOUR new audio handles
+plus the Faz 5 60Hz electrical buzz. The low-pass filter (700Hz cutoff)
+established in Sprint 4 §7 REMAINS ACTIVE throughout Faz 4-7 — every
+new audio surface below sits underneath the global filter.
+
+### Audio surface summary (Sprint 5 additions)
+
+| Surface              | Faz    | Onset                  | Duration               | Owner constant                    |
+|----------------------|--------|------------------------|------------------------|-----------------------------------|
+| HDD-grind            | 4      | Faz 4 entry (21000ms)  | 9000ms sustain         | `HDD_GRIND_AUDIO_OWNER`           |
+| Fan-overdrive        | 4-6    | Faz 4 entry (21000ms)  | 23000ms sustain (4-6)  | `FAN_OVERDRIVE_AUDIO_OWNER`       |
+| 60Hz electrical buzz | 5      | Faz 5 entry (30000ms)  | 7000ms sustain         | `ELECTRICAL_BUZZ_AUDIO_OWNER`     |
+| BSOD beep            | 6      | Faz 6 entry (37000ms)  | 200ms ADSR             | `BSOD_BEEP_AUDIO_OWNER`           |
+| Electrical-tick      | 7      | Faz 7 entry (44000ms)  | 6000ms loop at 0.5Hz   | `ELECTRICAL_TICK_AUDIO_OWNER`     |
+
+### HDD-grind — brown noise band-pass + LFO amp punches
+
+**Synthesis**:
+- BufferSource: brown noise (Web Audio: `OfflineAudioContext` rendered
+  brown noise buffer, or runtime AudioBufferSourceNode loop of a
+  pre-computed brown-noise sample).
+- BiquadFilterNode 1: bandpass, center 500Hz (midpoint of 200-800Hz
+  band-pass range), Q=2.0.
+- BiquadFilterNode 2: bandpass, center 500Hz (cascaded for steeper slope).
+- GainNode: base gain 0.4 (linear).
+- LFO modulation: OscillatorNode at 2Hz square wave, connected to the
+  GainNode's `gain` AudioParam with depth ±0.2. Result: gain swings
+  between 0.2 and 0.6 at 2Hz — reads as the "physical grinding" of an
+  HDD seeking a sector that doesn't exist.
+
+**Envelope**:
+- Attack: 200ms ramp from 0 to base gain (HDD-grind fades IN as Faz 4
+  starts).
+- Sustain: 8800ms at base gain (with LFO modulation throughout).
+- Release: 0ms (the grind stops abruptly at Faz 5 entry — the disk
+  "gives up").
+
+### Fan-overdrive — pink noise high-pass
+
+**Synthesis**:
+- BufferSource: pink noise (-3dB/octave power spectrum).
+- BiquadFilterNode: highpass, cutoff 1500Hz, Q=0.7.
+- GainNode: ramps 0 → 0.8 over 4000ms then sustains.
+
+**Envelope**:
+- Attack: 0 → 0.8 over 4000ms (slow ramp during Faz 4).
+- Sustain: held at 0.8 through Faz 5 + Faz 6 (the fans are at max
+  RPM, locked).
+- Release: 1500ms fade-out at Faz 7 entry (the system stops trying
+  to cool itself — the cooling has failed).
+
+The fan-overdrive is the LONGEST sustain in the entire destruction
+sequence (23 seconds, spanning 3 fazes). It is the audio anchor that
+tells the user "the hardware is dying" — the visual content changes
+phase-to-phase but the audio insists "this is one continuous failure".
+
+### 60Hz electrical buzz — Faz 5 ambient
+
+**Synthesis**:
+- OscillatorNode: sawtooth wave at `FAZ5_ELECTRICAL_BUZZ_HZ = 60Hz`.
+- BiquadFilterNode: lowpass at 200Hz, Q=1.0 (rolls off the harsh
+  sawtooth harmonics, leaving a felt-not-heard low-frequency rumble).
+- GainNode: 0.15 linear (quiet — sits underneath the fan-overdrive and
+  the global low-pass filtering of any other audio).
+
+**Envelope**:
+- Attack: 500ms fade-in at Faz 5 entry.
+- Sustain: 5500ms at 0.15.
+- Release: 1000ms fade-out at Faz 6 entry (the electrical hum dies
+  with the kernel panic — the system has lost power to the buzz
+  source).
+
+### BSOD beep — square wave ADSR (single fire)
+
+**Synthesis**:
+- OscillatorNode: square wave at `FAZ6_BSOD_BEEP_HZ = 800Hz`.
+- GainNode: ADSR envelope.
+
+**Envelope** (per `FAZ6_BSOD_BEEP_*` constants):
+- Attack `FAZ6_BSOD_BEEP_ATTACK_MS = 5ms` (effectively instant — PC
+  beep is a hardware "click on").
+- Decay `FAZ6_BSOD_BEEP_DECAY_MS = 0ms` (no decay — beep stays at peak).
+- Sustain `FAZ6_BSOD_BEEP_SUSTAIN_LEVEL = 1.0` (full level).
+- Release `FAZ6_BSOD_BEEP_RELEASE_MS = 195ms` (fast taper at end).
+- Total duration `FAZ6_BSOD_BEEP_MS = 200ms` (sum of A+D+S+R sustain
+  window).
+
+**Trigger**: Once at Faz 6 entry (37000ms). NO loop. The single beep
+is the "the BIOS got the panic signal" cue.
+
+### Electrical-tick — low-pass filtered click at 0.5Hz
+
+**Synthesis**:
+- BufferSource: short impulse buffer (1ms unit impulse).
+- BiquadFilterNode: lowpass at 800Hz, Q=2.0 (rolls off the click's
+  high-frequency content, leaving a damped "tick" rather than a
+  sharp pop).
+- GainNode: 0.3 per tick.
+- Trigger interval: `FAZ7_ELECTRICAL_TICK_HZ = 0.5Hz` = 1 tick per
+  2 seconds. Over the 6-second Faz 7 window: 3 ticks total.
+
+**Envelope**: Per-tick attack 1ms, decay 80ms (no sustain, no release).
+The tick reads as "the dead system is still drawing trickle current
+and twitching" (per §10 philosophy).
+
+### Reduced-motion audio gates (Sprint 5 NEW)
+
+| Surface             | Default                   | Reduced-motion behaviour                              |
+|---------------------|---------------------------|-------------------------------------------------------|
+| HDD-grind           | base gain 0.4 + 2Hz LFO   | Reduce base gain to 0.2 (-6dB); LFO unchanged         |
+| Fan-overdrive       | sustained 0.8             | Reduce sustained gain to 0.4 (-6dB)                   |
+| 60Hz electrical buzz| 0.15                      | Reduce to 0.075 (-6dB); pure tone is harmless         |
+| BSOD beep           | full 200ms square wave    | Reduce gain to 0.5 (-6dB); duration unchanged         |
+| Electrical-tick     | per-tick 0.3              | **SILENCED entirely** (the tick is decorative; the   |
+|                     |                           |  silence reads as "even the dead-system click is gone")|
+
+The pattern: audio amplitude surfaces drop -6dB under reduced-motion
+(same convention as Sprint 4 tinnitus -12dB → -18dB). The
+electrical-tick is the ONE Sprint 5 audio surface that gets fully
+silenced, because the tick is purely atmospheric — silencing it does
+not remove information from the destruction.
+
+---
+
+## 16. prefers-reduced-motion matrix — Sprint 5 NEW surfaces only
+
+Sprint 4 §8 (lines 943-967 of this document) enumerates 22 Faz 0-3
+surfaces. Sprint 5 ADDS the following 15 new surfaces below — Faz 0-3
+carry-overs reference Sprint 4 §8 by line number. **DO NOT
+DUPLICATE** the Sprint 4 surfaces here; the lane teams consult Sprint
+4 §8 for any Faz 0-3 references they need.
+
+### Sprint 5 NEW surfaces matrix
+
+| #  | Surface                                | OS      | Default behaviour                       | Reduced-motion behaviour                            | A11y role               | ARIA                                | Owner             |
+|----|----------------------------------------|---------|-----------------------------------------|-----------------------------------------------------|-------------------------|-------------------------------------|-------------------|
+| 23 | Faz 4 progress dialog regression       | mac+win | Bar decrements 80% → 12% (1-3% per 600ms tick) | Hold steady at 80% (no decrement)            | dialog                  | `role=dialog aria-busy=true`        | kraken-faz4-5 (A) |
+| 24 | Faz 4 Cancel button (greyed)           | mac+win | Static greyed pill, cursor not-allowed  | Static (unchanged — already gated)                  | button                  | `role=button aria-disabled=true`    | swift / frontend  |
+| 25 | Faz 4 ETA growth caption               | mac+win | Cycles 5 growth steps over 9000ms       | Hold first step "14 hours, 32 minutes"              | text                    | `role=status`                       | kraken-faz4-5 (A) |
+| 26 | Faz 4 items-remaining counter          | mac+win | Counter grows from 1,847,293            | Hold initial count                                  | text                    | `role=status`                       | kraken-faz4-5 (A) |
+| 27 | Faz 4 file-path readout scroll         | mac+win | 12Hz scroll through 18-template cycle   | Hold single static path; `aria-live=off`            | text                    | `role=log aria-live=polite (gated)` | kraken-faz4-5 (A) |
+| 28 | Faz 5 disk-format fullscreen takeover  | mac+win | Sector counter ticks, S.M.A.R.T. stream | Sector counter holds, stream holds at first line    | application             | `role=application`                  | kraken-faz4-5 (A) |
+| 29 | Faz 5 S.M.A.R.T. error stream          | mac+win | One error line every 900ms              | Hold single static error line                       | log                     | `role=log aria-live=polite (gated)` | kraken-faz4-5 (A) |
+| 30 | Faz 6 Mac kernel panic 4-language      | mac     | Static 4-language stack (no animation)  | Unchanged (already static — no gate needed)         | alert                   | `role=alert`                        | swift-expert (C)  |
+| 31 | Faz 6 Mac hex panic-log dump scroll    | mac     | 6Hz line-scroll upward                  | Hold at first frame; `aria-live=off`                | text                    | `role=log aria-live=off (gated)`    | swift-expert (C)  |
+| 32 | Faz 6 Win BSOD chrome (sad face etc.)  | win     | Static layout                           | Unchanged (already static)                          | alert                   | `role=alert`                        | frontend-dev (D)  |
+| 33 | Faz 6 Win sad-face `:(` flicker        | win     | 5Hz opacity flicker 1 → 0.7 → 1         | Static opacity 1 (no flicker)                       | img                     | `aria-hidden=true`                  | frontend-dev (D)  |
+| 34 | Faz 6 Win QR PNG (static IMG)          | win     | Static `<img>` element                  | Unchanged (already static)                          | img                     | `alt='QR code linking to Windows stop code reference'` | frontend-dev (D) |
+| 35 | Faz 7 Mac bootloop 3sn cycle           | mac     | Cycles STATE 1 → 2 → 3 every 3000ms     | Bypass cycle; hold STATE 3 (⊘ + caption) entire 6s  | application             | `role=application`                  | swift-expert (C)  |
+| 36 | Faz 7 Win BIOS bootloop 3sn cycle      | win     | Cycles BIOS post → freeze → caption     | Bypass cycle; hold "No bootable device" entire 6s   | application             | `role=application`                  | frontend-dev (D)  |
+| 37 | Faz 7 bleed #4 revolver-on-table       | mac+win | 12Hz opacity strobe 0.4 → 0.6 for 800ms | Static 0.6 opacity hold for 800ms (no strobe)       | img                     | `aria-hidden=true`                  | kraken-faz6-7 (B) |
+
+**Total Sprint 5 NEW surfaces audited: 15.**
+**Surfaces with active reduced-motion alternative: 11.**
+**Surfaces unchanged under reduced-motion (already static): 4.**
+
+### Cumulative matrix totals (Sprint 4 + Sprint 5)
+
+| Total | Count |
+|-------|-------|
+| Sprint 4 surfaces audited (§8 lines 943-967 of this document) | 22 |
+| Sprint 5 surfaces audited (this section) | 15 |
+| **Combined cumulative total** | **37** |
+
+### Phase 3 verification grep (Sprint 5 additive)
+
+Phase 3 qa-engineer extends the Sprint 4 grep with Sprint 5 file
+coverage:
+
+```bash
+grep -rn "prefers-reduced-motion" src/renderer/scene/destruction/
+grep -rn "PREFERS_REDUCED_MOTION_QUERY" src/renderer/scene/destruction/
+grep -rn "@media (prefers-reduced-motion: reduce)" src/renderer/styles/destruction*.css
+```
+
+Expected counts after Sprint 5: ≥ 32 distinct file:line occurrences
+covering Sprint 4's 21 gated surfaces + Sprint 5's 11 gated surfaces
+(unchanged "already static" surfaces do not need a CSS rule). If the
+count is < 32, a gate is missing — identify which matrix row has no
+corresponding grep hit and route back to the owning lane.
+
+---
+
+## 17. Lane scope assignment
+
+Sprint 5 has 5 lanes (Lane 0 + 4 parallel lanes A/B/C/D). This section
+enumerates which design decisions are MANDATED by this document (the
+SSOT) versus which are LANE IMPLEMENTATION CHOICE (the lane decides at
+implementation time). Phase 2B lanes consult this section to know
+what they can and cannot deviate from.
+
+### Lane 0 (i18n-expert) — SEQUENCE-LOCK FIRST
+
+**Design-mandated** (this SSOT enforces):
+- 4-language Mac kernel panic block ordering: EN → JP → RU → TR (§13).
+- EN + JP lines are presentation-constants (literal strings, NOT
+  locale-switched).
+- RU + TR lines are locale-switched via `STRINGS.destruction.faz6.mac.panic.{ru,tr}`.
+- Faz 5 S.M.A.R.T. error lines have RU + TR translations
+  (`STRINGS.destruction.faz5.smartErrors[*]`).
+- Faz 4 progress dialog title strings (Mac "Securely erasing disk…",
+  Win "File Explorer — Removing files…") and Cancel button label
+  per locale.
+
+**Lane implementation choice**:
+- Exact translation wording within each locale (style/register choices).
+- Whether to expose stop-code "CRITICAL_PROCESS_DIED" as an i18n key
+  or hardcode (designer suggestion: hardcode — stop codes are
+  English-language convention, not user-facing copy).
+
+### Lane A (kraken-faz4-5)
+
+**Design-mandated**:
+- Faz 4 Mac/Win modal dimensions, progress bar colors, ETA growth
+  step sequence (§11).
+- Faz 5 monospace fullscreen layout, ASCII border box (Win),
+  S.M.A.R.T. error cycle order (§12).
+- HDD-grind synth spec (§15): brown noise + dual band-pass + 2Hz LFO.
+- Fan-overdrive synth spec (§15): pink noise + high-pass + 4000ms ramp.
+- 60Hz electrical buzz spec (§15): sawtooth + low-pass at 200Hz.
+- Bleed #3 scheduling: `setTimeout(scheduleBleed3, 13000)` from Faz 4
+  entry (= bleed visible at 34000ms = mid-Faz 5) — Faz 5 runner MUST
+  NOT also schedule.
+
+**Lane implementation choice**:
+- The exact brown-noise / pink-noise buffer generation method (offline
+  render vs runtime AudioBufferSourceNode loop).
+- Sector counter increment timing precision (RAF vs setInterval).
+
+### Lane B (kraken-faz6-7)
+
+**Design-mandated**:
+- Faz 6 OS branching (Mac kernel panic vs Win BSOD per `getOS()` cache).
+- BSOD beep synth spec (§15): 800Hz square + 5/0/1/195 ADSR.
+- Electrical-tick synth spec (§15): low-pass click at 0.5Hz.
+- Faz 7 bootloop 3-state cycle structure (§14): apple-loading →
+  frozen → no-boot.
+- Bleed #4 spec (§14 + §15): 800ms, opacity strobe 0.4-0.6, revolver-
+  on-desk composite over lobbySnapshot, 2px mask blur.
+- Bleed #4 reduced-motion hold at 0.6 opacity (NOT 0 — bleed #4 is
+  the narrative payoff and must remain legible to motion-sensitive
+  users).
+
+**Lane implementation choice**:
+- Hex-dump random byte generation algorithm (seeded vs Math.random).
+- Whether the Mac bootloop progress-bar drift is per-cycle uniformly
+  random in [38, 42] or a deterministic sequence (designer suggestion:
+  random per cycle).
+
+### Lane C (swift-expert)
+
+**Design-mandated**:
+- Mac kernel panic 4-language headline layout (§13): centred,
+  18px Light, 12px inter-line gap.
+- Mac hex panic-log dump position (80px below headline) + 6Hz
+  scroll rate.
+- Mac progress-dialog Finder-sheet attachment style (positioned
+  at viewport 35% top, NOT vertical centre).
+- Mac bootloop eaten-apple SVG dimension (`FAZ7_MAC_APPLE_DIMENSION_PX
+  = 72`) — reuses Sprint 4 mac-dialog SVG path data.
+
+**Lane implementation choice**:
+- Exact apple SVG path data (already authored by Sprint 4 designer
+  pass; reuse intact).
+- Eaten-apple SVG fill opacity during state-3 fade (designer
+  suggestion: 0.3, but lane may pick 0.2-0.4 for visual reading).
+
+### Lane D (frontend-dev)
+
+**Design-mandated**:
+- Win BSOD background `#0078D4`, sad face position (top, 20% from top,
+  12% left inset), font sizes per §13.
+- QR PNG dimensions `128 × 128px`, alt text, caption text.
+- Win bootloop "American Megatrends Inc." top header, "Detecting
+  drives..." text scroll content.
+- Win progress-dialog Cancel button greyed at `#A0A0A0`.
+
+**Lane implementation choice**:
+- Win sad-face `:(` flicker implementation (CSS @keyframes vs
+  JS-driven — designer suggestion: CSS for declarative gating).
+- QR PNG generation tool (any standard QR encoder; the asset is
+  static and bundled at `src/renderer/assets/destruction/win-bsod-qr.png`).
+- Win bootloop "Auto-restart in 3s..." countdown text styling (this
+  is a designer-mandated CONTENT but the visual styling — font size,
+  weight — is lane choice within the Consolas 14px family).
+
+### Cross-lane invariants
+
+These hold across ALL lanes and Phase 3 qa-engineer scans for them:
+
+1. **No real Apple/MS assets** — every SVG is designer-fictional. Phase
+   3 grep: `grep -rn "Apple\|Microsoft" src/renderer/scene/destruction/`
+   should return ONLY comment references, never asset paths.
+2. **No file system writes** — Phase 3 grep: `grep -rn "fs\." src/renderer/scene/destruction/`
+   should return zero results (NO `fs.unlink`, no `fs.writeFile`, no
+   real disk I/O).
+3. **No bundled proprietary fonts** — Phase 3 grep:
+   `grep -rn "@font-face" src/renderer/styles/destruction*.css` should
+   only show Cascadia Code + Segoe UI Variable (Sprint 0 OFL bundles).
+4. **Owner decree compliance** — every shared resource (timer, audio
+   node, scheduled bleed) is set up by exactly ONE lane's runner. Phase
+   3 scans `BLEED_3_OWNER` etc. for double-callers.
+5. **Reduced-motion gates** — every animated surface from §16 has the
+   gate; Phase 3 grep returns ≥ 32 distinct gate hits.
+
+---
+
+*End of Sprint 5 Phase 2A designer pass. Sprint 5 §10-§17 are
+additive to Sprint 4 §1-§9. The combined document is the SSOT for
+the entire Faz 0-7 destruction sequence; Sprint 6 will add §18+ for
+the Faz 8 reveal. Questions on Sprint 5 destruction decisions should
+copy the relevant section into the conversation. Sprint 5 Phase 5
+retro should revisit §10 emotional arc once the full Faz 4-7 chain
+has been observed end-to-end during QA — the bleed cadence (300, 200,
+400, 800ms) may need fine-tuning if the rhythm reads as accelerated
+rather than incidental.*
+
+## Files this Sprint 5 designer pass authored or edited
+| File | Change |
+|------|--------|
+| `src/renderer/scene/destruction/destruction-direction.md` | Extended in place with §10-§17 (Path A). |
+| `src/shared/scene-destruction-constants.ts` | Sprint 5 Phase 2A color + motion FILL appended. |
+
+## Files designer did NOT touch (Sprint 5 Phase 2B collision-safety)
+
+Per Sprint 5 Phase 2A scope: lane controllers (faz4-7 `.ts`), chrome modules (`chrome/mac-*.ts`, `chrome/win-*.ts`), `audio/destruction-audio.ts` synth factories, `i18n/strings.ts` destruction subtree, `styles/destruction.css`, and `assets/destruction/win-bsod-qr.png` — all left untouched for Phase 2B parallel lanes. `atmosphere-direction.md` not extended: Sprint 4 §9 fog + bulb state remains valid throughout Faz 4-7 (destruction is overlay-driven; lobby underneath unchanged).
