@@ -1717,3 +1717,211 @@ New open threads are added at the bottom with the next sequential
 a one-line closing summary. Do not delete closed rows — they are the audit
 trail explaining why a knob exists where it is.
 
+---
+
+## Sprint 4 Security Audit
+
+> **Auditor:** @security-reviewer (Phase 3 QA gate, parallel with @code-reviewer + @verifier + @qa-engineer).
+> **Commits reviewed:** Sprint 4 Phase 1 (IPC + CSP scaffold) + Phase 2A (designer SSOT fill) + Phase 2B (5-lane parallel destruction implementation).
+> **Mandate:** Sprint 4 ships the destruction subsystem (Faz 0-3), adds a 5th IPC channel `os:get-username`, amends CSP with `media-src 'self'`, and lands designer-fictional Apple + Win11 logos as inline SVG path data with procedural Canvas2D wallpaper — all to close PLAN §12 risks C1 (SF Pro telif) + S2 (hardcoded username) + S6 (Big Sur/Bloom wallpaper telif). The audit verifies these closures, re-baselines the Sprint 0/1/2/3 IPC/CSP/sandbox posture against the new surface, and flags any deviation.
+> **Read-only.** No source changes. One write allowed: append this audit section.
+
+### A. NEW IPC channel `os:get-username` — S2 closure audit
+
+| # | Check | File:line | Result |
+|---|-------|-----------|--------|
+| A1 | `OS_GET_USERNAME` constant added to `IPC_CHANNELS` map | `src/shared/ipc-channels.ts:33` | PASS |
+| A2 | `OS_GET_USERNAME` included in `ALLOWED_IPC_CHANNELS` allow-list | `src/shared/ipc-channels.ts:44` | PASS |
+| A3 | `getUsernameHandler` registered via `ipcMain.handle` | `src/main/ipc.ts:96` | PASS |
+| A4 | Handler has `isAllowedSender` gate (origin check) | `src/main/ipc.ts:144` | PASS |
+| A5 | Handler wraps `os.userInfo()` in try/catch and returns `'unknown'` on failure | `src/main/ipc.ts:147-152` | PASS |
+| A6 | Handler unregistered in `unregisterIpcHandlers` | `src/main/ipc.ts:128` | PASS |
+| A7 | Preload exposes `getUsername(): Promise<string>` via `contextBridge` | `src/preload/index.ts:159-172` | PASS |
+| A8 | Preload wrapper has defensive try/catch with `'unknown'` fallback | `src/preload/index.ts:163-171` | PASS |
+| A9 | Preload imports `os`? — ZERO (still ESLint-banned per `.eslintrc.cjs:73`) | `grep "from 'os'" src/preload/` → 0 hits | PASS |
+| A10 | Type contract `getUsername` exposed in `RusRuletiApi` | `src/shared/api-types.ts:72` | PASS |
+| A11 | Sender check covers dev (`http://localhost`) + prod (`file://`) origins | `src/main/ipc.ts:54-58` | PASS |
+| A12 | Handler returns ONLY username string — no homedir, no hostname, no gid, no uid leaked | `src/main/ipc.ts:148` returns `.username` only | PASS |
+
+**Section A result: PASS — S2 risk closed. The new 5th IPC channel matches the existing 4-channel hardening contract (origin check + try/catch + defensive return). The `os` module lives ONLY in the main process (`src/main/ipc.ts:15`); the preload remains `os`-banned by ESLint and by code inspection. The renderer's path to the username is exactly one whitelisted channel; no homedir / hostname / uid / gid escapes via the bridge.**
+
+### B. CSP `media-src 'self'` audit
+
+| # | Check | File:line | Result |
+|---|-------|-----------|--------|
+| B1 | CSP `media-src 'self'` directive added | `src/renderer/index.html:14` | PASS |
+| B2 | Other CSP directives unchanged (`default-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' data: blob:`, `font-src 'self'`, `script-src 'self'`) | `src/renderer/index.html:14` | PASS — no weakening |
+| B3 | No new remote `https?://` audio URLs in renderer | `grep -rn "https\?://" src/renderer/scene/destruction/` → all hits are `xmlns="http://www.w3.org/2000/svg"` namespace identifiers (not network fetches) | PASS |
+| B4 | Howler bang.ogg path is `'self'`-relative (`assets/audio/bang.ogg`) | `src/renderer/scene/audio/destruction-audio.ts:77` | PASS |
+| B5 | Tinnitus + low-pass + native chord — all Web Audio synth (no media fetch) | `src/renderer/scene/audio/destruction-audio.ts` lines 176-403 | PASS |
+| B6 | `bang.ogg` file actually bundled? — NOT YET (procedural fallback active per `loaderror` branch at line 286) | `find src/renderer -name "*.ogg"` → 0 hits | PASS (graceful fallback) |
+| B7 | Bang fallback path is procedural Web Audio (noise buffer + highpass + gain) | `src/renderer/scene/audio/destruction-audio.ts:311-334` | PASS |
+
+**Section B result: PASS — `media-src 'self'` added without weakening any other directive. The CSP surface remains tight: no remote scripts, no remote audio, no remote fonts, no remote images. Howler is configured to fetch from `'self'`; the `bang.ogg` asset is not yet bundled but the procedural fallback handles the missing-asset case via the `loaderror` event handler with electron-log warning (no console.* leak). The destruction subsystem ships zero new remote-fetch surface in Sprint 4.**
+
+### C. Telif audit — NO Apple/MS bundled assets (S6 + C1 closures)
+
+| # | Check | Evidence | Result |
+|---|-------|----------|--------|
+| C1 | NO PNG/JPG/SVG/GIF/WEBP image files bundled in renderer | `find src/renderer -name "*.png" -o -name "*.jpg" -o -name "*.svg" -o -name "*.gif" -o -name "*.webp"` → ZERO hits | PASS |
+| C2 | NO Apple Big Sur wallpaper bundled | confirmed by absence (above) | PASS |
+| C3 | NO Win11 Bloom wallpaper bundled | confirmed by absence (above) | PASS |
+| C4 | NO real Apple logo PNG/SVG file bundled | confirmed by absence (above) | PASS |
+| C5 | NO real Microsoft logo PNG/SVG file bundled | confirmed by absence (above) | PASS |
+| C6 | NO SF Pro Display/Text bundled in `src/renderer/fonts/` | only 3 OFL families bundled: Old Standard TT, PT Serif, DSEG7-Classic | PASS (C1 closure) |
+| C7 | NO Segoe UI Variable bundled in `src/renderer/fonts/` | confirmed (above) | PASS (acceptable per Lane D deviation note in `chrome/win-dialog.ts:79-88`) |
+| C8 | Mac dialog Apple silhouette is designer-fictional inline SVG path data | `src/renderer/scene/destruction/chrome/mac-dialog.ts:81-84` — hand-authored eaten-apple path with single concave bite, fill `#1D1D1F` (NOT Apple brand black) | PASS |
+| C9 | Mac menubar Apple silhouette is designer-fictional inline SVG | `src/renderer/scene/destruction/chrome/mac-menubar.ts:108-127` — simplified body+leaf path, fill `#1D1D1F` | PASS |
+| C10 | Win11 four-square logo is designer-fictional inline SVG with SINGLE gradient across all four squares (NOT four colors) | `src/renderer/scene/destruction/chrome/win-dialog.ts:138-175` — 2x2 rect grid with `linearGradient #0078D4 → #005FB8` applied uniformly | PASS |
+| C11 | Win11 taskbar four-square is designer-fictional inline SVG with SINGLE gradient | `src/renderer/scene/destruction/chrome/win-taskbar.ts:107-156` — same single-gradient rule | PASS |
+| C12 | Mac dialog font-family `-apple-system, BlinkMacSystemFont, sans-serif` (system reference, NO SF Pro woff2 bundled) | `src/renderer/scene/destruction/chrome/mac-dialog.ts:132` | PASS (C1 closure) |
+| C13 | Win dialog font stack `'Segoe UI Variable', 'Segoe UI', sans-serif` (system reference, falls through to system 'Segoe UI' or generic sans-serif) | `src/renderer/scene/destruction/chrome/win-dialog.ts:89` | PASS (Lane D deviation acceptable) |
+| C14 | Procedural wallpaper is Canvas2D ONLY (NO bundled Apple Big Sur / MS Bloom assets) | `src/renderer/scene/destruction/procedural-wallpaper.ts:43-201` — `createElement('canvas')` + `getContext('2d')` + linear/radial gradients + Path2D — zero asset references | PASS (S6 closure) |
+| C15 | Mac wallpaper palette is designer-authored, NOT sampled from real macOS wallpapers | `src/shared/scene-destruction-constants.ts:316-325` — palette doc cites "abstract dawn mountain" + 4 designer-chosen hex codes (`#3D5A80`, `#98C1D9`, `#293241`, `#EE9B5B`) | PASS |
+| C16 | Win wallpaper palette is designer-authored, NOT sampled from real Win11 Bloom | `src/shared/scene-destruction-constants.ts:335-342` — palette doc cites "abstract Win11 fluent bloom" + 3 designer-chosen hex codes (`#0A3D62`, `#062847`, `#3DD1E7`) | PASS |
+| C17 | Icon grid icons are designer-fictional glyphs (NOT real macOS/Win11 app icons) | `src/renderer/scene/destruction/faz2-icons.ts:13-16` doc + visual inspection | PASS |
+| C18 | Apple/Microsoft string references in code are intentional commentary explaining the designer-fictional approach (NOT trademark identifier embeds) | `grep -rni "apple\|microsoft" src/renderer/scene/destruction/` — all hits are in comments / classnames documenting "this is NOT a real Apple/MS asset" | PASS |
+
+**Section C result: PASS — S6 + C1 risks closed. Zero bundled bitmap/vector image files in renderer. All "Apple silhouette" and "Win11 four-square" surfaces are inline SVG path data hand-authored by the designer with designer-documented "NOT pixel-identical to trademark" notes in the source comments. SF Pro is NOT bundled (system font reference only). Segoe UI Variable is NOT bundled (system reference with documented fallback to system 'Segoe UI' / generic sans-serif — Lane D acceptable deviation). Procedural wallpaper is pure Canvas2D with designer-authored palettes. The destruction subsystem ships zero Apple/Microsoft-owned proprietary asset.**
+
+### D. `${username}` substitution audit (S2 closure)
+
+| # | Check | File:line | Result |
+|---|-------|-----------|--------|
+| D1 | `FAKE_FILE_PATHS_MAC` entries use `USER` placeholder only (no hardcoded usernames) | `src/shared/scene-destruction-constants.ts:374-396` — all 18 entries use `/Users/USER/...` | PASS |
+| D2 | `FAKE_FILE_PATHS_WIN` entries use `USER` placeholder only | `src/shared/scene-destruction-constants.ts:410-432` — all 18 entries use `C:\\Users\\USER\\...` | PASS |
+| D3 | `USERNAME_PLACEHOLDER` exported as `'USER'` constant | `src/shared/scene-destruction-constants.ts:501` | PASS |
+| D4 | `faz3-terminal.ts` imports `USERNAME_PLACEHOLDER` (no hardcoded `'USER'` string literal) | `src/renderer/scene/destruction/faz3-terminal.ts:33` import; `:162` usage | PASS |
+| D5 | `createPathGenerator` performs substitution at runtime, not at module load | `src/renderer/scene/destruction/faz3-typewriter.ts:135-154` — accepts `username` arg, performs `split.join` per template | PASS |
+| D6 | Username resolved via `window.api.getUsername()` IPC (NOT compile-time) | `src/renderer/scene/destruction/destruction-director.ts:262` | PASS |
+| D7 | Username resolution has defensive fallback to `'user'` on IPC reject | `src/renderer/scene/destruction/destruction-director.ts:265-268` | PASS |
+| D8 | Empty-username fallback inside path generator falls back to literal `'USER'` (NOT hardcoded melih/admin/etc) | `src/renderer/scene/destruction/faz3-typewriter.ts:143` | PASS |
+| D9 | No grep hits for hardcoded usernames in destruction tree | `grep -rni "melih\|admin\|test\|john\|user1" src/renderer/scene/destruction/` → ZERO hits | PASS |
+
+**Section D result: PASS — S2 risk closed. Username substitution flows runtime-only via the IPC channel; templates never bake a hardcoded name at module load. The `USER` placeholder is a NAMED constant (`USERNAME_PLACEHOLDER`) so the substitution site is greppable. Three defensive fallbacks layered (IPC reject → director default 'user', empty string → typewriter default 'USER', os.userInfo throw → main process default 'unknown') ensure the terminal always has SOMETHING to substitute.**
+
+### E. Standard webPreferences re-baseline
+
+| # | Check | File:line | Result |
+|---|-------|-----------|--------|
+| E1 | `sandbox: true` | `src/main/window-manager.ts:50` | PASS |
+| E2 | `contextIsolation: true` | `src/main/window-manager.ts:51` | PASS |
+| E3 | `nodeIntegration: false` | `src/main/window-manager.ts:52` | PASS |
+| E4 | `webSecurity: true` | `src/main/window-manager.ts:53` | PASS |
+| E5 | `allowRunningInsecureContent: false` | `src/main/window-manager.ts:54` | PASS |
+| E6 | `devTools: isDev` (false in production) | `src/main/window-manager.ts:55` | PASS |
+| E7 | `setWindowOpenHandler` deny-all | `src/main/window-manager.ts:65-70` | PASS |
+| E8 | `will-navigate` blocked except dev URL | `src/main/window-manager.ts:73-80` | PASS |
+| E9 | Preload — ZERO banned Node imports (`fs`, `child_process`, `shell`, `net`, `http`, `https`, `dgram`, `cluster`, `vm`, `os`) | `grep -rnE "(require\|import).*(fs\|child_process\|shell\|net\|http\|https\|dgram\|cluster\|vm\|^os\|node:os)" src/preload/` → ZERO hits | PASS |
+| E10 | All 5 IPC channels gated by `isAllowedSender` (5/5 handlers) | `src/main/ipc.ts:64,74,85,96,106` | PASS |
+
+**Section E result: PASS — Sprint 0 hardening contract preserved verbatim. The 5th channel inherits the 4-channel gating discipline (origin check + try/catch + payload validation where applicable). No webPreferences regression; no preload imports added beyond `electron`, `process.platform`, and shared types.**
+
+### F. ApartmentBleed double-fire awareness (NOT a security issue)
+
+**FUNCTIONAL BUG — flagged for Phase 4 spark (NOT a security blocker):**
+
+The apartment-bleed `triggerBleed('bleed-1')` and `triggerBleed('bleed-2')` are scheduled at **two parallel sites** with **overlapping timing**:
+
+| Trigger | Site 1 (director) | Site 2 (faz runner) | Result |
+|---------|-------------------|---------------------|--------|
+| bleed-1 | `src/renderer/scene/destruction/destruction-director.ts:370-373` — `setTimeout(triggerBleed('bleed-1'), APARTMENT_BLEED_1_TRIGGER_MS)` (absolute from bang) | `src/renderer/scene/destruction/faz2-takeover.ts:153-158` — `setTimeout(triggerBleed('bleed-1'), APARTMENT_BLEED_1_TRIGGER_MS - (FAZ_0 + FAZ_1))` (offset within Faz 2 = same absolute time) | **bleed-1 fires TWICE** at the same wall-clock moment |
+| bleed-2 | `src/renderer/scene/destruction/destruction-director.ts:374-377` — `setTimeout(triggerBleed('bleed-2'), APARTMENT_BLEED_2_TRIGGER_MS)` (absolute from bang) | `src/renderer/scene/destruction/faz3-terminal.ts:344-364` — `setTimeout(triggerBleed('bleed-2'), APARTMENT_BLEED_2_TRIGGER_MS - (FAZ_0+1+2))` (offset within Faz 3 = same absolute time) | **bleed-2 fires TWICE** at the same wall-clock moment |
+
+The director's `runBleedCycle()` in `apartment-bleed.ts:88-109` does a force-reflow (`overlay.classList.remove(...); void overlay.offsetWidth; overlay.classList.add(className)`) before each invocation. The second fire mid-strobe will REMOVE the active strobe class, force a reflow, and RE-ADD it — visually disruptive (the strobe restarts mid-cycle) and CSS-spec gray-area for the `setTimeout` ordering between the two timers.
+
+**Why this is not a security issue:** No data leak, no IPC vector, no input injection. The bug is a visual artifact in the destruction sequence where the strobe restarts unnecessarily. No exploit surface.
+
+**Recommended fix for Phase 4 spark:** ONE owner per bleed trigger. Either:
+- (a) Director schedules both bleeds (remove the per-faz schedulers); the per-faz runners are pure rendering with no timer ownership; OR
+- (b) Per-faz runners schedule their respective bleed (remove `scheduleApartmentBleeds()` from `destruction-director.ts`); director only mounts the overlay.
+
+Option (b) keeps the offset arithmetic local to the faz that owns the bleed (less SSOT-cross-reference complexity); option (a) keeps the global timing in one place. Either is fine — the issue is the duplication, not the choice of owner. Defer to Phase 4 spark to pick and execute.
+
+### G. Asset surface
+
+| # | Check | Evidence | Result |
+|---|-------|----------|--------|
+| G1 | No new executable files (`.exe`, `.dll`, `.dylib`, `.so`, `.sh`, `.ps1`, `.bat`) | `find src/ -name "*.exe" -o -name "*.dll" -o -name "*.sh"` → ZERO | PASS |
+| G2 | No new remote `https?://` fetches in destruction code | `grep -rni "https\?://" src/renderer/scene/destruction/` → all hits are SVG namespace identifiers, NOT network URLs | PASS |
+| G3 | `npm audit --omit=dev` → 0 prod vulnerabilities | confirmed via `npm audit --omit=dev` → "found 0 vulnerabilities" | PASS |
+| G4 | Full `npm audit` reports 13 vulns (4 low / 3 moderate / 6 high) — ALL in `devDependencies` only (e.g. `node_modules/tar`); not shipped to prod | confirmed via `npm audit` output `node_modules/tar` advisory | PASS (dev-only, not shipped) |
+| G5 | No new prod dependencies added in Sprint 4 (`howler`, `electron-log`, `three`, `postprocessing` — Sprint 2 baseline) | `package.json:33-38` — same 4 deps as Sprint 3 audit | PASS |
+
+**Section G result: PASS — production dependency tree clean. The 13 dev-only audit findings live in `electron-builder` / `vite` / `eslint` sub-trees and never leave the dev environment (electron-builder prunes devDeps from the asar). No new executable surface, no new remote endpoints, no new prod dependencies.**
+
+### H. AnimationMixer + smoke + destruction integrity
+
+| # | Check | Evidence | Result |
+|---|-------|----------|--------|
+| H1 | No new GLSL/shader files in Sprint 4 | `find src/renderer/scene/shaders -type f` — 3 files (`ps1-vertex-snap.glsl`, `ps1-affine-uv.glsl`, `ps1-dither.glsl`), all pre-Sprint 4 | PASS |
+| H2 | No new external CDN references | confirmed in G2 | PASS |
+| H3 | `destruction-audio.ts` uses standard Web Audio API only (BiquadFilterNode, OscillatorNode, GainNode, AudioBuffer, AudioBufferSourceNode) | `src/renderer/scene/audio/destruction-audio.ts:171-403` — exclusively `ctx.createOscillator`, `ctx.createGain`, `ctx.createBiquadFilter`, `ctx.createBuffer`, `ctx.createBufferSource` | PASS |
+| H4 | No new GLB models or `glTFLoader` calls in destruction | confirmed (destruction is DOM + Canvas2D + Web Audio only) | PASS |
+| H5 | Smoke particle system (Sprint 3) untouched by Sprint 4 | `git log` history — `src/renderer/scene/particles/smoke.ts` not modified in Phase 2B commits | PASS |
+
+**Section H result: PASS — Sprint 4 ships zero new shader surface, zero new external integration, and uses exclusively Web Audio standard APIs for the destruction synth. No GPU compute, no external audio processing libs.**
+
+### I. Joke-app narrative integrity
+
+| # | Check | Evidence | Result |
+|---|-------|----------|--------|
+| I1 | `os.userInfo()` is the ONLY system-touching call in the entire codebase | `grep -rn "os\.userInfo\|os\.homedir\|os\.hostname\|os\.platform\|os\.arch" src/` → 1 hit at `src/main/ipc.ts:148` | PASS |
+| I2 | Username returned is the string ONLY (no homedir / hostname / uid / gid leaked) | `src/main/ipc.ts:148` returns `.username` only | PASS |
+| I3 | Faz 1 dialog chrome is DOM (NOT real OS dialogs) | `src/renderer/scene/destruction/chrome/mac-dialog.ts`, `win-dialog.ts` — pure `document.createElement` + inline styles | PASS |
+| I4 | Faz 2 takeover is DOM + Canvas2D (NOT real fullscreen takeover beyond Electron kiosk) | `src/renderer/scene/destruction/faz2-*.ts` — DOM only | PASS |
+| I5 | Faz 3 terminal `rm -rf` is FAKE — NO `fs`, `child_process`, `shell.openExternal`, or system call anywhere in renderer | `grep -rnE "(require\|import).*(fs\|child_process)" src/renderer/` → ZERO hits | PASS |
+| I6 | Procedural wallpaper is Canvas2D (NOT real Mac/Win wallpaper compositing) | confirmed in C14 | PASS |
+| I7 | Live clock uses `Date.toLocaleTimeString()` (renderer JS, no system clock IPC) | `src/renderer/scene/destruction/chrome/mac-menubar.ts:181`, `win-taskbar.ts:204-209` | PASS |
+| I8 | Toast spawner is a `setInterval` rendering DOM (NOT real OS notification API) | `src/renderer/scene/destruction/faz2-toasts.ts` (per file naming) | PASS |
+| I9 | Apartment bleed is a CSS strobe on a `backgroundImage` data-URL (NOT a real "window peek-through" mechanism) | `src/renderer/scene/destruction/apartment-bleed.ts:72-82` — `style.backgroundImage = url("${lobbySnapshotDataUrl}")` (data URL captured from the Three.js renderer earlier) | PASS |
+
+**Section I result: PASS — the joke-app narrative invariant ("this app does nothing real") is preserved through Sprint 4. The destruction sequence is 100% theater: DOM chrome, Canvas2D wallpaper, Web Audio synth, CSS animations. The only system-touching call in the entire codebase is `os.userInfo().username` (one string, main process only). No filesystem access, no shell exec, no process spawn, no network fetch from the renderer.**
+
+### Summary table
+
+| Section | Result |
+|---------|--------|
+| A. NEW IPC `os:get-username` — S2 closure | PASS |
+| B. CSP `media-src 'self'` | PASS |
+| C. Telif audit (NO Apple/MS bundled assets — S6 + C1 closures) | PASS |
+| D. `${username}` substitution (S2 closure) | PASS |
+| E. Standard webPreferences re-baseline | PASS |
+| F. ApartmentBleed double-fire | ADVISORY (functional bug, NOT security) |
+| G. Asset surface | PASS |
+| H. AnimationMixer + smoke + destruction integrity | PASS |
+| I. Joke-app narrative integrity | PASS |
+
+### J. Forward-Looking Advisories (NOT Sprint 4 blockers)
+
+Sprint 0/1/2/3 advisories re-affirmed; three new Sprint 4 / Sprint 5 items appended:
+
+1. **TH-S4-01 — ApartmentBleed double-fire functional bug (Phase 4 spark, NOT security).** Both `destruction-director.scheduleApartmentBleeds()` AND the per-faz runners (`faz2-takeover.scheduleBleed1()`, `faz3-terminal.scheduleBleed2()`) schedule the SAME bleed triggers at the SAME absolute time. Each bleed fires TWICE, causing the strobe `@keyframes` to restart mid-cycle via the `runBleedCycle` force-reflow at `apartment-bleed.ts:98-102`. No security impact (no data leak, no IPC vector); visual artifact only. Fix in Phase 4 spark by choosing ONE owner per bleed trigger (director OR faz runner, not both).
+2. **TH-S4-02 — `bang.ogg` asset not yet bundled (procedural fallback active).** `src/renderer/scene/audio/destruction-audio.ts:77` references `'assets/audio/bang.ogg'` but the file is not yet under `src/renderer/assets/audio/` (the directory does not exist; `find` returned zero hits). The `loaderror` branch at line 286 catches this and falls through to the procedural Web Audio noise burst at line 311. **Acceptable for Sprint 4 (graceful fallback works); Sprint 5+ should bundle a CC0/CC-BY OGG and confirm Howler's `loaded` state.** When the OGG lands, re-verify CSP `media-src 'self'` permits it (it does — `'self'` covers the asset path) and confirm Howler's XHR with `responseType: 'arraybuffer'` succeeds.
+3. **TH-S4-03 — Segoe UI Variable not bundled; system 'Segoe UI' fallback in `win-dialog.ts:89`.** Lane D's `chrome/win-dialog.ts:79-88` documents the deviation: Sprint 0 fonts.css only bundles Old Standard TT + PT Serif + DSEG7-Classic; Segoe UI Variable falls through to system 'Segoe UI' or generic sans-serif on macOS dev. **Acceptable for Sprint 4 — the C1 closure rule is "NO proprietary Apple/MS font BUNDLED", not "must visually match Win11 on macOS dev".** Sprint 5+ MAY bundle an OFL Segoe-family equivalent (Microsoft has Segoe UI Variable OFL on GitHub) if cross-platform visual parity becomes a design requirement. If bundled, add a LEGAL.md attribution row and verify the OFL license is preserved verbatim in the vendored copy.
+4. **TH-S3-01 carried forward — CSP `img-src` `blob:` ADVISORY: confirmed satisfied.** Sprint 4 takes advantage of the Sprint 3-introduced `img-src 'self' data: blob:` directive for the `lobbySnapshotDataUrl` data-URL backgroundImage on `apartment-bleed-overlay`. The `data:` token covers `data:image/png;base64,...` (the `WebGLRenderer.toDataURL` output). No further CSP changes needed for this surface.
+5. **TH-S2-01 — CSP `connect-src 'self'` UNCHANGED.** Sprint 4 does NOT introduce XHR (Howler uses the standard `fetch` / `XMLHttpRequest` path, but the `bang.ogg` reference still resolves to `'self'`-origin; no remote endpoint). If Sprint 5+ adds a network call (e.g. CDN-hosted music), `connect-src 'self'` MUST be amended; today the directive is implicit (no `connect-src` declared → defaults to `default-src 'self'`).
+6. **Code signing + notarization — UNCHANGED from Sprint 0+1+2+3 advisory.** Sprint 7 (mac) and Sprint 8 (win). Placeholders in `electron-builder.yml` correct.
+7. **PLAN §12 risks closed by Sprint 4:**
+   - **S2 (hardcoded username):** CLOSED via runtime IPC `os:get-username` + `USERNAME_PLACEHOLDER` substitution at typewriter render time. See sections A + D above.
+   - **S6 (Big Sur/Bloom wallpaper telif):** CLOSED via `procedural-wallpaper.ts` Canvas2D-only render with designer-authored palettes. See section C above.
+   - **C1 (SF Pro telif):** CLOSED via `font-family: -apple-system, BlinkMacSystemFont, sans-serif` system reference in `mac-dialog.ts:132`. NO SF Pro bundled. See section C above.
+
+### Final verdict
+
+**PASS — all nine sections (A-I) green. One ADVISORY item (Section F — ApartmentBleed double-fire, functional bug, NOT security). Sprint 4 ships clean with three PLAN §12 risks (C1, S2, S6) closed and three forward-looking advisories (TH-S4-01 bleed double-fire, TH-S4-02 bang.ogg asset, TH-S4-03 Segoe UI Variable).**
+
+Sprint 4 preserves the Sprint 0/1/2/3 security posture intact:
+
+1. **Main / preload / IPC contract — 5th channel inherits the 4-channel hardening.** `src/main/ipc.ts:96,143-153` registers `os:get-username` with the same `isAllowedSender` gate + try/catch + defensive return as the four pre-existing channels. Preload bridge at `src/preload/index.ts:159-172` exposes `getUsername(): Promise<string>` via `contextBridge` with a defensive try/catch fallback to `'unknown'`. `os` module imports remain banned in preload by ESLint (`.eslintrc.cjs:73`) and by code inspection (`grep` returns zero hits in `src/preload/`).
+2. **Sprint 0 webPreferences hardening untouched.** `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`, `webSecurity: true`, `allowRunningInsecureContent: false`, `devTools: isDev`, `setWindowOpenHandler` deny-all, `will-navigate` blocked except dev URL — all preserved verbatim from Sprint 0 retro L.1 closure.
+3. **CSP surface narrowly extended — `media-src 'self'` only.** No other CSP directive modified. The destruction subsystem's bang.ogg (or procedural fallback), tinnitus 4kHz, low-pass, and native chord all flow through Web Audio synth with one `'self'`-origin asset reference (`bang.ogg` deferred to Sprint 5+).
+4. **Telif compliance — Sprint 4 closes 3 of PLAN §12 risks.** C1 (SF Pro), S2 (username), S6 (wallpaper) all closed via designer-fictional inline SVG path data + system font references + procedural Canvas2D wallpapers. Zero Apple/Microsoft-owned proprietary asset bundled. The destruction sequence reads as "this looks Apple/Win-family" via designer-authored shape geometry, NOT via trademark reproduction.
+5. **Joke-app narrative invariant preserved.** `os.userInfo().username` is the ONLY system-touching call in the entire codebase (one string, main process only). All Faz 0-3 chrome is DOM + Canvas2D + Web Audio synth. The terminal `rm -rf` is FAKE — no `fs`, `child_process`, `shell`, or system call anywhere in the renderer. `grep -rnE "(require|import).*(fs|child_process)" src/renderer/` returns ZERO hits.
+
+`npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (`electron-log`, `three`, `postprocessing`, `howler` — same set as Sprint 2/3; no new prod deps in Sprint 4).
+
+If a notarization reviewer or SmartScreen analyst asks "what could this app possibly do that's dangerous after Sprint 4?" — the honest, evidence-backed answer is the same as Sprint 0/1/2/3 plus one new affordance: *it can read your OS login username via `os.userInfo()` and render it to a fake terminal as the user-portion of fake file paths.* That is the entirety of the new system-touching surface. **The three open advisories (TH-S4-01 bleed double-fire, TH-S4-02 bang.ogg, TH-S4-03 Segoe UI Variable) are functional / asset bundling items, not security blockers.**
+
+Audit confirmed. Sprint 4 ships clean. The destruction subsystem is theater built on the Sprint 0 hardening foundation — not a single security regression introduced.
+
