@@ -581,6 +581,125 @@
    * TODO Sprint 5 Lane D: Faz 6 Win frowny flicker → solid (no flicker).
    * TODO Sprint 5 Lane C: Faz 7 Mac progress drift → hold at freeze%.
    * TODO Sprint 5 Lane D: Faz 7 Win restart-pending flash → instant.
-   * TODO Sprint 5 Lane A: Bleed #3 strobe → 0.4sn opacity 0.5 hold.
-   * TODO Sprint 5 Lane B: Bleed #4 strobe → 0.8sn opacity 0.6 hold. */
+   * TODO Sprint 5 Lane A: Bleed #3 strobe → 0.4sn opacity 0.5 hold. */
+
+  /* Lane B — Bleed #4 strobe → 0.8sn opacity 0.6 hold (a11y matrix row
+   * 37). The .is-strobing class is replaced by .is-reduced-motion in
+   * apartment-bleed.ts#runBleed4Sequence; this rule is defence-in-depth
+   * so a future code path that accidentally adds .is-strobing under the
+   * gate still degrades gracefully. The revolver-on-table composite
+   * stays visible — bleed #4 is the narrative payoff and must remain
+   * legible to motion-sensitive users. */
+  .apartment-bleed-4.is-strobing {
+    animation: none;
+    opacity: var(--bleed4-reduced-motion-opacity, 0.6);
+  }
+  .apartment-bleed-4.is-reduced-motion {
+    /* Static hold — apartment-bleed.ts already sets the opacity via the
+     * custom property at mount; pin it here for any cascade conflict. */
+    opacity: var(--bleed4-reduced-motion-opacity, 0.6);
+  }
+}
+
+/* ----- SPRINT 5 — FAZ 7 BLEED #4 (Lane B revolver-on-table payoff) -----
+ *
+ * The bleed #4 overlay is appended to the destruction container by
+ * apartment-bleed.ts#scheduleBleed4. The base class .apartment-bleed-4
+ * pins position + base layer composition; the modifier class
+ * .apartment-bleed-4--revolver-on-table layers the 2px mask blur over
+ * the desk region per designer §14. The strobe runs via the
+ * .is-strobing modifier engaging the @keyframes apartment-bleed-4-strobe
+ * for APARTMENT_BLEED_4_DURATION_MS = 800ms. The strobe min/max opacity
+ * are wired via CSS custom properties so the JS-side SSOT constants
+ * (APARTMENT_BLEED_4_OPACITY_MIN/MAX) stay machine-checked. */
+
+.apartment-bleed-4 {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  opacity: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/**
+ * Bleed #4 variant — revolver-on-table emphasis (designer §6 / §14
+ * narrative payoff). 2px mask blur via the var-bound --bleed4-mask-blur
+ * custom property; the bottom-third desk region gets a slight inset
+ * darkening so the eye is drawn to the revolver silhouette. The
+ * vendor-prefixed -webkit-mask-image keeps Safari/Electron rendering
+ * intact (Sprint 0 Electron target uses Chromium but the prefix is
+ * defensive). */
+.apartment-bleed-4--revolver-on-table {
+  filter: blur(var(--bleed4-mask-blur, 2px));
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      black 0%,
+      black 60%,
+      rgba(0, 0, 0, 0.85) 75%,
+      rgba(0, 0, 0, 0.95) 100%
+    );
+  mask-image:
+    linear-gradient(
+      to bottom,
+      black 0%,
+      black 60%,
+      rgba(0, 0, 0, 0.85) 75%,
+      rgba(0, 0, 0, 0.95) 100%
+    );
+}
+
+/**
+ * Strobe engagement — the .is-strobing class is added in
+ * runBleed4Sequence; the @keyframes runs once for 800ms then the
+ * overlay element is removed by the JS strobe-end setTimeout. The
+ * opacity min/max are sourced via CSS custom properties that the JS
+ * sets from APARTMENT_BLEED_4_OPACITY_MIN / OPACITY_MAX (single source
+ * of truth — scene-destruction-constants.ts).
+ */
+.apartment-bleed-4.is-strobing {
+  animation: apartment-bleed-4-strobe 800ms steps(1, end) 1;
+}
+
+.apartment-bleed-4.is-reduced-motion {
+  /* Reduced-motion: hold the upper opacity end statically for the full
+   * window (no strobe). apartment-bleed.ts swaps .is-strobing for
+   * .is-reduced-motion at mount when matchMedia reports reduce. */
+  opacity: var(--bleed4-reduced-motion-opacity, 0.6);
+}
+
+/**
+ * 12Hz strobe over 800ms = ~10 visible flicker cycles. The frame
+ * keyframes alternate between the SSOT min (0.4) and max (0.6) opacity
+ * values, with a final hold at 0 so the element transitions out cleanly
+ * before the JS removes it from the DOM. Designer §14 photosensitive-
+ * safety note: 12Hz is the lower edge of the perceptible-strobe band;
+ * the 800ms window is intentionally short and the reduced-motion gate
+ * (above) replaces the strobe with a static hold.
+ */
+@keyframes apartment-bleed-4-strobe {
+  0% { opacity: var(--bleed4-opacity-min, 0.4); }
+  5% { opacity: var(--bleed4-opacity-max, 0.6); }
+  10% { opacity: var(--bleed4-opacity-min, 0.4); }
+  15% { opacity: var(--bleed4-opacity-max, 0.6); }
+  20% { opacity: var(--bleed4-opacity-min, 0.4); }
+  25% { opacity: var(--bleed4-opacity-max, 0.6); }
+  30% { opacity: var(--bleed4-opacity-min, 0.4); }
+  35% { opacity: var(--bleed4-opacity-max, 0.6); }
+  40% { opacity: var(--bleed4-opacity-min, 0.4); }
+  45% { opacity: var(--bleed4-opacity-max, 0.6); }
+  50% { opacity: var(--bleed4-opacity-min, 0.4); }
+  55% { opacity: var(--bleed4-opacity-max, 0.6); }
+  60% { opacity: var(--bleed4-opacity-min, 0.4); }
+  65% { opacity: var(--bleed4-opacity-max, 0.6); }
+  70% { opacity: var(--bleed4-opacity-min, 0.4); }
+  75% { opacity: var(--bleed4-opacity-max, 0.6); }
+  80% { opacity: var(--bleed4-opacity-min, 0.4); }
+  85% { opacity: var(--bleed4-opacity-max, 0.6); }
+  90% { opacity: var(--bleed4-opacity-min, 0.4); }
+  95% { opacity: var(--bleed4-opacity-max, 0.6); }
+  100% { opacity: 0; }
 }

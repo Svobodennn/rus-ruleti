@@ -87,6 +87,20 @@ const BANG_FALLBACK_LENGTH_SEC = 0.25;
 /** High-pass cutoff for the procedural fallback so it reads "gunshot" not "wind". */
 const BANG_FALLBACK_HIGHPASS_HZ = 2000;
 
+/**
+ * Sprint 5 audio handle union — owner-keyed pool entries. Lane A registers
+ * HDD-grind + fan-overdrive + electrical-buzz from Faz 4/5; Lane B retrieves
+ * the fan-overdrive handle in Faz 6 to silence it before Faz 7 entry. The
+ * union keeps the registry strongly typed without an `unknown` cast at the
+ * Lane B retrieval site.
+ */
+export type DestructionOwnedAudioHandle =
+  | HDDGrindHandle
+  | FanOverdriveHandle
+  | ElectricalBuzzHandle
+  | BSODBeepHandle
+  | ElectricalTickHandle;
+
 /** Public handle returned by `mountDestructionAudio`. */
 export interface DestructionAudioHandle {
   /** Play the bang one-shot. Resolves on play attempt (does not wait for end). */
@@ -107,6 +121,33 @@ export interface DestructionAudioHandle {
    * Mac: 3-sine 800+600+400Hz. Win: descending 2-note 600→400Hz.
    */
   readonly playNativeChord: (os: 'mac' | 'win') => void;
+  /**
+   * Sprint 5 — AudioContext exposure so the destruction lane runners can
+   * construct their own synth handle chains (HDD-grind, fan-overdrive,
+   * electrical buzz) without re-routing through the AudioBed surface.
+   */
+  readonly context: AudioContext;
+  /**
+   * Sprint 5 — master GainNode tap. Lane A's synth handles connect HERE so
+   * they ALSO route through the global low-pass (the disk-grind muffle
+   * reading is the intended audio aesthetic — designer §15).
+   */
+  readonly destination: GainNode;
+  /**
+   * Sprint 5 — owner-keyed audio handle registry. Lane A registers HDD-grind
+   * and fan-overdrive in Faz 4 and electrical-buzz in Faz 5. Lane B retrieves
+   * the fan-overdrive handle in Faz 6 to silence it before Faz 7. Single
+   * source of truth for cross-lane audio handoff (TH-S4-01 closure — owner
+   * constants in scene-destruction-constants.ts gate every registration).
+   */
+  readonly registerOwnedAudio: (owner: string, handle: DestructionOwnedAudioHandle) => void;
+  /**
+   * Sprint 5 — retrieve a previously registered handle by owner constant.
+   * Returns `undefined` if no handle has been registered under that owner
+   * (caller should treat absence as "phase ran without instantiating this
+   * surface", e.g. reduced-motion fast-path).
+   */
+  readonly getOwnedAudio: (owner: string) => DestructionOwnedAudioHandle | undefined;
   /** Stop tinnitus, remove lowpass, unload Howl. Safe to call twice. */
   readonly dispose: () => void;
 }
@@ -136,13 +177,33 @@ export function mountDestructionAudio(
   const lowpass = buildLowPassBranch(ctx, tap);
   const bang = buildBangBranch(ctx, tap.master);
   const chord = buildChordBranch(ctx, tap.master);
+  const audioPool = new Map<string, DestructionOwnedAudioHandle>();
 
   return {
     playBang: bang.play,
     startTinnitus: tinnitus.start,
     applyLowPass: lowpass.apply,
     playNativeChord: (os: 'mac' | 'win'): void => chord.play(os),
+    context: ctx,
+    destination: tap.master,
+    registerOwnedAudio: (owner, handle): void => {
+      audioPool.set(owner, handle);
+    },
+    getOwnedAudio: (owner): DestructionOwnedAudioHandle | undefined =>
+      audioPool.get(owner),
     dispose: (): void => {
+      // Sprint 5 owner-pool teardown — every Lane-registered handle disposed
+      // before the Sprint 4 tinnitus + lowpass + bang + chord chain is torn
+      // down. The owner pool is the canonical hand-off site for Faz 4-7
+      // synths; reverse-allocation order preserved.
+      for (const handle of audioPool.values()) {
+        try {
+          handle.dispose();
+        } catch (err) {
+          log.warn('destruction-audio: owned handle dispose threw', err);
+        }
+      }
+      audioPool.clear();
       tinnitus.stop();
       lowpass.dispose();
       bang.dispose();
@@ -515,6 +576,30 @@ export interface ElectricalTickHandle {
 }
 
 /**
+ * Electrical-buzz handle — Faz 5 disk-format 60Hz ambient mains-hum layer.
+ * Sine fundamental + 120Hz/180Hz harmonics at -12dB; low-pass-rolled so the
+ * read is "felt-not-heard rumble" (designer §15). Sits underneath the
+ * Sprint 4 700Hz global low-pass so the buzz survives the filter intact.
+ *
+ * Owner: faz5-disk-format.ts (ELECTRICAL_BUZZ_AUDIO_OWNER decree). Faz 5
+ * constructs + registers; Faz 6 entry dispose-chains it via the audio
+ * pool teardown (no cross-faz consumer — single-faz lifecycle).
+ *
+ * Reduced-motion: amplitude -6dB at start; full amplitude otherwise.
+ */
+export interface ElectricalBuzzHandle {
+  readonly kind: 'electrical-buzz';
+  /** Start the 60Hz oscillator + ramp to peak gain. Idempotent. */
+  start(): void;
+  /** Set output linear gain (0-1). */
+  setGain(linear: number): void;
+  /** Stop the oscillator. Safe to call before start (no-op). */
+  stop(): void;
+  /** Disconnect + free nodes. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
  * Factory for HDDGrindHandle. Constructed from AudioContext; Lane A wires
  * the brown-noise generator + band-pass + LFO punch chain in Phase 2B.
  *
@@ -542,28 +627,14 @@ export function createFanOverdriveHandle(
   throw new Error('TODO Sprint 5 Lane A: createFanOverdriveHandle not implemented');
 }
 
-/**
- * Factory for BSODBeepHandle. Square wave + ADSR.
- *
- * Phase 1 stub throws — Lane B MUST replace before any caller hits this.
- */
-export function createBSODBeepHandle(
-  _context: AudioContext,
-  _destination: GainNode,
-): BSODBeepHandle {
-  // TODO Sprint 5 Lane B: square wave 800Hz, 200ms, ADSR (5/0/1/195ms).
-  throw new Error('TODO Sprint 5 Lane B: createBSODBeepHandle not implemented');
-}
+/* ------------------------------------------------------------------------ */
+/* Faz 6 + Faz 7 synth factories — Lane B owns; extracted to its own file   */
+/* (destruction-audio-faz67.ts) to keep this module under the 400-line cap. */
+/* Re-exported here so callers can `import { createBSODBeepHandle } from    */
+/* '../audio/destruction-audio'` without knowing about the split.           */
+/* ------------------------------------------------------------------------ */
 
-/**
- * Factory for ElectricalTickHandle. Low-pass-filtered click loop.
- *
- * Phase 1 stub throws — Lane B MUST replace before any caller hits this.
- */
-export function createElectricalTickHandle(
-  _context: AudioContext,
-  _destination: GainNode,
-): ElectricalTickHandle {
-  // TODO Sprint 5 Lane B: low-pass-filtered click @ 0.5Hz.
-  throw new Error('TODO Sprint 5 Lane B: createElectricalTickHandle not implemented');
-}
+export {
+  createBSODBeepHandle,
+  createElectricalTickHandle,
+} from './destruction-audio-faz67';
