@@ -529,11 +529,42 @@
 
 /* ----- SPRINT 5 — FAZ 4 PROGRESS DIALOG ----- */
 .faz4-progress-dialog {
-  /* TODO Sprint 5 Lane C/D: Finder-style sheet (Mac) /
-   * File Explorer copy-dialog (Win) per directive §4.2. */
+  /* Shared sheet scaffolding — Mac + Win overlap on positioning/elevation. */
+  pointer-events: auto;
 }
-.faz4-mac-progress-dialog {
-  /* TODO Sprint 5 Lane C: Mac variant overrides. */
+
+/* Mac Finder-style sheet (Lane C — swift-expert):
+ * 480 × 220 white-ish sheet attached at viewport 35% top per Apple HIG
+ * sheet convention. Drop shadow heavier than Sprint 4 §3 dialog because
+ * the sheet sits on the fullscreen Faz 2 takeover, not just a blur. */
+.faz4-progress-dialog.os-mac {
+  background: #ECECEC;
+  color: #1D1D1F;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.faz4-mac-progress-dialog__fill {
+  /* WebKit progress-indicator family — rounded blue fill. Width is
+   * patched in JS via setProgress(); CSS provides the transition. */
+  transition: width 200ms ease-out;
+}
+.faz4-mac-progress-dialog__cancel {
+  /* Greyed cancel button — opacity 0.4, non-interactive. */
+  background: #A0A0A0;
+  color: #FFFFFF;
+  opacity: 0.4;
+  cursor: default;
+  border: none;
+  font-family: inherit;
+}
+.faz4-mac-progress-dialog__filepath {
+  /* Single-line monospace readout. Horizontal scroll cadence is driven by
+   * the runner via setFilePath(); CSS holds the overflow + ellipsis. */
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .faz4-win-progress-dialog {
   /* TODO Sprint 5 Lane D: Win variant overrides. */
@@ -547,8 +578,28 @@
 
 /* ----- SPRINT 5 — FAZ 6 KERNEL PANIC / BSOD ----- */
 .faz6-mac-kernel-panic {
-  /* TODO Sprint 5 Lane C: full-screen #1d1d1f + Helvetica Neue Light text
-   * block (4-lang) + bottom hex panic-log auto-scroll styling. */
+  /* Full-screen #1D1D1F panic surface. Lane C JS injects the inline
+   * dimensions + flex layout; CSS holds typography reference + the
+   * hex-dump fade-out gradient mask declaratively (so reduced-motion
+   * can disable the mask if needed without touching JS). */
+  font-family: -apple-system, 'Helvetica Neue', sans-serif;
+  font-weight: 300;
+  background: #1D1D1F;
+  color: #FFFFFF;
+}
+.faz6-mac-kernel-panic__headline {
+  /* 4-language stack — centred 18px Light per Phase 2A §13. JS sets
+   * font-size + line-gap from constants; CSS holds the centred align. */
+  text-align: center;
+}
+.faz6-mac-kernel-panic__hexdump {
+  /* Top-edge fade-out gradient mask — older lines scroll up and fade
+   * into transparency. Reduced-motion keeps the gradient because the
+   * static-line fallback STILL benefits from the visual fade (the
+   * top lines are decorative content; the bottom lines are the focus). */
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 30%, black 100%);
 }
 .faz6-win-bsod {
   /* TODO Sprint 5 Lane D: full-screen #0078D4 + sad face glyph + stop-code
@@ -557,9 +608,34 @@
 
 /* ----- SPRINT 5 — FAZ 7 BOOTLOOP ----- */
 .faz7-mac-bootloop {
-  /* TODO Sprint 5 Lane C: black background + eaten-apple SVG + progress
-   * bar (freezes at FAZ7_PROGRESS_FREEZE_PERCENT) + ⊘ overlay + "No
-   * bootable OS found" caption. */
+  /* Full-screen black backdrop hosting apple SVG + progress bar + ⊘
+   * overlay. Three discrete states are driven by `.state-apple-loading`
+   * / `.state-frozen` / `.state-no-boot` classes on the root, set by
+   * setState() from the runner. */
+  background: #000000;
+  color: #FFFFFF;
+  font-family: -apple-system, 'Helvetica Neue', sans-serif;
+  font-weight: 300;
+}
+.faz7-mac-bootloop__fill {
+  /* Width transition for the 0% → driftPct ramp during apple-loading.
+   * Reduced-motion overrides via the @media block below. */
+  transition: width 800ms ease-out;
+}
+.faz7-mac-bootloop__apple {
+  /* Opacity transition for the apple-loading → no-boot fade (0.3). */
+  transition: opacity 200ms ease-out;
+}
+.faz7-mac-bootloop__noentry {
+  /* ⊘ no-entry block — appears in no-boot state, hidden otherwise. */
+  transition: opacity 200ms ease-out;
+}
+.faz7-mac-bootloop.state-apple-loading .faz7-mac-bootloop__noentry,
+.faz7-mac-bootloop.state-frozen .faz7-mac-bootloop__noentry {
+  display: none;
+}
+.faz7-mac-bootloop.state-no-boot .faz7-mac-bootloop__bar {
+  display: none;
 }
 .faz7-win-bios-bootloop {
   /* TODO Sprint 5 Lane D: mavi BIOS screen + caption + restart-pending
@@ -572,15 +648,43 @@
  * has a reduced-motion override (Sprint 4 carry-forward Lesson 6 — a11y
  * matrix is cross-system invariant). */
 @media (prefers-reduced-motion: reduce) {
-  /* TODO Sprint 5 Lane A: Faz 4 progress regression — no change
-   * (functional cue), but ensure no decorative transition fights it.
-   * TODO Sprint 5 Lane A: Faz 4 file-path scroll → cap at 1/4 cadence.
-   * TODO Sprint 5 Lane A: Faz 5 disk-format screen → still functional;
-   * just ensure no decorative transitions.
-   * TODO Sprint 5 Lane C: Faz 6 Mac hex-dump auto-scroll → pause.
-   * TODO Sprint 5 Lane D: Faz 6 Win frowny flicker → solid (no flicker).
-   * TODO Sprint 5 Lane C: Faz 7 Mac progress drift → hold at freeze%.
-   * TODO Sprint 5 Lane D: Faz 7 Win restart-pending flash → instant.
-   * TODO Sprint 5 Lane A: Bleed #3 strobe → 0.4sn opacity 0.5 hold.
-   * TODO Sprint 5 Lane B: Bleed #4 strobe → 0.8sn opacity 0.6 hold. */
+  /* Lane C — Faz 4 Mac progress dialog (matrix rows 23-27):
+   *   row 23: progress bar regression — bar still receives setter calls
+   *           (functional cue) but the WIDTH TRANSITION is disabled so
+   *           updates snap rather than ease.
+   *   row 27: file-path readout horizontal scroll — JS bypass (no
+   *           marquee declared in CSS); ensure no decorative transition. */
+  .faz4-mac-progress-dialog__fill {
+    transition: none;
+  }
+  .faz4-mac-progress-dialog__filepath {
+    /* Hold single static line — JS already gates the scroll cadence;
+     * the rule here is defence-in-depth against any decorative animation
+     * a future lane might add. */
+    animation: none;
+  }
+
+  /* Lane C — Faz 6 Mac kernel panic (matrix row 31):
+   *   row 30: 4-language headline naturally static — no gate needed.
+   *   row 31: hex panic-log dump scroll → JS does NOT start the
+   *           setInterval under reduced-motion; CSS holds the mask
+   *           gradient so the static block still reads as "log content
+   *           fading off the top edge". */
+  .faz6-mac-kernel-panic__hexdump {
+    /* Container is already static under reduced-motion (no JS interval).
+     * Keep the gradient mask; no animation to disable. */
+    animation: none;
+  }
+
+  /* Lane C — Faz 7 Mac bootloop (matrix row 35):
+   *   row 35: bypass cycle; hold STATE 'no-boot' (⊘ + caption) for the
+   *           full 6-second Faz 7 window. JS mounts directly in no-boot
+   *           and ignores subsequent setState() calls; CSS here disables
+   *           the bar fill / apple opacity / no-entry fade transitions
+   *           so any latent state changes snap rather than ease. */
+  .faz7-mac-bootloop__fill,
+  .faz7-mac-bootloop__apple,
+  .faz7-mac-bootloop__noentry {
+    transition: none;
+  }
 }
