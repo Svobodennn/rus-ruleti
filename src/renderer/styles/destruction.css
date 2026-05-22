@@ -643,6 +643,14 @@
 }
 .faz5-disk-format-screen__stream-line {
   white-space: pre;
+  /* Lane A polish: each line slides 4px up + fades in over 180ms when it
+   * joins the stream. Keyframe-driven so it auto-plays on insertion (no
+   * JS class toggle required). Reduced-motion gate at §830 disables. */
+  animation: faz5-smart-line-fade-in 180ms ease-out 1;
+}
+@keyframes faz5-smart-line-fade-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 /* Mac variant — monospace black with amber emphasis (per Phase 2A §12). */
 .faz5-mac-disk-format {
@@ -667,11 +675,18 @@
   color: #FFAA00;
   font-weight: 600;
   white-space: pre;
+  /* Tighten letter-spacing so the box-drawing characters ═║╔╗╚╝ render
+   * as a continuous frame, not staggered cells. ASCII-art frames in
+   * proportional-but-monospace shipped fonts (Consolas / Cascadia) need
+   * a small negative kerning to close the seams between glyphs. */
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 .faz5-win-disk-format .faz5-disk-format-screen__stream-line.is-amber {
   color: #FFAA00;
   font-weight: 600;
 }
+
 
 /* ----- SPRINT 5 — APARTMENT BLEED #3 (Lane A single-flash) -----
  * Bleed #3 fires INSIDE Faz 5's visible window (at 34000ms — 4sn into
