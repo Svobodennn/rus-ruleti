@@ -50,18 +50,30 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars -- Sprint 5 Lane A fills this stub. */
 
+import type { DestructionAudioHandle } from '../audio/destruction-audio.js';
 import type { OsVariant } from './types.js';
 
-/** Runner arg bag. */
+/**
+ * Runner arg bag. `username` is needed for the Faz 5 disk-format file-path
+ * scrolling readout (S.M.A.R.T. error stream references user-owned paths);
+ * `destructionAudio` is required so this lane can:
+ *  - retrieve the Faz 4 HDD-grind handle via owner-pool getOwnedAudio and
+ *    setVolume to the louder Faz 5 grind reading (designer §15).
+ *  - construct the Faz 5 electrical-buzz handle and register it under
+ *    ELECTRICAL_BUZZ_AUDIO_OWNER.
+ */
 export interface Faz5RunArgs {
   readonly os: OsVariant;
+  readonly username: string;
   readonly container: HTMLElement;
+  readonly destructionAudio: DestructionAudioHandle;
   readonly signal: AbortSignal;
 }
 
 /**
  * Run the Faz 5 disk-format sequence. Resolves at FAZ5_DURATION_MS or
- * earlier on ESC-hold abort. Stub returns immediately.
+ * earlier on ESC-hold abort. Stub returns immediately — replaced by the
+ * next commit's full implementation.
  */
 export async function startFaz5DiskFormat(_args: Faz5RunArgs): Promise<void> {
   // TODO Sprint 5 Lane A: implement disk-format takeover per directive §4.2.
