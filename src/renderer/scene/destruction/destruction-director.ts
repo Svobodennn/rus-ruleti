@@ -356,7 +356,7 @@ async function runFazTakeoverAndTerminal(
     signal,
   });
   if (signal.aborted) return;
-  await runFaz4Through7(runtime, deps, os);
+  await runFaz4Through7(runtime, deps, os, username);
 }
 
 /**
@@ -380,13 +380,14 @@ async function runFaz4Through7(
   runtime: DirectorRuntime,
   deps: DestructionDirectorDeps,
   os: OsVariant,
+  username: string,
 ): Promise<void> {
   const signal = runtime.abortCtrl.signal;
   const container = nonNull(runtime.overlay);
   const destructionAudio = nonNull(runtime.destructionAudio);
-  await startFaz4FileWipe({ os, container, signal });
+  await startFaz4FileWipe({ os, username, container, destructionAudio, signal });
   if (signal.aborted) return;
-  await startFaz5DiskFormat({ os, container, signal });
+  await startFaz5DiskFormat({ os, username, container, destructionAudio, signal });
   if (signal.aborted) return;
   await startFaz6Bsod({ os, container, destructionAudio, signal });
   if (signal.aborted) return;

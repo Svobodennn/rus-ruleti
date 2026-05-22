@@ -599,33 +599,18 @@ export interface ElectricalBuzzHandle {
   dispose(): void;
 }
 
-/**
- * Factory for HDDGrindHandle. Constructed from AudioContext; Lane A wires
- * the brown-noise generator + band-pass + LFO punch chain in Phase 2B.
- *
- * Phase 1 stub throws — Lane A MUST replace before any caller hits this.
- * The factory signature is stable so the call sites can be written first.
- */
-export function createHDDGrindHandle(
-  _context: AudioContext,
-  _destination: GainNode,
-): HDDGrindHandle {
-  // TODO Sprint 5 Lane A: brown-noise band-pass 200-800Hz + 2Hz LFO punch.
-  throw new Error('TODO Sprint 5 Lane A: createHDDGrindHandle not implemented');
-}
+/* ------------------------------------------------------------------------ */
+/* Faz 4 + Faz 5 synth factories — Lane A owns; extracted to its own file   */
+/* (destruction-audio-faz45.ts) to keep this module under the 400-line cap. */
+/* Re-exported here so callers can `import { createHDDGrindHandle } from    */
+/* '../audio/destruction-audio'` without knowing about the split.           */
+/* ------------------------------------------------------------------------ */
 
-/**
- * Factory for FanOverdriveHandle. Pink-noise high-pass + 4sn gain ramp.
- *
- * Phase 1 stub throws — Lane A MUST replace before any caller hits this.
- */
-export function createFanOverdriveHandle(
-  _context: AudioContext,
-  _destination: GainNode,
-): FanOverdriveHandle {
-  // TODO Sprint 5 Lane A: pink-noise HP 1.5kHz + gain ramp 0→0.8 over 4sn.
-  throw new Error('TODO Sprint 5 Lane A: createFanOverdriveHandle not implemented');
-}
+export {
+  createElectricalBuzzHandle,
+  createFanOverdriveHandle,
+  createHDDGrindHandle,
+} from './destruction-audio-faz45';
 
 /* ------------------------------------------------------------------------ */
 /* Faz 6 + Faz 7 synth factories — Lane B owns; extracted to its own file   */
