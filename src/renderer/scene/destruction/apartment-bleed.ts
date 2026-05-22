@@ -24,6 +24,7 @@
 import {
   APARTMENT_BLEED_1_DURATION_MS,
   APARTMENT_BLEED_2_DURATION_MS,
+  APARTMENT_BLEED_3_DURATION_MS,
   APARTMENT_BLEED_4_DURATION_MS,
   APARTMENT_BLEED_4_MASK_BLUR_PX,
   APARTMENT_BLEED_4_OPACITY_MAX,
@@ -125,12 +126,23 @@ function runBleedCycle(
 /* by the single-owner contract.                                              */
 /* ========================================================================== */
 
-/* eslint-disable @typescript-eslint/no-unused-vars -- Sprint 5 Lane A/B fill these stubs. */
-
 /** Shared scheduling options for Sprint 5 bleeds. */
 export interface BleedScheduleOptions {
   readonly signal: AbortSignal;
   readonly hostElement: HTMLElement;
+}
+
+/**
+ * Bleed #3 schedule args — extends BleedScheduleOptions with:
+ *   - `delayMs`: time from `scheduleBleed3()` call until the bleed visually
+ *     fires. PLAN §7 line 278 specifies ~34sn from bang absolute → Faz 4
+ *     entry is 21sn so Faz 4 runner passes delayMs ≈ 13000.
+ *   - `durationMs`: visible duration. PLAN §7 line 278 says 0.4sn; defaults
+ *     to APARTMENT_BLEED_3_DURATION_MS (400ms) when omitted.
+ */
+export interface Bleed3ScheduleOptions extends BleedScheduleOptions {
+  readonly delayMs: number;
+  readonly durationMs?: number;
 }
 
 /**
@@ -150,31 +162,128 @@ export interface Bleed4ScheduleOptions extends BleedScheduleOptions {
   readonly lobbySnapshotDataUrl: string | undefined;
 }
 
+/** Bleed #3 strobe class — engages the 12Hz @keyframes single-flash burst. */
+const BLEED_3_STROBE_CLASS = 'is-bleeding-flash';
+/** Bleed #3 reduced-motion static class — 0.5 opacity hold (no flash). */
+const BLEED_3_STATIC_CLASS = 'is-bleeding-flash-static';
+
 /**
- * Bleed #3 — Faz 4 (file wipe) at ~26sn (5sn into Faz 4). Duration 0.4sn.
+ * Bleed #3 — Faz 4 (file wipe) scheduling at ~26sn into the sequence
+ * (`delayMs` from `scheduleBleed3()` call). Duration 0.4sn —
+ * APARTMENT_BLEED_3_DURATION_MS.
  *
- * Owner: faz4-file-wipe.ts (BLEED_3_OWNER decree — single caller).
+ * Owner: faz4-file-wipe.ts (BLEED_3_OWNER decree — single caller). Phase 3
+ * qa-engineer scans for double-callers; this is the lone scheduling site
+ * per the SSOT.
  *
- * Visual: lobby ampul tek flash söner (single flash, then dark) — softer
- * than the Sprint 4 #1/#2 strobes. Reduced-motion: hold still 0.4sn
- * opacity 0.5 (no flash).
+ * Visual: the SAME `.apartment-bleed-overlay` element the Sprint 4 bleed
+ * #1/#2 strobes use receives the `.is-bleeding-flash` class for the bleed
+ * duration. The @keyframes `apartment-bleed-strobe-flash` (destruction.css
+ * §682) burns a 12Hz strobe across 400ms then holds the trailing frames
+ * dark — reads as "lobby ampul tek flash söner" (single flash, then dark).
  *
- * SPRINT 5 LANE: A — Lane A implements + wires CSS class (.is-bleeding-flash
- * or similar) + reduced-motion @media gate in destruction.css.
+ * Reduced-motion: `.is-bleeding-flash-static` is added instead (opacity 0.5
+ * hold for the bleed duration, no animation). The CSS @media gate at
+ * destruction.css §830 enforces this defensively even if the strobe class
+ * was added by mistake.
  *
- * TODO Sprint 5 Lane A: implement single-flash visual + matchMedia gate
- * + AbortSignal teardown + APARTMENT_BLEED_3_DURATION_MS constant
- * (designer Phase 2A adds the constant if not pre-declared).
+ * AbortSignal teardown:
+ *   - If aborted before the timer fires: clearTimeout fires; class never added.
+ *   - If aborted during the flash: removeTimer cancels + the class is
+ *     forcibly stripped so the overlay does not leak into Faz 5/6.
  */
 export function scheduleBleed3(
-  _opts: BleedScheduleOptions,
+  opts: Bleed3ScheduleOptions,
 ): ApartmentBleedHandle {
-  // TODO Sprint 5 Lane A: implement single-flash bleed per spec.
-  const noop = (): void => undefined;
-  return {
-    triggerBleed: async (): Promise<void> => undefined,
-    dispose: noop,
+  const state: Bleed3State = {
+    disposed: false,
+    triggerTimeoutId: null,
+    removeTimeoutId: null,
+    appliedClass: null,
   };
+  const teardown = (): void => disposeBleed3(state);
+  opts.signal.addEventListener('abort', teardown, { once: true });
+
+  const trigger = async (): Promise<void> => {
+    if (state.disposed || opts.signal.aborted) return;
+    await runBleed3Cycle(state, opts);
+  };
+
+  state.triggerTimeoutId = window.setTimeout((): void => {
+    state.triggerTimeoutId = null;
+    void trigger();
+  }, opts.delayMs);
+
+  return {
+    triggerBleed: async (): Promise<void> => {
+      await trigger();
+    },
+    dispose: teardown,
+  };
+}
+
+/** Bleed #3 mutable runtime state. */
+interface Bleed3State {
+  disposed: boolean;
+  triggerTimeoutId: ReturnType<typeof setTimeout> | null;
+  removeTimeoutId: ReturnType<typeof setTimeout> | null;
+  appliedClass: string | null;
+}
+
+/**
+ * Apply the strobe (or static) class to the shared `.apartment-bleed-overlay`
+ * for the bleed duration, then strip it. Resolves at end of the cycle or
+ * abort. The overlay is queried at trigger time so the function tolerates
+ * the overlay being mounted after `scheduleBleed3` returns (Faz 0 timing
+ * race protection).
+ */
+function runBleed3Cycle(
+  state: Bleed3State,
+  opts: Bleed3ScheduleOptions,
+): Promise<void> {
+  const overlay = document.querySelector<HTMLDivElement>('.apartment-bleed-overlay');
+  if (overlay === null) return Promise.resolve();
+  const reducedMotion = window.matchMedia(PREFERS_REDUCED_MOTION_QUERY).matches;
+  const className = reducedMotion ? BLEED_3_STATIC_CLASS : BLEED_3_STROBE_CLASS;
+  /* Force reflow so the class swap re-fires the @keyframes from frame 0. */
+  overlay.classList.remove(BLEED_3_STROBE_CLASS, BLEED_3_STATIC_CLASS);
+  void overlay.offsetWidth;
+  overlay.classList.add(className);
+  state.appliedClass = className;
+  const durationMs = opts.durationMs ?? APARTMENT_BLEED_3_DURATION_MS;
+  return new Promise<void>((resolve): void => {
+    state.removeTimeoutId = window.setTimeout((): void => {
+      state.removeTimeoutId = null;
+      stripBleed3Class(overlay, state);
+      resolve();
+    }, durationMs);
+  });
+}
+
+/** Remove whichever bleed3 class is currently applied to the overlay. */
+function stripBleed3Class(overlay: HTMLDivElement, state: Bleed3State): void {
+  overlay.classList.remove(BLEED_3_STROBE_CLASS, BLEED_3_STATIC_CLASS);
+  state.appliedClass = null;
+}
+
+/** Full dispose: clear all timers, strip class if applied. */
+function disposeBleed3(state: Bleed3State): void {
+  if (state.disposed) return;
+  state.disposed = true;
+  if (state.triggerTimeoutId !== null) {
+    window.clearTimeout(state.triggerTimeoutId);
+    state.triggerTimeoutId = null;
+  }
+  if (state.removeTimeoutId !== null) {
+    window.clearTimeout(state.removeTimeoutId);
+    state.removeTimeoutId = null;
+  }
+  if (state.appliedClass !== null) {
+    const overlay = document.querySelector<HTMLDivElement>('.apartment-bleed-overlay');
+    if (overlay !== null) {
+      stripBleed3Class(overlay, state);
+    }
+  }
 }
 
 /** Bleed #4 overlay element class — destruction.css owns the styling. */

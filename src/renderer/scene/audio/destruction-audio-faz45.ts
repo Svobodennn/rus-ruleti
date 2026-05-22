@@ -81,17 +81,17 @@ function buildNoiseBuffer(
 
 /** Inline pink-noise IIR (Voss-McCartney 6-pole approximation). */
 function fillPinkNoise(data: Float32Array): void {
-  const b = [0, 0, 0, 0, 0, 0, 0];
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
   for (let i = 0; i < data.length; i += 1) {
     const white = Math.random() * 2 - 1;
-    b[0] = 0.99886 * b[0] + white * 0.0555179;
-    b[1] = 0.99332 * b[1] + white * 0.0750759;
-    b[2] = 0.969 * b[2] + white * 0.153852;
-    b[3] = 0.8665 * b[3] + white * 0.3104856;
-    b[4] = 0.55 * b[4] + white * 0.5329522;
-    b[5] = -0.7616 * b[5] - white * 0.016898;
-    data[i] = (b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + white * 0.5362) * 0.11;
-    b[6] = white * 0.115926;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.969 * b2 + white * 0.153852;
+    b3 = 0.8665 * b3 + white * 0.3104856;
+    b4 = 0.55 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.016898;
+    data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    b6 = white * 0.115926;
   }
 }
 
