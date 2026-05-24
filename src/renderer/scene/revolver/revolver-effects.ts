@@ -239,8 +239,6 @@ function triggerBangOverlay(overlay: HTMLElement): void {
       detail: { timestamp: performance.now() },
     }),
   );
-  // eslint-disable-next-line no-console -- TEMP DIAGNOSTIC for BANG → destruction bug
-  console.log('[DIAG-BANG] CustomEvent dispatched on document', { timestamp: performance.now() });
 }
 
 /** Empty sequence — flicker bulb, darken, increment cues, update counter. */
