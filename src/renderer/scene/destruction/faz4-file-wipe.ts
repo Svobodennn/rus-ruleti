@@ -29,6 +29,7 @@
 
 import {
   APARTMENT_BLEED_3_TRIGGER_MS,
+  BLEED_3_OWNER,
   FAKE_FILE_PATHS_MAC,
   FAKE_FILE_PATHS_WIN,
   FAZ4_DURATION_MS,
@@ -105,6 +106,7 @@ export async function startFaz4FileWipe(args: Faz4RunArgs): Promise<void> {
   const dialog = mountProgressDialog(args);
   const audio = registerFaz4Audio(args.destructionAudio);
   const bleed3 = scheduleBleed3({
+    caller: BLEED_3_OWNER,
     signal: args.signal,
     hostElement: args.container,
     delayMs: FAZ4_BLEED3_TRIGGER_MS,
@@ -192,10 +194,10 @@ function startFaz4Timers(
   };
   applyInitialETA(dialog, state);
   return [
-    spawnProgressRegressionTimer(dialog, state),
-    spawnItemsRemainingTimer(dialog, state),
-    spawnEtaGrowthTimer(dialog, state),
-    spawnFilePathScrollTimer(dialog, args.os, args.username),
+    spawnProgressRegressionTimer(dialog, state, args.signal),
+    spawnItemsRemainingTimer(dialog, state, args.signal),
+    spawnEtaGrowthTimer(dialog, state, args.signal),
+    spawnFilePathScrollTimer(dialog, args.os, args.username, args.signal),
   ];
 }
 
@@ -215,8 +217,10 @@ function applyInitialETA(
 function spawnProgressRegressionTimer(
   dialog: MacProgressDialogHandle | WinProgressDialogHandle,
   state: ProgressState,
+  signal: AbortSignal,
 ): number {
   return window.setInterval((): void => {
+    if (signal.aborted) return;
     const delta = randInt(FAZ4_PROGRESS_DECREMENT_MIN, FAZ4_PROGRESS_DECREMENT_MAX);
     state.progress = Math.max(FAZ4_PROGRESS_FLOOR_PERCENT, state.progress - delta);
     dialog.setProgress(state.progress);
@@ -227,8 +231,10 @@ function spawnProgressRegressionTimer(
 function spawnItemsRemainingTimer(
   dialog: MacProgressDialogHandle | WinProgressDialogHandle,
   state: ProgressState,
+  signal: AbortSignal,
 ): number {
   return window.setInterval((): void => {
+    if (signal.aborted) return;
     const delta = randInt(FAZ4_ITEMS_DELTA_MIN, FAZ4_ITEMS_DELTA_MAX);
     state.items = Math.max(0, state.items + delta);
     dialog.setItemsRemaining(state.items);
@@ -239,8 +245,10 @@ function spawnItemsRemainingTimer(
 function spawnEtaGrowthTimer(
   dialog: MacProgressDialogHandle | WinProgressDialogHandle,
   state: ProgressState,
+  signal: AbortSignal,
 ): number {
   return window.setInterval((): void => {
+    if (signal.aborted) return;
     state.etaIdx = (state.etaIdx + 1) % FAZ4_ETA_GROWTH_STEPS.length;
     const step = FAZ4_ETA_GROWTH_STEPS[state.etaIdx];
     if (step !== undefined) {
@@ -254,10 +262,12 @@ function spawnFilePathScrollTimer(
   dialog: MacProgressDialogHandle | WinProgressDialogHandle,
   os: OsVariant,
   username: string,
+  signal: AbortSignal,
 ): number {
   const paths = os === 'mac' ? FAKE_FILE_PATHS_MAC : FAKE_FILE_PATHS_WIN;
   const next = createPathGenerator(paths, username, USERNAME_PLACEHOLDER);
   return window.setInterval((): void => {
+    if (signal.aborted) return;
     const path = next();
     if (path !== undefined) {
       dialog.setFilePath(path);

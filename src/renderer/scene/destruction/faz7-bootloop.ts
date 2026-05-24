@@ -51,9 +51,14 @@ import {
   BOOTLOOP_CYCLE_TIMER_OWNER,
   ELECTRICAL_TICK_AUDIO_OWNER,
   FAZ7_DURATION_MS,
+  FAZ7_MAC_APPLE_LOADING_MS,
+  FAZ7_MAC_FROZEN_MS,
+  FAZ7_MAC_NO_BOOT_MS,
   FAZ7_PROGRESS_DRIFT_RANGE,
+  FAZ7_WIN_NO_BOOT_MS,
+  FAZ7_WIN_RESTART_PENDING_MS,
   PREFERS_REDUCED_MOTION_QUERY,
-} from '../../../shared/scene-destruction-constants';
+} from '../../../shared/scene-destruction-constants.js';
 import {
   createElectricalTickHandle,
   type DestructionAudioHandle,
@@ -70,13 +75,6 @@ import type {
 
 /** Bleed #4 trigger offset within Faz 7 — 3 sec in (PLAN §7 line 288 → 48sn absolute). */
 const BLEED_4_FAZ7_OFFSET_MS = 3000;
-/** Mac state durations within a 3sn cycle — apple-loading + frozen + no-boot. */
-const MAC_APPLE_LOADING_MS = 1000;
-const MAC_FROZEN_MS = 1000;
-const MAC_NO_BOOT_MS = 1000;
-/** Win state durations within a 3sn cycle — no-boot + restart-pending. */
-const WIN_NO_BOOT_MS = 2000;
-const WIN_RESTART_PENDING_MS = 1000;
 /** Reduced-motion fallback: mount one bootloop screen, hold final state. */
 const REDUCED_MOTION_HOLD_STATE_MAC = 'no-boot' as const;
 const REDUCED_MOTION_HOLD_STATE_WIN = 'no-boot' as const;
@@ -163,6 +161,7 @@ function scheduleBleed4WithLog(args: Faz7RunArgs): ApartmentBleedHandle {
     `owner=${BLEED_4_OWNER}`,
   );
   return scheduleBleed4({
+    caller: BLEED_4_OWNER,
     hostElement: args.container,
     signal: args.signal,
     variant: 'revolver-on-table',
@@ -276,13 +275,13 @@ async function runMacCycle(
 ): Promise<void> {
   screen.setState('apple-loading');
   screen.setProgressDrift(driftPct);
-  await sleep(MAC_APPLE_LOADING_MS, signal);
+  await sleep(FAZ7_MAC_APPLE_LOADING_MS, signal);
   if (signal.aborted) return;
   screen.setState('frozen');
-  await sleep(MAC_FROZEN_MS, signal);
+  await sleep(FAZ7_MAC_FROZEN_MS, signal);
   if (signal.aborted) return;
   screen.setState('no-boot');
-  await sleep(MAC_NO_BOOT_MS, signal);
+  await sleep(FAZ7_MAC_NO_BOOT_MS, signal);
 }
 
 /**
@@ -296,10 +295,10 @@ async function runWinCycle(
   signal: AbortSignal,
 ): Promise<void> {
   screen.setState('no-boot');
-  await sleep(WIN_NO_BOOT_MS, signal);
+  await sleep(FAZ7_WIN_NO_BOOT_MS, signal);
   if (signal.aborted) return;
   screen.setState('restart-pending');
-  await sleep(WIN_RESTART_PENDING_MS, signal);
+  await sleep(FAZ7_WIN_RESTART_PENDING_MS, signal);
 }
 
 /* ------------------------------------------------------------------------ */

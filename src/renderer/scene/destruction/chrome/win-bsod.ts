@@ -54,7 +54,7 @@
  *   - QR PNG is the SOLE bundled "branded-adjacent" asset; it carries
  *     URL TEXT, not Microsoft IP (S8 closure per directive §3 risk S8).
  *
- * Called by:
+ * WHO CALLS THIS:
  *   - faz6-bsod.ts when os === 'win':
  *     `const handle = mountWinBsod({...}); handle.startFrownyFlicker();`
  */

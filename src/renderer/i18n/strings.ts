@@ -280,6 +280,7 @@ export const STRINGS = {
         win: {
           headline: 'Загрузочное устройство не найдено',
           action: 'Нажмите F1 для повтора, F2 для настройки',
+          restarting: 'Перезапуск…',
         },
       },
     },
@@ -450,6 +451,7 @@ export const STRINGS = {
         win: {
           headline: 'Önyüklenebilir aygıt bulunamadı',
           action: 'F1 ile tekrarla, F2 ile ayarlara gir',
+          restarting: 'Yeniden başlatılıyor…',
         },
       },
     },

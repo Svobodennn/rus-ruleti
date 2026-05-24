@@ -52,7 +52,7 @@ import {
   TINNITUS_AMPLITUDE_DB,
   TINNITUS_AMPLITUDE_REDUCED_MOTION_DB,
   TINNITUS_FREQ_HZ,
-} from '../../../shared/scene-destruction-constants';
+} from '../../../shared/scene-destruction-constants.js';
 
 /** Lowpass Q factor — designer §7 specifies 1.0 (12dB/octave). */
 const LOW_PASS_Q = 1.0;

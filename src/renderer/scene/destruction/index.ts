@@ -45,4 +45,4 @@ export { mountWinBsod } from './chrome/win-bsod.js';
 export { mountWinProgressDialog } from './chrome/win-progress-dialog.js';
 export { mountWinBiosBootloop } from './chrome/win-bios-bootloop.js';
 export { scheduleBleed3, scheduleBleed4 } from './apartment-bleed.js';
-export type { BleedScheduleOptions, Bleed4ScheduleOptions } from './apartment-bleed.js';
+export type { BleedScheduleOptions, Bleed3ScheduleOptions, Bleed4ScheduleOptions } from './apartment-bleed.js';

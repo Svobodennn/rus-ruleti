@@ -27,8 +27,8 @@ import {
   FAZ6_BSOD_BEEP_SUSTAIN_LEVEL,
   FAZ7_ELECTRICAL_TICK_HZ,
   PREFERS_REDUCED_MOTION_QUERY,
-} from '../../../shared/scene-destruction-constants';
-import type { BSODBeepHandle, ElectricalTickHandle } from './destruction-audio';
+} from '../../../shared/scene-destruction-constants.js';
+import type { BSODBeepHandle, ElectricalTickHandle } from './destruction-audio.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */

@@ -101,18 +101,17 @@ const ASCII_BOX_HORIZONTAL_LEN = 64;
  */
 export async function startFaz5DiskFormat(args: Faz5RunArgs): Promise<void> {
   if (args.signal.aborted) return;
-  const screen = mountDiskFormatScreen(args.os, args.container);
+  const screen = mountDiskFormatScreen(args.os);
   args.container.appendChild(screen.root);
   // Show after the next frame so the opacity transition runs.
   requestAnimationFrame((): void => {
     screen.root.classList.add('is-visible');
   });
   boostHDDGrind(args.destructionAudio);
-  const buzz = startElectricalBuzz(args.destructionAudio);
+  startElectricalBuzz(args.destructionAudio);
   const timers = startFaz5Timers(screen, args);
   await waitForFaz5End(args.signal);
   timers.forEach((id): void => clearInterval(id));
-  void buzz;
   // NB: electrical-buzz handle stays alive in the owner pool — Faz 6's
   // silence cascade calls stop(). We dispose only the screen here.
   screen.root.remove();
@@ -132,7 +131,6 @@ interface DiskFormatScreen {
 /** Build the OS-specific disk-format full-screen takeover and return refs. */
 function mountDiskFormatScreen(
   os: OsVariant,
-  _container: HTMLElement,
 ): DiskFormatScreen {
   const locale = resolveUserLocale();
   const root = buildRootElement(os);
@@ -273,14 +271,19 @@ function startFaz5Timers(screen: DiskFormatScreen, args: Faz5RunArgs): number[] 
     ? FAZ5_SMART_ERROR_INTERVAL_MS * 2
     : FAZ5_SMART_ERROR_INTERVAL_MS;
   return [
-    spawnSectorCounterTimer(screen, state),
-    spawnSmartErrorStreamTimer(screen, state, args.os, smartIntervalMs),
+    spawnSectorCounterTimer(screen, state, args.signal),
+    spawnSmartErrorStreamTimer(screen, state, args.os, smartIntervalMs, args.signal),
   ];
 }
 
 /** Sector counter: increment FAZ5_SECTOR_INCREMENT_PER_TICK every 100ms. */
-function spawnSectorCounterTimer(screen: DiskFormatScreen, state: SectorState): number {
+function spawnSectorCounterTimer(
+  screen: DiskFormatScreen,
+  state: SectorState,
+  signal: AbortSignal,
+): number {
   return window.setInterval((): void => {
+    if (signal.aborted) return;
     state.current += FAZ5_SECTOR_INCREMENT_PER_TICK;
     screen.sectorNode.textContent = formatSectorLine(
       screen.sectorTemplate,
@@ -296,6 +299,7 @@ function spawnSmartErrorStreamTimer(
   state: SectorState,
   os: OsVariant,
   intervalMs: number,
+  signal: AbortSignal,
 ): number {
   const locale = resolveUserLocale();
   const templates: readonly LocaleKey[] = [
@@ -305,6 +309,7 @@ function spawnSmartErrorStreamTimer(
     buildKey('smartError4', os),
   ];
   return window.setInterval((): void => {
+    if (signal.aborted) return;
     const key = templates[state.smartIdx % templates.length];
     state.smartIdx += 1;
     if (key === undefined) return;

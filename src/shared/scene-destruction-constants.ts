@@ -599,6 +599,13 @@ export const FAZ6_FROWNY_FLICKER_HZ = 5;
 export const FAZ6_BSOD_BEEP_HZ = 800;
 /** BSOD beep duration. PLAN §7 line 283: classic short beep. */
 export const FAZ6_BSOD_BEEP_MS = 200;
+/**
+ * Fan-overdrive peak gain held during Faz 6 — designer §15 "peak fan rpm,
+ * locked". Lane A's createFanOverdriveHandle ramps to 0.8; Faz 6 nudges to
+ * 0.9 to make the final silence more dramatic against the locked peak.
+ * This is the audio composition pivot for the silence cascade pre-load.
+ */
+export const FAZ6_FAN_OVERDRIVE_PEAK_GAIN = 0.9;
 
 /* ------------------------------------------------------------------------ */
 /* Faz 7 — Bootloop (44-50sn)                                               */
@@ -608,8 +615,29 @@ export const FAZ6_BSOD_BEEP_MS = 200;
 export const FAZ7_DURATION_MS = 6000;
 /** Faz 7 start offset from bang (cumulative end of Faz 6). */
 export const FAZ7_START_MS = 44000;
-/** Bootloop cycle length. PLAN §7 line 287: "3sn sonra otomatik tekrar". */
-export const FAZ7_CYCLE_MS = 3000;
+
+/**
+ * Mac state-machine per-cycle durations — designer §14 mandate.
+ * "apple-loading 1sn → frozen 1sn → no-boot 1sn" per PLAN §7 line 286.
+ */
+export const FAZ7_MAC_APPLE_LOADING_MS = 1000;
+export const FAZ7_MAC_FROZEN_MS = 1000;
+export const FAZ7_MAC_NO_BOOT_MS = 1000;
+
+/**
+ * Win state-machine per-cycle durations — designer §14 mandate.
+ * "no-boot 2sn + restart-pending 1sn" per PLAN §7 line 287.
+ */
+export const FAZ7_WIN_NO_BOOT_MS = 2000;
+export const FAZ7_WIN_RESTART_PENDING_MS = 1000;
+
+/**
+ * Bootloop cycle length — derived from Mac state-machine sum so the
+ * invariant (1000+1000+1000=3000) is structurally enforced, not just
+ * documented. PLAN §7 line 287: "3sn sonra otomatik tekrar".
+ */
+export const FAZ7_CYCLE_MS =
+  FAZ7_MAC_APPLE_LOADING_MS + FAZ7_MAC_FROZEN_MS + FAZ7_MAC_NO_BOOT_MS;
 /**
  * Mac progress-bar freeze position. PLAN §7 line 286: "yarıda donar" —
  * designer interpretation: ~40% gives "almost reached the halfway

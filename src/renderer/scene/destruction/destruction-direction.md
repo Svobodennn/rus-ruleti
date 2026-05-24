@@ -1571,10 +1571,10 @@ The cycle (per PLAN §7 line 277):
 3. `WARN: SSD wear level 142%` — white text, regular.
 
 Cycle repeats throughout Faz 5 (~7-8 lines visible at end).
-Implementation: i18n keys per Lane 0 (`STRINGS.destruction.faz5.smartErrors[*]`)
-allow translation of "Bad sector" / "Reallocating" / "drive failing" /
-"wear level" into Russian + Turkish (the literal English form survives
-as the third fallback if locale is unmapped).
+Implementation: i18n keys per Lane 0 (`STRINGS.destruction.faz5.{mac,win}.smartError1`
+through `smartError4`) allow translation of "Bad sector" / "Reallocating" /
+"drive failing" / "wear level" into Russian + Turkish (the literal English
+form survives as the third fallback if locale is unmapped).
 
 ### Win variant — BIOS-blue monospace dump
 
@@ -1669,11 +1669,11 @@ Bilgisayarınızı yeniden başlatın.
 - EN line is ALWAYS the literal "You need to restart your computer."
   (presentation-string, not locale-switched).
 - JP line is ALWAYS the literal Japanese (presentation-string).
-- RU line is locale-switched: `STRINGS.destruction.faz6.mac.panic.ru`.
+- RU line is locale-switched: `STRINGS.destruction.faz6.mac.panicHeadlineRu`.
   If runtime locale is Russian, this is "Перезагрузите компьютер."; if
   runtime locale is Turkish, the same key still renders Russian
   (the panic stays multilingual regardless of UI language).
-- TR line is locale-switched the same way: `STRINGS.destruction.faz6.mac.panic.tr`.
+- TR line is locale-switched the same way: `STRINGS.destruction.faz6.mac.panicHeadlineTr`.
 
 The runtime-locale switching of RU/TR is a hint to the Russian or
 Turkish player that the game KNOWS their locale (the user picked
@@ -2069,9 +2069,9 @@ what they can and cannot deviate from.
 - 4-language Mac kernel panic block ordering: EN → JP → RU → TR (§13).
 - EN + JP lines are presentation-constants (literal strings, NOT
   locale-switched).
-- RU + TR lines are locale-switched via `STRINGS.destruction.faz6.mac.panic.{ru,tr}`.
+- RU + TR lines are locale-switched via `STRINGS.destruction.faz6.mac.panicHeadline{Ru,Tr}`.
 - Faz 5 S.M.A.R.T. error lines have RU + TR translations
-  (`STRINGS.destruction.faz5.smartErrors[*]`).
+  (`STRINGS.destruction.faz5.{mac,win}.smartError1` through `smartError4`).
 - Faz 4 progress dialog title strings (Mac "Securely erasing disk…",
   Win "File Explorer — Removing files…") and Cancel button label
   per locale.

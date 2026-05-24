@@ -48,7 +48,7 @@
  *     four squares (NOT the real Microsoft Windows logo).
  *   - Segoe UI Variable / Cascadia Code: system stack fallbacks ONLY.
  *
- * Called by:
+ * WHO CALLS THIS:
  *   - faz4-file-wipe.ts when os === 'win':
  *     `const dlg = mountWinProgressDialog({...});
  *      dlg.setProgress(80); dlg.setFilePath('removed C:\\…'); …`

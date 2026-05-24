@@ -50,7 +50,7 @@
  *     header line as flavour.
  *   - NO Consolas / Cascadia Code bundled — system stack fallback only.
  *
- * Called by:
+ * WHO CALLS THIS:
  *   - faz7-bootloop.ts when os === 'win':
  *     `const handle = mountWinBiosBootloop({...});
  *      handle.setState('no-boot');`
@@ -85,6 +85,11 @@ const WIN_BIOS_BLINK_HZ = 1;
  */
 const EN_HEADLINE_FALLBACK = 'No bootable device';
 const EN_ACTION_FALLBACK = 'Press F1 to retry, F2 for setup';
+/**
+ * Restart indicator EN fallback — keyed as `destruction.faz7.win.restarting`
+ * for locale switching (RU: "Перезапуск…", TR: "Yeniden başlatılıyor…").
+ */
+const EN_RESTARTING_FALLBACK = 'Restarting…';
 /**
  * Header line — designer-fictional but recognisably BIOS-POST family.
  * "American Megatrends Inc." appears as plain monospace text (NOT a
@@ -219,11 +224,12 @@ function createFrameElement(text: string): HTMLPreElement {
  * Build the "Restarting…" indicator. Hidden by default; shown when
  * setState('restart-pending') runs. Under reduced-motion, the blink
  * animation is suppressed so the indicator reads as static.
+ * Text is locale-switched via `destruction.faz7.win.restarting`.
  */
-function createRestartIndicator(reduceMotion: boolean): HTMLDivElement {
+function createRestartIndicator(restartingText: string, reduceMotion: boolean): HTMLDivElement {
   const indicator = document.createElement('div');
   indicator.dataset.role = 'win-bios-restart';
-  indicator.textContent = 'Restarting…';
+  indicator.textContent = restartingText;
   const rs = indicator.style;
   rs.position = 'absolute';
   rs.bottom = '48px';
@@ -247,9 +253,10 @@ export function mountWinBiosBootloop(
   const locale = resolveUserLocale();
   const headline = localise('destruction.faz7.win.headline', locale, EN_HEADLINE_FALLBACK);
   const action = localise('destruction.faz7.win.action', locale, EN_ACTION_FALLBACK);
+  const restarting = localise('destruction.faz7.win.restarting', locale, EN_RESTARTING_FALLBACK);
   const element = createBiosRoot();
   element.appendChild(createFrameElement(composeFrame({ headline, action })));
-  const restartIndicator = createRestartIndicator(reduceMotion);
+  const restartIndicator = createRestartIndicator(restarting, reduceMotion);
   element.appendChild(restartIndicator);
   args.hostElement.appendChild(element);
   let disposed = false;

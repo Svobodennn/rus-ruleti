@@ -27,7 +27,7 @@
 import {
   FAZ5_ELECTRICAL_BUZZ_HZ,
   PREFERS_REDUCED_MOTION_QUERY,
-} from '../../../shared/scene-destruction-constants';
+} from '../../../shared/scene-destruction-constants.js';
 import type {
   ElectricalBuzzHandle,
   FanOverdriveHandle,

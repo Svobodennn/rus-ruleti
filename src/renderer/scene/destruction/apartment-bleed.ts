@@ -33,6 +33,7 @@ import {
   APARTMENT_BLEED_FLICKER_HZ,
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../shared/scene-destruction-constants.js';
+import type { BLEED_3_OWNER, BLEED_4_OWNER } from '../../../shared/scene-destruction-constants.js';
 import type { ApartmentBleedHandle, ApartmentBleedKind } from './types.js';
 
 /* ------------------------------------------------------------------------ */
@@ -134,6 +135,9 @@ export interface BleedScheduleOptions {
 
 /**
  * Bleed #3 schedule args — extends BleedScheduleOptions with:
+ *   - `caller`: owner-decree constant. MUST be `BLEED_3_OWNER` —
+ *     compile-time enforcement that only the designated owner module
+ *     (faz4-file-wipe) can invoke this scheduler.
  *   - `delayMs`: time from `scheduleBleed3()` call until the bleed visually
  *     fires. PLAN §7 line 278 specifies ~34sn from bang absolute → Faz 4
  *     entry is 21sn so Faz 4 runner passes delayMs ≈ 13000.
@@ -141,12 +145,16 @@ export interface BleedScheduleOptions {
  *     to APARTMENT_BLEED_3_DURATION_MS (400ms) when omitted.
  */
 export interface Bleed3ScheduleOptions extends BleedScheduleOptions {
+  readonly caller: typeof BLEED_3_OWNER;
   readonly delayMs: number;
   readonly durationMs?: number;
 }
 
 /**
  * Bleed #4 schedule args — extends BleedScheduleOptions with:
+ *   - `caller`: owner-decree constant. MUST be `BLEED_4_OWNER` —
+ *     compile-time enforcement that only the designated owner module
+ *     (faz7-bootloop) can invoke this scheduler.
  *   - `variant`: discriminator for the revolver-on-table composite (currently
  *     the only Sprint 5 variant; Sprint 6 may add others).
  *   - `delayMs`: time from `scheduleBleed4()` call until the bleed visually
@@ -157,6 +165,7 @@ export interface Bleed3ScheduleOptions extends BleedScheduleOptions {
  *     black-with-overlay flicker (graceful degradation).
  */
 export interface Bleed4ScheduleOptions extends BleedScheduleOptions {
+  readonly caller: typeof BLEED_4_OWNER;
   readonly variant: 'revolver-on-table';
   readonly delayMs: number;
   readonly lobbySnapshotDataUrl: string | undefined;

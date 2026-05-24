@@ -47,9 +47,10 @@ import {
   ELECTRICAL_BUZZ_AUDIO_OWNER,
   FAN_OVERDRIVE_AUDIO_OWNER,
   FAZ6_DURATION_MS,
+  FAZ6_FAN_OVERDRIVE_PEAK_GAIN,
   HDD_GRIND_AUDIO_OWNER,
   PREFERS_REDUCED_MOTION_QUERY,
-} from '../../../shared/scene-destruction-constants';
+} from '../../../shared/scene-destruction-constants.js';
 import {
   createBSODBeepHandle,
   type DestructionAudioHandle,
@@ -68,13 +69,6 @@ const HEX_ADDR_DIGITS = 16;
 const HEX_BYTES_PER_ROW = 16;
 /** Hex-dump rows per page — Lane C scrolls these at FAZ6_HEX_DUMP_LINE_HZ. */
 const HEX_DUMP_ROWS = 80;
-/**
- * Fan-overdrive peak gain held during Faz 6 — designer §15 "peak fan rpm,
- * locked". Lane A's createFanOverdriveHandle ramps to 0.8; Faz 6 nudges to
- * 0.9 to make the final silence more dramatic against the locked peak.
- */
-const FAZ6_FAN_OVERDRIVE_PEAK_GAIN = 0.9;
-
 /** Runner arg bag — director threads destructionAudio so Lane B can co-ord. */
 export interface Faz6RunArgs {
   readonly os: OsVariant;
