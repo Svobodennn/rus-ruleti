@@ -47,7 +47,8 @@ log.transports.console.level = 'debug';
 // (preload wiring is Sprint 1+ work — initialize is idempotent and harmless
 // to call now). spyRendererConsole=false because the renderer has no console
 // transport in Sprint 0; we'll enable it once @i18n-expert wires the disclaimer.
-log.initialize({ preload: false, spyRendererConsole: false });
+/* TEMP DIAGNOSTIC for BANG → destruction bug. Revert in Sprint 6 polish. */
+log.initialize({ preload: false, spyRendererConsole: true });
 
 // Catch uncaught exceptions / unhandled rejections in the main process.
 // Without this the joke app would die silently with no log line on disk.

@@ -37,7 +37,25 @@ export type TriggerOutcome = 'empty' | 'bang';
  * Replacing with rejection sampling is a Sprint 9 polish item if a
  * statistics-savvy reviewer flags it; Phase 1 leaves the simple form.
  */
+
+/**
+ * TEMP DIAGNOSTIC: force-BANG global flag. Set window.__FORCE_BANG__ = true
+ * via the Shift+B key listener (wired in scene/index.ts) to guarantee the
+ * next trigger pull returns 'bang'. Shift+N disarms. Revert in Sprint 6 polish.
+ */
+declare global {
+  interface Window {
+    __FORCE_BANG__?: boolean;
+  }
+}
+
 export function pullTrigger(): TriggerOutcome {
+  // TEMP DIAGNOSTIC: honour force-BANG flag before consulting RNG.
+  const forced = typeof window !== 'undefined' && window.__FORCE_BANG__ === true;
+  if (forced) {
+    window.__FORCE_BANG__ = false; // auto-disarm after one use
+    return 'bang';
+  }
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
   const raw = buffer[0] ?? 0;

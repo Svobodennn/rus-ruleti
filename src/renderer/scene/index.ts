@@ -171,6 +171,8 @@ interface InternalResources {
   disposeResize: () => void;
   disposeQualitySub: () => void;
   disposeQualitySmokeSub: () => void;
+  /** TEMP DIAGNOSTIC: Shift+B / Shift+N key listener disposer. Revert Sprint 6. */
+  disposeForceBangKey: () => void;
 }
 
 /**
@@ -286,6 +288,7 @@ async function buildResources(
     disposeResize: (): void => undefined,
     disposeQualitySub: (): void => undefined,
     disposeQualitySmokeSub: (): void => undefined,
+    disposeForceBangKey: (): void => undefined,
   };
 
   installRuntimeHooks(container, resources);
@@ -383,6 +386,33 @@ function installRuntimeHooks(
       resources.quality.tick();
     },
   );
+
+  // TEMP DIAGNOSTIC: Shift+B arms force-BANG; Shift+N disarms. Revert Sprint 6.
+  resources.disposeForceBangKey = installForceBangCheat();
+}
+
+/**
+ * TEMP DIAGNOSTIC: Install Shift+B / Shift+N keyboard cheat for force-BANG
+ * testing. Revert in Sprint 6 polish.
+ * Shift+B → sets window.__FORCE_BANG__ = true (next trigger pull = BANG).
+ * Shift+N → clears the flag.
+ * Returns a disposer that removes the listener.
+ */
+function installForceBangCheat(): () => void {
+  const handler = (e: KeyboardEvent): void => {
+    if (!e.shiftKey) return;
+    if (e.code === 'KeyB') {
+      window.__FORCE_BANG__ = true;
+      // eslint-disable-next-line no-console -- TEMP DIAGNOSTIC for BANG → destruction bug
+      console.log('[DIAG-BANG] FORCE-BANG armed (next shot = BANG guaranteed)');
+    } else if (e.code === 'KeyN') {
+      window.__FORCE_BANG__ = false;
+      // eslint-disable-next-line no-console -- TEMP DIAGNOSTIC for BANG → destruction bug
+      console.log('[DIAG-BANG] FORCE-BANG disarmed');
+    }
+  };
+  window.addEventListener('keydown', handler);
+  return (): void => { window.removeEventListener('keydown', handler); };
 }
 
 /**
@@ -485,6 +515,7 @@ async function disposeAll(
   resources.disposeResize();
   resources.disposeQualitySub();
   resources.disposeQualitySmokeSub();
+  resources.disposeForceBangKey();
   resources.frameLogger.dispose();
   resources.quality.dispose();
   // Sprint 4 Phase 1: destruction-director dispose first among DOM-touching

@@ -44,6 +44,17 @@
   background: #000;
 }
 
+/* Defensive: destruction-director creates `.destruction-takeover` overlay
+ * inline (not `.destruction-overlay`). This rule guarantees full-screen
+ * pin even if inline styles fail under HMR or unusual CSS cascade. */
+.destruction-takeover {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #000;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Wallpaper                                                                */
 /* ------------------------------------------------------------------------ */

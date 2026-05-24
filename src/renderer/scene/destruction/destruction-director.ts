@@ -172,6 +172,8 @@ function attachBangFiredListener(
   const handler = (ev: Event): void => {
     const detail = (ev as CustomEvent<BangFiredEventDetail>).detail;
     log.info('destruction-director: bang-fired event', detail.timestamp);
+    // eslint-disable-next-line no-console -- TEMP DIAGNOSTIC for BANG → destruction bug
+    console.log('[DIAG-BANG] listener fired, runSequenceOnce called', { detail });
     void runSequenceOnce(runtime, deps);
   };
   runtime.eventHandler = handler;
@@ -237,6 +239,8 @@ async function runSequenceOnce(
   runtime: DirectorRuntime,
   deps: DestructionDirectorDeps,
 ): Promise<void> {
+  // eslint-disable-next-line no-console -- TEMP DIAGNOSTIC for BANG → destruction bug
+  console.log('[DIAG-BANG] runSequenceOnce ENTRY — Faz 0 about to start');
   if (runtime.started || runtime.disposed) return;
   runtime.started = true;
   cancelFallback(runtime);
