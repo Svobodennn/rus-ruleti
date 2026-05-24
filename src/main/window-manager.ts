@@ -58,11 +58,6 @@ export function createMainWindow(): BrowserWindow {
 
   win.once('ready-to-show', () => {
     win.show();
-    // TEMP DIAGNOSTIC for BANG → destruction bug: auto-open DevTools in dev mode
-    // so user can observe [DIAG-BANG] console logs. Revert with commit 92df025.
-    if (isDev) {
-      win.webContents.openDevTools({ mode: 'detach' });
-    }
   });
 
   // Refuse any window.open() attempts from renderer — joke app should not
