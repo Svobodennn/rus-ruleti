@@ -25,8 +25,36 @@ const SCENE_CONTAINER_ID = 'scene-container';
 const HUD_OVERLAY_ID = 'hud-overlay';
 const BANG_OVERLAY_ID = 'bang-overlay';
 
+/**
+ * Sprint 6 — R-key restart binding for the Faz 8 son-ekran closing
+ * tableau. Top-level keydown listener attached when the scene mounts;
+ * the handler gates on
+ * `destructionDirector.getState().kind === 'faz8-son-ekran'` so the R
+ * key is INERT at every other point in the destruction sequence
+ * (including the lobby, where the user may type R freely).
+ *
+ * KIOSK SAFETY (Risk S9 closure): the handler ONLY calls
+ * `destructionDirector.requestRestart()` which mutates the FSM and
+ * aborts the son-ekran signal. It does NOT call:
+ *   - app.quit
+ *   - BrowserWindow.close
+ *   - window.api IPC exit channels (none exist; preload bridge has no
+ *     exit surface)
+ *   - process.exit
+ * The joke app is a single-window kiosk — quitting would dump the
+ * user back to their OS shell which kills the bit. Phase 3 QA smoke
+ * MUST verify this by typing R outside son-ekran (no-op) + inside
+ * son-ekran (restart cycle, window stays open).
+ *
+ * Risk S9 — kiosk-safe restart; verify Phase 3 QA smoke.
+ */
+const FAZ8_RESTART_KEY = 'r' as const;
+
 /** Currently active scene handle, if any. */
 let activeHandle: SceneHandle | null = null;
+
+/** Sprint 6 — registered R-key listener (so beforeunload can detach). */
+let activeRestartKeyDisposer: (() => void) | null = null;
 
 /**
  * Mount the scene under the disclaimer's old `#next-screen` slot.
@@ -61,6 +89,10 @@ export async function activateScene(
     document.body.dataset['sceneError'] = String(err);
     throw err;
   }
+  // Sprint 6 — wire the Faz 8 R-key restart binding now that the scene
+  // (and therefore the destructionDirector) exists. The handler gates
+  // on the FSM state so the R key is inert outside son-ekran.
+  activeRestartKeyDisposer = installFaz8RestartKey(activeHandle);
   return activeHandle;
 }
 
@@ -74,8 +106,47 @@ export async function deactivateScene(): Promise<void> {
   if (activeHandle === null) {
     return;
   }
+  // Sprint 6 — detach the R-key listener BEFORE the scene disposes
+  // (the listener captures the SceneHandle reference; tearing the
+  // scene down while the listener still observes window keydown would
+  // leak a closure that points at a disposed director handle).
+  if (activeRestartKeyDisposer !== null) {
+    activeRestartKeyDisposer();
+    activeRestartKeyDisposer = null;
+  }
   await activeHandle.dispose();
   activeHandle = null;
+}
+
+/**
+ * Sprint 6 — install the Faz 8 R-key restart binding.
+ *
+ * Top-level keydown listener on `window` that fires `requestRestart()`
+ * on the destruction director ONLY when the FSM is in `faz8-son-ekran`.
+ *
+ * KIOSK SAFETY (Risk S9): the handler does NOT call any IPC exit
+ * surface. Verify Phase 3 QA smoke by typing R both inside and
+ * outside son-ekran.
+ *
+ * The destruction-director may be undefined on the scene handle when
+ * the scene mount path does not allocate it (Sprint 5+ always does;
+ * the optional `?` type modifier exists for forward-compat). The
+ * handler guards on the field at firing time so a missing director
+ * is a no-op rather than a runtime error.
+ */
+function installFaz8RestartKey(handle: SceneHandle): () => void {
+  const onKeyDown = (ev: KeyboardEvent): void => {
+    if (ev.key.toLowerCase() !== FAZ8_RESTART_KEY) return;
+    const director = handle.destructionDirector;
+    if (director === null || director === undefined) return;
+    if (director.getState().kind !== 'faz8-son-ekran') return;
+    // Risk S9 — kiosk-safe: requestRestart() only mutates FSM and
+    // aborts the son-ekran signal. It does NOT touch app.quit or any
+    // IPC exit channel.
+    director.requestRestart();
+  };
+  window.addEventListener('keydown', onKeyDown);
+  return (): void => window.removeEventListener('keydown', onKeyDown);
 }
 
 /** Find or lazily create the scene container under nextScreen. */

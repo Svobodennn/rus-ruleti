@@ -8,6 +8,10 @@
  *
  * Sprint 5 Phase 1 adds Faz 4-7 lane runners + chrome stubs + audio
  * synth handle factories — Lane A/B/C/D pick these up in Phase 2B.
+ *
+ * Sprint 6 Phase 1 adds Faz 8 reveal + son-ekran lane runners + chrome
+ * stubs (disclaimer + restart-hint + optional volumetric-smoke) — Lane
+ * A/B pick these up in Phase 2B.
  */
 
 export { mountDestructionDirector } from './destruction-director.js';
@@ -31,6 +35,9 @@ export type {
   WinBsodHandle,
   WinProgressDialogHandle,
   WinBiosBootloopHandle,
+  Faz8DisclaimerHandle,
+  Faz8RestartHintHandle,
+  Faz8VolumetricSmokeHandle,
 } from './types.js';
 
 /* Sprint 5 Phase 1 — Faz 4-7 lane runners + chrome mounts. */
@@ -46,3 +53,10 @@ export { mountWinProgressDialog } from './chrome/win-progress-dialog.js';
 export { mountWinBiosBootloop } from './chrome/win-bios-bootloop.js';
 export { scheduleBleed3, scheduleBleed4 } from './apartment-bleed.js';
 export type { BleedScheduleOptions, Bleed3ScheduleOptions, Bleed4ScheduleOptions } from './apartment-bleed.js';
+
+/* Sprint 6 Phase 1 — Faz 8 reveal + son-ekran lane runners + chrome mounts. */
+export { startFaz8Reveal } from './faz8-reveal.js';
+export { startFaz8SonEkran } from './faz8-son-ekran.js';
+export { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
+export { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
+export { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';

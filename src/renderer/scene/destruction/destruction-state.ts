@@ -10,10 +10,12 @@
  *   - Exhaustive `switch (state.kind)` with `assertNever` default.
  *
  * Sprint 4 covered idle → faz0 → faz1 → faz2 → faz3 → aborted{completed}.
- * Sprint 5 extends with faz3 → faz4 → faz5 → faz6 → faz7. The bootloop
- * (faz7) is the new terminal active state — it does NOT auto-transition;
- * Sprint 6 will add the faz7 → faz8 (reveal) transition. ESC-hold short-
- * circuit (any active faz → aborted{esc-hold}) remains.
+ * Sprint 5 extends with faz3 → faz4 → faz5 → faz6 → faz7. Sprint 6 closes
+ * the destruction sequence with faz7 → faz8-reveal → faz8-son-ekran →
+ * aborted{completed}, with an R-key short-circuit from faz8-son-ekran
+ * back to faz8-reveal for the restart loop (kiosk-safe re-entry; no app
+ * quit per S9 closure). ESC-hold short-circuit (any active faz →
+ * aborted{esc-hold}) remains.
  *
  * Called by:
  *   - destruction-director.ts (orchestrator — feeds each transition's
@@ -64,6 +66,8 @@ export function onBangFired(
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -97,6 +101,8 @@ export function onFaz0Complete(
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -125,6 +131,8 @@ export function onFaz1Complete(
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -154,6 +162,8 @@ export function onFaz2Complete(
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -185,6 +195,8 @@ export function onFaz3Complete(
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -213,6 +225,8 @@ export function onFaz4Complete(
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -241,6 +255,8 @@ export function onFaz5Complete(
     case 'faz4':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -270,6 +286,8 @@ export function onFaz6Complete(
     case 'faz4':
     case 'faz5':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
     case 'aborted':
       return state;
     default:
@@ -306,6 +324,157 @@ export function onFaz7CycleAdvance(
     case 'faz4':
     case 'faz5':
     case 'faz6':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 7 Bootloop complete (faz7 → faz8-reveal).
+ *
+ * Sprint 6 closes the destruction sequence: the Faz 7 bootloop is
+ * NO LONGER terminal — after FAZ7_DURATION_MS the runner resolves
+ * and the director steps into the reveal phase. OS preserved from
+ * the faz7 variant; startedAtMs captures the reveal entry timestamp
+ * (used by the reveal's silence-pause / fade / dolly envelopes).
+ *
+ * Called by: destruction-director.ts after faz7-bootloop.startFaz7Bootloop
+ * resolves at the FAZ7_DURATION_MS cap.
+ */
+export function onFaz7Complete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz7':
+      return { kind: 'faz8-reveal', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 8 reveal complete (faz8-reveal → faz8-son-ekran).
+ *
+ * OS preserved; startedAtMs captures the son-ekran entry timestamp
+ * (used by the door-close audio accent + disclaimer + restart-hint
+ * timing envelopes which all key off the son-ekran start time).
+ *
+ * Called by: destruction-director.ts after faz8-reveal.startFaz8Reveal
+ * resolves at FAZ8_REVEAL_DURATION_MS.
+ */
+export function onFaz8RevealComplete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz8-reveal':
+      return { kind: 'faz8-son-ekran', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
+    case 'faz8-son-ekran':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 8 son-ekran complete (faz8-son-ekran →
+ * aborted{completed}).
+ *
+ * Terminal transition when the user does NOT press R within the
+ * son-ekran window. If they DO press R, the director invokes
+ * onFaz8RestartRequested instead and the FSM steps back into a
+ * fresh faz8-reveal.
+ *
+ * Called by: destruction-director.ts after faz8-son-ekran.startFaz8SonEkran
+ * resolves at FAZ8_SON_EKRAN_DURATION_MS.
+ */
+export function onFaz8SonEkranComplete(
+  state: DestructionState,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz8-son-ekran':
+      return { kind: 'aborted', reason: 'completed' };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
+    case 'faz8-reveal':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 8 son-ekran R-key restart requested
+ * (faz8-son-ekran → faz8-reveal).
+ *
+ * The ONE re-entry point in the FSM — the user presses R while the
+ * son-ekran is showing and the director walks the FSM back into a
+ * fresh reveal cycle. Designer §6 narrative reading: "another roll"
+ * rather than "fresh boot" (the destruction never started over from
+ * idle; it loops the reveal/son-ekran pair).
+ *
+ * KIOSK SAFETY (S9 closure): this transition MUST NOT trigger any
+ * IPC exit / window close / app quit. The director's
+ * requestRestart() implementation honours this by transitioning
+ * STATE only (no IPC side effects). OS preserved; startedAtMs
+ * captures the new reveal entry timestamp.
+ *
+ * Called by: destruction-director.ts requestRestart() — invoked
+ * from the R-key listener in scene-mount.ts when the FSM kind is
+ * 'faz8-son-ekran'.
+ */
+export function onFaz8RestartRequested(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz8-son-ekran':
+      return { kind: 'faz8-reveal', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
+    case 'faz8-reveal':
     case 'aborted':
       return state;
     default:
@@ -331,6 +500,8 @@ export function onEscHold(state: DestructionState): DestructionState {
     case 'faz5':
     case 'faz6':
     case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
       return { kind: 'aborted', reason: 'esc-hold' };
     case 'idle':
     case 'aborted':

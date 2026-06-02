@@ -18,9 +18,18 @@
  *   b. Mounts the destruction overlay container (z-index 10000) and the
  *      apartment-bleed overlay (Lane B body fills `mountApartmentBleedOverlay`).
  *   c. Mounts the destruction-audio extensions (tinnitus, lowpass, chord).
- *   d. Steps through faz0 → faz1 → faz2 → faz3 by awaiting each runner,
+ *   d. Steps through faz0 → faz1 → faz2 → faz3 → faz4 → faz5 → faz6 →
+ *      faz7 → faz8-reveal → faz8-son-ekran by awaiting each runner,
  *      threading an AbortSignal so ESC-hold short-circuits mid-Faz.
  *   e. Disposes everything in reverse-allocation order.
+ *
+ * Sprint 6 R-key restart loop (PLAN §7 lines 290-303 closing tableau):
+ *   - `requestRestart()` invoked from scene-mount.ts top-level keydown
+ *     listener while FSM kind === 'faz8-son-ekran'. The director walks
+ *     the FSM back into a fresh faz8-reveal cycle. KIOSK SAFETY (S9):
+ *     this method MUST NOT call app.quit / BrowserWindow.close / any
+ *     IPC exit channel — the joke app is a single-window kiosk; quitting
+ *     would dump the user back to their OS shell which kills the bit.
  *
  * ESC-hold escape:
  *   - Subscribes to `window.api.onEscapeHold(onProgress, onComplete)`. On
@@ -52,8 +61,31 @@ import { startFaz4FileWipe } from './faz4-file-wipe.js';
 import { startFaz5DiskFormat } from './faz5-disk-format.js';
 import { startFaz6Bsod } from './faz6-bsod.js';
 import { startFaz7Bootloop } from './faz7-bootloop.js';
+import { startFaz8Reveal } from './faz8-reveal.js';
+import { startFaz8SonEkran } from './faz8-son-ekran.js';
 import { mountApartmentBleedOverlay } from './apartment-bleed.js';
-import type { ApartmentBleedHandle, DestructionDirectorHandle, OsVariant } from './types.js';
+import {
+  initialState,
+  onBangFired,
+  onFaz0Complete,
+  onFaz1Complete,
+  onFaz2Complete,
+  onFaz3Complete,
+  onFaz4Complete,
+  onFaz5Complete,
+  onFaz6Complete,
+  onFaz7Complete,
+  onFaz8RevealComplete,
+  onFaz8RestartRequested,
+  onFaz8SonEkranComplete,
+  onEscHold,
+} from './destruction-state.js';
+import type {
+  ApartmentBleedHandle,
+  DestructionDirectorHandle,
+  DestructionState,
+  OsVariant,
+} from './types.js';
 
 /**
  * Dependencies the director needs from scene/index.ts. Bag arg keeps the
@@ -82,6 +114,22 @@ interface DirectorRuntime {
   started: boolean;
   disposed: boolean;
   abortCtrl: AbortController;
+  /**
+   * Sprint 6 — separate abort controller for the Faz 8 son-ekran R-key
+   * restart short-circuit. When the user presses R, this controller
+   * aborts so the in-flight son-ekran runner resolves and the FSM loop
+   * walks back into a fresh faz8-reveal. The OUTER abortCtrl is for
+   * ESC-hold + dispose; this INNER ctrl is for the restart cycle.
+   * Re-allocated at every reveal entry.
+   */
+  sonEkranAbortCtrl: AbortController | null;
+  /**
+   * Sprint 6 — current FSM state. Updated via the pure transition
+   * functions in destruction-state.ts. Exposed via DestructionDirectorHandle.getState
+   * so the R-key listener in scene-mount.ts can gate on
+   * `kind === 'faz8-son-ekran'`.
+   */
+  fsmState: DestructionState;
   destructionAudio: DestructionAudioHandle | null;
   apartmentBleed: ApartmentBleedHandle | null;
   overlay: HTMLElement | null;
@@ -120,6 +168,8 @@ function createRuntime(): DirectorRuntime {
     started: false,
     disposed: false,
     abortCtrl: new AbortController(),
+    sonEkranAbortCtrl: null,
+    fsmState: initialState(),
     destructionAudio: null,
     apartmentBleed: null,
     overlay: null,
@@ -138,6 +188,8 @@ function buildHandle(
   return {
     start: async (): Promise<void> => runSequenceOnce(runtime, deps),
     abort: (reason): void => abortSequence(runtime, reason),
+    requestRestart: (): void => requestRestart(runtime),
+    getState: (): DestructionState => runtime.fsmState,
     dispose: (): void => disposeDirector(runtime),
   };
 }
@@ -240,6 +292,11 @@ async function runSequenceOnce(
   if (runtime.started || runtime.disposed) return;
   runtime.started = true;
   cancelFallback(runtime);
+  // Sprint 6: record the FSM transition idle → faz0 BEFORE the runners
+  // start so a near-simultaneous getState() call lands on the correct
+  // kind. nowMs is captured here rather than re-read inside each
+  // transition so the entire sequence shares one monotonic clock.
+  runtime.fsmState = onBangFired(runtime.fsmState, performance.now());
   try {
     const { os, username } = await resolveOsAndUsername();
     await prepareOverlay(runtime, deps);
@@ -318,6 +375,7 @@ async function runFazSequence(
     signal,
   });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz0Complete(runtime.fsmState, os, performance.now());
   await runFaz1({
     os,
     container: nonNull(runtime.overlay),
@@ -325,6 +383,7 @@ async function runFazSequence(
     signal,
   });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz1Complete(runtime.fsmState, performance.now());
   await runFazTakeoverAndTerminal(runtime, deps, os, username);
 }
 
@@ -348,6 +407,7 @@ async function runFazTakeoverAndTerminal(
     signal,
   });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz2Complete(runtime.fsmState, performance.now());
   await runFaz3({
     os,
     username,
@@ -356,14 +416,18 @@ async function runFazTakeoverAndTerminal(
     signal,
   });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz3Complete(runtime.fsmState, performance.now());
   await runFaz4Through7(runtime, deps, os, username);
 }
 
 /**
  * Sprint 5 — Run faz4 (file wipe) → faz5 (disk format) → faz6 (BSOD /
  * kernel panic) → faz7 (bootloop). Each runner respects the abort signal
- * + threads through the destruction overlay container. faz7 is the
- * terminal active phase — Sprint 6 will add the faz8 reveal hand-off.
+ * + threads through the destruction overlay container.
+ *
+ * Sprint 6 — extends with faz7 → faz8-reveal → faz8-son-ekran hand-off
+ * via runFaz8RevealAndSonEkran. The Faz 8 chain owns the R-key restart
+ * loop (see requestRestart()); the Faz 4-7 chain remains monotonic.
  *
  * Lane B (Faz 6 + Faz 7) consumes the destructionAudio handle to:
  *   - register the BSOD beep / electrical-tick handles into the owner pool
@@ -387,17 +451,98 @@ async function runFaz4Through7(
   const destructionAudio = nonNull(runtime.destructionAudio);
   await startFaz4FileWipe({ os, username, container, destructionAudio, signal });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz4Complete(runtime.fsmState, performance.now());
   await startFaz5DiskFormat({ os, username, container, destructionAudio, signal });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz5Complete(runtime.fsmState, performance.now());
   await startFaz6Bsod({ os, container, destructionAudio, signal });
   if (signal.aborted) return;
+  runtime.fsmState = onFaz6Complete(runtime.fsmState, performance.now());
   await startFaz7Bootloop({
-    os,
-    container,
-    destructionAudio,
-    lobbySnapshotDataUrl: deps.lobbySnapshotGetter(),
-    signal,
+    os, container, destructionAudio,
+    lobbySnapshotDataUrl: deps.lobbySnapshotGetter(), signal,
   });
+  if (signal.aborted) return;
+  runtime.fsmState = onFaz7Complete(runtime.fsmState, performance.now());
+  await runFaz8RevealAndSonEkran(runtime, deps, os);
+}
+
+/**
+ * Sprint 6 — Run faz8-reveal → faz8-son-ekran with R-key restart loop.
+ *
+ * Reference: PLAN.md §7 lines 290-303 (Faz 8 narrative spec) +
+ * §11 lines 702-721 (Sprint 6 matrix).
+ *
+ * Each iteration of the loop is one reveal+son-ekran cycle:
+ *   1. startFaz8Reveal — 5sn fade-out + camera dolly + ambient ramp
+ *   2. startFaz8SonEkran — 10sn closing tableau with disclaimer +
+ *      door-close audio + optional restart hint
+ *
+ * Loop exits via:
+ *   - signal.aborted (ESC-hold) — runner short-circuits, FSM goes to
+ *     aborted{esc-hold} via onEscHold (already wired in the existing
+ *     ESC-hold subscription)
+ *   - son-ekran resolves WITHOUT R-key restart — FSM transitions to
+ *     aborted{completed} via onFaz8SonEkranComplete; loop exits
+ *   - son-ekran resolves DUE to R-key restart — FSM transitions back
+ *     to faz8-reveal via onFaz8RestartRequested; loop continues
+ *
+ * KIOSK SAFETY (S9 closure): the loop NEVER calls app.quit / IPC exit.
+ * The restart cycle is purely FSM + signal abort; no Electron lifecycle
+ * surface is touched.
+ */
+async function runFaz8RevealAndSonEkran(
+  runtime: DirectorRuntime,
+  deps: DestructionDirectorDeps,
+  os: OsVariant,
+): Promise<void> {
+  const outerSignal = runtime.abortCtrl.signal;
+  // Loop: each iteration is one reveal + son-ekran cycle. Exits when
+  // son-ekran resolves WITHOUT a restart request OR outerSignal aborts.
+  while (!outerSignal.aborted) {
+    await runOneFaz8Cycle(runtime, deps, os);
+    if (outerSignal.aborted) return;
+    // If FSM landed in faz8-reveal after the son-ekran step, that
+    // means requestRestart() fired during son-ekran (the restart
+    // transition pushed us back to faz8-reveal). Loop continues.
+    // If FSM landed in aborted, the son-ekran completed without
+    // restart — exit the loop.
+    if (runtime.fsmState.kind !== 'faz8-reveal') return;
+  }
+}
+
+/**
+ * Run a single reveal+son-ekran cycle. Extracted so the loop body
+ * stays under the 50-line cap. The cycle allocates a fresh
+ * `sonEkranAbortCtrl` so the R-key restart can short-circuit the
+ * son-ekran runner independently of the outer ESC-hold abort.
+ */
+async function runOneFaz8Cycle(
+  runtime: DirectorRuntime,
+  deps: DestructionDirectorDeps,
+  os: OsVariant,
+): Promise<void> {
+  const outerSignal = runtime.abortCtrl.signal;
+  const container = nonNull(runtime.overlay);
+  const destructionAudio = nonNull(runtime.destructionAudio);
+  await startFaz8Reveal({
+    os, signal: outerSignal, container, destructionAudio,
+    audio: deps.audio, camera: deps.camera, lighting: deps.lighting,
+  });
+  if (outerSignal.aborted) return;
+  runtime.fsmState = onFaz8RevealComplete(runtime.fsmState, performance.now());
+  // Sprint 6 — fresh son-ekran ctrl so requestRestart() short-circuits
+  // ONLY the son-ekran (outer ESC-hold signal stays intact).
+  runtime.sonEkranAbortCtrl = new AbortController();
+  const sonEkranSignal = AbortSignal.any([outerSignal, runtime.sonEkranAbortCtrl.signal]);
+  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, destructionAudio });
+  runtime.sonEkranAbortCtrl = null;
+  if (outerSignal.aborted) return;
+  // If FSM advanced to faz8-reveal via requestRestart, leave it (loop
+  // iterates). Otherwise the son-ekran completed without restart.
+  if (runtime.fsmState.kind === 'faz8-son-ekran') {
+    runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
+  }
 }
 
 /* ------------------------------------------------------------------------ */
@@ -410,8 +555,52 @@ function abortSequence(
   reason: 'esc-hold' | 'completed',
 ): void {
   log.info('destruction-director: abort', reason);
+  // Sprint 6: if abort is triggered while an active faz is in flight,
+  // record the ESC-hold transition on the FSM state so a near-
+  // simultaneous getState() lands on the correct kind. The pure
+  // function no-ops for idle/aborted/etc.
+  if (reason === 'esc-hold') {
+    runtime.fsmState = onEscHold(runtime.fsmState);
+  }
   runtime.abortCtrl.abort();
   disposeSequenceArtifacts(runtime);
+}
+
+/**
+ * Sprint 6 — request restart from the `faz8-son-ekran` state.
+ *
+ * KIOSK SAFETY (S9 closure): MUST NOT call app.quit /
+ * BrowserWindow.close / process.exit / any IPC exit channel. The
+ * joke app is a single-window kiosk — quitting would dump the user
+ * back to their OS shell which kills the bit. This function only
+ * mutates FSM state + aborts the son-ekran signal.
+ *
+ * Triggered by: scene-mount.ts R-key listener (top-level keydown
+ * gates on getState().kind === 'faz8-son-ekran').
+ *
+ * Flow:
+ *   1. Verify FSM is in faz8-son-ekran (defence — the R-key listener
+ *      already gates, but a stale handle reference could call here
+ *      from a different state).
+ *   2. Apply the onFaz8RestartRequested pure transition so the FSM
+ *      records the restart cycle entry.
+ *   3. Abort the sonEkranAbortCtrl so the son-ekran runner short-
+ *      circuits. The outer loop in runFaz8RevealAndSonEkran observes
+ *      the FSM state on the next iteration and runs a fresh reveal.
+ */
+function requestRestart(runtime: DirectorRuntime): void {
+  if (runtime.disposed) return;
+  if (runtime.fsmState.kind !== 'faz8-son-ekran') {
+    log.warn('destruction-director: requestRestart ignored — FSM not in son-ekran', {
+      kind: runtime.fsmState.kind,
+    });
+    return;
+  }
+  log.info('destruction-director: requestRestart fired');
+  runtime.fsmState = onFaz8RestartRequested(runtime.fsmState, performance.now());
+  if (runtime.sonEkranAbortCtrl !== null) {
+    runtime.sonEkranAbortCtrl.abort();
+  }
 }
 
 /** Cancel the MutationObserver fallback timer. */

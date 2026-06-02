@@ -99,7 +99,9 @@ export type DestructionOwnedAudioHandle =
   | FanOverdriveHandle
   | ElectricalBuzzHandle
   | BSODBeepHandle
-  | ElectricalTickHandle;
+  | ElectricalTickHandle
+  | AmbientRecoveryHandle
+  | DoorCloseAccentHandle;
 
 /** Public handle returned by `mountDestructionAudio`. */
 export interface DestructionAudioHandle {
@@ -623,3 +625,94 @@ export {
   createBSODBeepHandle,
   createElectricalTickHandle,
 } from './destruction-audio-faz67';
+
+/* ========================================================================== */
+/* SPRINT 6 — Faz 8 audio surface scaffolds                                   */
+/*                                                                            */
+/* Two new audio handles supporting the Faz 8 reveal + son-ekran phases:      */
+/*                                                                            */
+/*   - AmbientRecoveryHandle:   ramps the room ambient back in over           */
+/*                              FAZ8_REVEAL_AMBIENT_RAMP_MS (3sn) so the      */
+/*                              radio static + Sprint 1 layers re-establish   */
+/*                              under the destruction-overlay fade-out.       */
+/*                                                                            */
+/*   - DoorCloseAccentHandle:   single-fire procedural low-frequency thump    */
+/*                              triggered at FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS  */
+/*                              (2sn into son-ekran). Heavy ≤ 80Hz envelope,  */
+/*                              ~250ms decay. Procedural per Sprint 4 Lesson  */
+/*                              3 — NO .ogg / .wav vendoring.                 */
+/*                                                                            */
+/* TH-S5-03 closure carried forward: factory signatures take a type-narrowed  */
+/* `caller: typeof OWNER_CONSTANT` parameter so the compiler rejects cross-   */
+/* lane misuse at the call site (no runtime sentinel needed).                 */
+/* ========================================================================== */
+
+/**
+ * Ambient-recovery handle — Faz 8 reveal phase audio recovery layer.
+ *
+ * Owns the fade-in of the room ambient back to its Sprint 1 baseline
+ * after Faz 0-7 muted everything via the global low-pass + tinnitus
+ * cascade. The handle does NOT replay the Sprint 1 AudioBed master
+ * state directly; it constructs its own gain envelope under the
+ * AudioBed master tap so the existing ambient layers can drain
+ * through the low-pass undisturbed.
+ *
+ * Owner: faz8-reveal.ts (AMBIENT_RECOVERY_AUDIO_OWNER decree).
+ * Sustained through reveal; disposed at son-ekran entry by the
+ * destruction-director's pool teardown.
+ *
+ * Reduced-motion: amplitude UNCHANGED — the recovery audio is a felt
+ * cue, not a motion surface, and silencing it would break the
+ * "after the storm" narrative beat.
+ */
+export interface AmbientRecoveryHandle {
+  readonly kind: 'ambient-recovery';
+  /**
+   * Fade in the recovery layer over `durationMs`. Resolves when the
+   * envelope completes. Idempotent — second call is a no-op.
+   */
+  fadeIn(durationMs: number): Promise<void>;
+  /** Disconnect + free nodes. Safe to call twice. */
+  dispose(): void;
+}
+
+/**
+ * Door-close-accent handle — Faz 8 son-ekran phase audio accent.
+ *
+ * Single-fire procedural low-frequency thump simulating a heavy door
+ * closing. Triggered once at FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS (2sn
+ * into son-ekran) — lands BEFORE the disclaimer fades in so the
+ * audio accent reads as "something just settled" rather than "the
+ * disclaimer triggered a sound".
+ *
+ * Synth recipe (Lane A Phase 2B fills):
+ *   - Sine fundamental @ 60-80Hz
+ *   - Sub-octave at 30-40Hz for body
+ *   - 5ms attack, 245ms exponential decay
+ *   - Low-pass cap at 120Hz so the thump reads as "felt-in-chest"
+ *     rather than "click"
+ *
+ * Owner: faz8-son-ekran.ts (DOOR_CLOSE_AUDIO_OWNER decree).
+ * Reduced-motion: -6dB amplitude (the accent stays audible — the
+ * narrative cue is critical — but doesn't pummel motion-sensitive
+ * users with sub-bass).
+ */
+export interface DoorCloseAccentHandle {
+  readonly kind: 'door-close-accent';
+  /** Fire the thump. Idempotent within the envelope window. */
+  trigger(): void;
+  /** Free any retained references. Safe to call twice. */
+  dispose(): void;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Faz 8 synth factories — Lane A owns; extracted to its own file           */
+/* (destruction-audio-faz8.ts) to keep this module under the 400-line cap.  */
+/* Re-exported here so callers can `import { createAmbientRecoveryHandle }  */
+/* from '../audio/destruction-audio'` without knowing about the split.      */
+/* ------------------------------------------------------------------------ */
+
+export {
+  createAmbientRecoveryHandle,
+  createDoorCloseAccentHandle,
+} from './destruction-audio-faz8';

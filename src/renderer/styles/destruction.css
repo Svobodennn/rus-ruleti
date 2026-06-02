@@ -1039,3 +1039,103 @@
   95% { opacity: var(--bleed4-opacity-max, 0.6); }
   100% { opacity: 0; }
 }
+
+/* ========================================================================== */
+/* SPRINT 6 — Faz 8 Reveal + Son-ekran styles (PLACEHOLDERS for Lane B)       */
+/*                                                                            */
+/* Phase 1 scaffolds the section headers and the class hooks Lane B will      */
+/* attach styles to. Lane B Phase 2B fills:                                   */
+/*   - .destruction-takeover.is-faz8-revealing — opacity fade-out keyframes  */
+/*     for the reveal phase (3sn linear ramp via @keyframes faz8-reveal-fade)*/
+/*   - .faz8-disclaimer + child selectors — Cyrillic primary + Turkish       */
+/*     subtitle typography, fade-in @keyframes, opacity cap, centred layout  */
+/*   - .faz8-restart-hint + child selectors — discreet bilingual hint text  */
+/*     (lower opacity than disclaimer); fade-in keyframes                    */
+/*   - .faz8-volumetric-smoke — OPTIONAL second smoke column (Phase 2A       */
+/*     designer may drop)                                                     */
+/*   - reduced-motion media queries that disable the fade keyframes and      */
+/*     snap to final opacity (a11y matrix §16 extends with Faz 8 rows)       */
+/*                                                                            */
+/* Constants the Lane B styles MUST consume via CSS custom properties so the */
+/* SSOT remains in src/shared/scene-destruction-constants.ts:                 */
+/*   - FAZ8_REVEAL_FADE_DURATION_MS → --faz8-reveal-fade-duration             */
+/*   - FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS → --faz8-disclaimer-fade-duration*/
+/*   - FAZ8_DISCLAIMER_OPACITY_MAX → --faz8-disclaimer-opacity-max            */
+/*   - FAZ8_SON_EKRAN_RESTART_HINT_OPACITY → --faz8-restart-hint-opacity     */
+/* The destruction-director (or the chrome mount fns) writes these custom   */
+/* properties onto element.style at mount; CSS reads them via var(...).      */
+/* ========================================================================== */
+
+/* ------------------------------------------------------------------------ */
+/* Faz 8 reveal — destruction overlay fade-out (PLACEHOLDER for Lane B)     */
+/* ------------------------------------------------------------------------ */
+
+/* PLACEHOLDER — Lane B Phase 2B fills.
+ * Engages when faz8-reveal.ts adds `is-faz8-revealing` to the takeover
+ * overlay. The transition runs FAZ8_REVEAL_FADE_DURATION_MS (3sn) linear.
+ *
+ * .destruction-takeover.is-faz8-revealing {
+ *   animation: faz8-reveal-fade var(--faz8-reveal-fade-duration, 3000ms)
+ *              linear 1 forwards;
+ * }
+ * @keyframes faz8-reveal-fade {
+ *   0% { opacity: 1; }
+ *   100% { opacity: 0; }
+ * }
+ */
+
+/* ------------------------------------------------------------------------ */
+/* Faz 8 disclaimer — Cyrillic primary + Turkish subtitle (PLACEHOLDER)     */
+/* ------------------------------------------------------------------------ */
+
+/* PLACEHOLDER — Lane B Phase 2B fills.
+ *
+ * .faz8-disclaimer { ... centred layout, initial opacity 0 ... }
+ * .faz8-disclaimer.is-revealed {
+ *   opacity: var(--faz8-disclaimer-opacity-max, 0.9);
+ *   transition: opacity var(--faz8-disclaimer-fade-duration, 1000ms) linear;
+ * }
+ * .faz8-disclaimer__primary { ... Cyrillic typography (lang="ru") ... }
+ * .faz8-disclaimer__secondary { ... Turkish caption-size sibling ... }
+ *
+ * @media (prefers-reduced-motion: reduce) {
+ *   .faz8-disclaimer.is-revealed { transition: none; }
+ * }
+ */
+
+/* ------------------------------------------------------------------------ */
+/* Faz 8 restart-hint — bilingual R-key hint (PLACEHOLDER)                  */
+/* ------------------------------------------------------------------------ */
+
+/* PLACEHOLDER — Lane B Phase 2B fills.
+ *
+ * .faz8-restart-hint { ... centred, initial opacity 0 ... }
+ * .faz8-restart-hint.is-revealed {
+ *   opacity: var(--faz8-restart-hint-opacity, 0.4);
+ *   transition: opacity 600ms linear;
+ * }
+ * .faz8-restart-hint span[lang="ru"] { ... Cyrillic glyph styling ... }
+ * .faz8-restart-hint span[lang="tr"] { ... Turkish styling ... }
+ *
+ * @media (prefers-reduced-motion: reduce) {
+ *   .faz8-restart-hint.is-revealed { transition: none; }
+ * }
+ */
+
+/* ------------------------------------------------------------------------ */
+/* Faz 8 volumetric smoke — OPTIONAL second column (PLACEHOLDER)            */
+/*                                                                          */
+/* PHASE 2A DESIGNER DECISION REQUIRED — may be dropped.                    */
+/* ------------------------------------------------------------------------ */
+
+/* PLACEHOLDER — Lane B Phase 2B fills IF Phase 2A designer retains the
+ * second smoke column. Otherwise this section ships empty (and the JS
+ * mount call is short-circuited at the son-ekran call site).
+ *
+ * .faz8-volumetric-smoke { ... pointer-events: none; absolute fill ... }
+ * @keyframes faz8-volumetric-smoke-drift { ... slow drift envelope ... }
+ *
+ * @media (prefers-reduced-motion: reduce) {
+ *   .faz8-volumetric-smoke { animation: none; opacity: 0.2; }
+ * }
+ */

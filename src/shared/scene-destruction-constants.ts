@@ -868,3 +868,207 @@ export const APARTMENT_BLEED_4_REDUCED_MOTION_OPACITY = 0.6;
  * revolver" — keeps the bleed feeling like a leak, not a clean render.
  */
 export const APARTMENT_BLEED_4_MASK_BLUR_PX = 2;
+
+/* ========================================================================== */
+/* SPRINT 6 — Faz 8 Reveal + Son ekran timing (50-65sn)                       */
+/*                                                                            */
+/* PLAN §7 lines 290-303 narrative spec. Faz 8 is the FINAL destruction        */
+/* phase — the joke reveal. Split into TWO discrete sub-phases for FSM        */
+/* clarity (matches Sprint 5 phase-per-aesthetic discipline):                  */
+/*                                                                            */
+/*   - faz8-reveal (50-55sn):  5sn destruction-overlay fade-out, lobby        */
+/*                              restored, bulb pulse normalises, camera       */
+/*                              dolly-out, audio bed fade-in. Builds the      */
+/*                              "after the storm" beat.                       */
+/*                                                                            */
+/*   - faz8-son-ekran (55-65sn): 10sn closing tableau. Revolver-on-table     */
+/*                              framing held; door-close audio accent at      */
+/*                              ~7sn; Cyrillic disclaimer fades in at ~3sn   */
+/*                              + Turkish subtitle; optional restart-hint     */
+/*                              text mounts at ~7sn.                          */
+/*                                                                            */
+/* TH-S5-03 closure carried forward: every shared resource declares a SINGLE  */
+/* owner module via the OWNER decree block at the bottom of this section.     */
+/* Adding a new shared Faz 8 resource? Add its owner decree HERE FIRST.       */
+/* ========================================================================== */
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 Reveal + Son ekran timing                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Faz 8 reveal duration. 5 second window (50-55sn absolute / 0-5sn
+ * within reveal). Three concurrent envelopes inside:
+ *   1. Destruction-overlay opacity 1 → 0 over FAZ8_REVEAL_FADE_DURATION_MS (3sn)
+ *   2. Audio bed ambient ramp 0 → full over FAZ8_REVEAL_AMBIENT_RAMP_MS (3sn)
+ *   3. Camera dolly-out FAZ8_REVEAL_CAMERA_DOLLY_DEGREES across the
+ *      full 5-second window
+ * Lane A fills the body in Phase 2B.
+ */
+export const FAZ8_REVEAL_DURATION_MS = 5000;
+
+/**
+ * Reveal silence pause — 1 second of TOTAL silence + black at the
+ * START of reveal before the fade-out begins. PLAN §7 line 291:
+ * "1.5sn tam siyah + sessizlik" — designer rationale chooses 1.0sn
+ * (PLAN's 1.5 is the upper bound; 1.0 keeps the reveal window from
+ * eating into the son-ekran disclaimer beat). The silence is the
+ * narrative pivot: bootloop chaos → silent black → fade-back.
+ */
+export const FAZ8_REVEAL_SILENCE_PAUSE_MS = 1000;
+
+/**
+ * Destruction-overlay fade-out duration. 3 seconds — long enough to
+ * read as "the destruction is RECEDING" rather than "the screen
+ * reset". Sub-window of the 5-second reveal: starts at
+ * FAZ8_REVEAL_SILENCE_PAUSE_MS (1sn) and runs to 4sn into reveal.
+ * Linear opacity ramp; designer choice — easing would read as
+ * stylised, the destruction must "drain" rather than "transition".
+ */
+export const FAZ8_REVEAL_FADE_DURATION_MS = 3000;
+
+/**
+ * Audio bed ambient ramp duration during reveal. 3 seconds — same
+ * window as the overlay fade-out (envelopes share the start cue so
+ * the visual+audio drain in unison). The reveal hands over to a
+ * dedicated AmbientRecoveryHandle (Lane A — Sprint 6 Phase 2B) whose
+ * fade-in re-establishes the Sprint 1 ambient layers (radio static
+ * → Temnaya music) without rewinding the AudioBed's master state.
+ */
+export const FAZ8_REVEAL_AMBIENT_RAMP_MS = 3000;
+
+/**
+ * Camera dolly-out magnitude during reveal (degrees of yaw + pitch
+ * recovery from the Sprint 4 BANG_CAMERA_SHAKE_DEG=5 displacement).
+ * Designer choice: 10 — gentle dolly-out that pulls the framing
+ * back so the revolver-on-table composition reads from a slightly
+ * higher, slightly further vantage. Single envelope across the
+ * full 5-second reveal; reduced-motion gate forces this to 0.
+ */
+export const FAZ8_REVEAL_CAMERA_DOLLY_DEGREES = 10;
+
+/**
+ * Faz 8 son-ekran duration. 10 second window (55-65sn absolute /
+ * 0-10sn within son-ekran). The user holds on the closing tableau
+ * (revolver-on-table + disclaimer + optional smoke + optional
+ * restart-hint) for the full window. R-key short-circuits via
+ * `destructionDirector.requestRestart()` (Sprint 6 Phase 1 scaffolds
+ * the binding; Sprint 7+ adds UI buttons).
+ */
+export const FAZ8_SON_EKRAN_DURATION_MS = 10000;
+
+/**
+ * Disclaimer mount offset within son-ekran. 3 seconds — gives the
+ * revolver-on-table composite the first 3 seconds of son-ekran to
+ * BREATHE before the disclaimer fades in. Designer §6: "the
+ * disclaimer should read AFTER the player notices the silence" —
+ * the 3-second delay enforces that sequence.
+ */
+export const FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS = 3000;
+
+/**
+ * Disclaimer fade-in duration. 1 second — long enough to feel
+ * deliberate, short enough that the text doesn't read as a fancy
+ * animation. Linear opacity ramp 0 → FAZ8_DISCLAIMER_OPACITY_MAX.
+ */
+export const FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS = 1000;
+
+/**
+ * Door-close audio accent offset within son-ekran. 2 seconds — the
+ * door-close lands BEFORE the disclaimer enters (so the audio
+ * accent reads as "something just settled" rather than "the
+ * disclaimer triggered a sound"). Lane A fills the
+ * DoorCloseAccentHandle factory; this constant is the trigger time.
+ */
+export const FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS = 2000;
+
+/**
+ * Restart-hint mount offset within son-ekran. 7 seconds — gives
+ * the user 4 seconds with the disclaimer alone before the optional
+ * R-key hint appears. Sprint 6 scope: HINT TEXT only (Sprint 7+
+ * replaces with TEKRAR/ÇIK button UI per PLAN §7 line 302).
+ */
+export const FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS = 7000;
+
+/**
+ * Restart-hint final opacity ceiling. 0.4 — the hint is a whisper,
+ * not a UI call-to-action. Lower than FAZ8_DISCLAIMER_OPACITY_MAX
+ * (0.9) so the disclaimer reads as the primary text and the hint
+ * reads as a footer. Reduced-motion gate keeps this value.
+ */
+export const FAZ8_SON_EKRAN_RESTART_HINT_OPACITY = 0.4;
+
+/**
+ * Disclaimer final opacity ceiling. 0.9 — fades into 90% opacity so
+ * the lobby read remains the primary visual; the disclaimer is the
+ * WHISPER atop the composition, not an opaque overlay block. The
+ * 0.1 transparency keeps the revolver-on-table visible through the
+ * text edges (subtle aesthetic accent for the closing tableau).
+ */
+export const FAZ8_DISCLAIMER_OPACITY_MAX = 0.9;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 OWNER decrees (TH-S5-03 runtime enforcement from inception) */
+/*                                                                          */
+/* Single-owner declarations for every Faz 8 shared resource. Lane A + Lane */
+/* B fill bodies in Phase 2B using type-narrowed `caller: typeof OWNER`     */
+/* parameters so the compiler rejects any cross-lane misuse at the call     */
+/* site (no runtime sentinel needed once the caller types are wired).       */
+/*                                                                          */
+/* Adding a new Faz 8 shared resource? Add its owner decree HERE FIRST.     */
+/* Phase 3 QA double-ownership scan will reject any owner string that       */
+/* appears on multiple resources where coordination is suspect.             */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Ambient-recovery audio owner — Faz 8 reveal phase. The
+ * AmbientRecoveryHandle is constructed in faz8-reveal.ts and
+ * disposed in the director's runtime when faz8-son-ekran resolves.
+ */
+export const AMBIENT_RECOVERY_AUDIO_OWNER = 'faz8-reveal' as const;
+
+/**
+ * Door-close audio accent owner — Faz 8 son-ekran phase.
+ * Single-fire DoorCloseAccentHandle triggered at
+ * FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS (2sn into son-ekran). Procedural
+ * synth per Sprint 4 Lesson 3 — NO .ogg / .wav vendoring.
+ */
+export const DOOR_CLOSE_AUDIO_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Faz 8 disclaimer chrome owner — Faz 8 son-ekran phase. The
+ * Cyrillic-primary + Turkish-secondary disclaimer block is mounted
+ * once via mountFaz8Disclaimer; lifecycle owned by son-ekran.
+ */
+export const FAZ8_DISCLAIMER_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Faz 8 restart-hint chrome owner — Faz 8 son-ekran phase. Optional
+ * R-key hint text mounted at FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS
+ * (7sn into son-ekran). Sprint 6 scope: HINT TEXT only.
+ */
+export const FAZ8_RESTART_HINT_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Faz 8 volumetric-smoke chrome owner — Faz 8 son-ekran phase.
+ * OPTIONAL. Phase 2A designer may DROP the second smoke column if
+ * perf cost outweighs atmosphere read.
+ */
+export const FAZ8_VOLUMETRIC_SMOKE_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * R-key handler owner — Faz 8 son-ekran phase. The top-level keydown
+ * listener in scene-mount.ts gates on the FSM state but the OWNER
+ * decree records that the binding only activates during son-ekran.
+ *
+ * KIOSK SAFETY (S9): MUST NOT call app.quit / BrowserWindow.close.
+ */
+export const FAZ8_R_KEY_HANDLER_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Camera dolly-out timer owner — Faz 8 reveal phase. The dolly
+ * envelope runs from reveal entry to reveal exit; the rAF loop is
+ * registered against this owner so the director can revoke it on
+ * ESC-hold abort without ambiguity.
+ */
+export const FAZ8_CAMERA_DOLLY_TIMER_OWNER = 'faz8-reveal' as const;

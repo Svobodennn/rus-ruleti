@@ -35,8 +35,17 @@
  *   - chrome/win-progress-dialog.ts (WinProgressDialogHandle)
  *   - chrome/win-bios-bootloop.ts   (WinBiosBootloopHandle)
  *
+ * Sprint 6 Phase 1 — Faz 8 surface handles (consumers Phase 2B):
+ *   - faz8-reveal.ts                 (OsVariant; no chrome handle — fade-out only)
+ *   - faz8-son-ekran.ts              (OsVariant, Faz8Disclaimer/RestartHint/VolumetricSmoke)
+ *   - chrome/faz8-disclaimer.ts      (Faz8DisclaimerHandle)
+ *   - chrome/faz8-restart-hint.ts    (Faz8RestartHintHandle)
+ *   - chrome/faz8-volumetric-smoke.ts(Faz8VolumetricSmokeHandle; Phase 2A may drop)
+ *
  * External consumer:
  *   - scene/index.ts SceneHandle.destructionDirector field (lazy import).
+ *   - scene-mount.ts                 (Sprint 6 R-key binding gates on
+ *                                     director.getState().kind === 'faz8-son-ekran').
  */
 
 /* ------------------------------------------------------------------------ */
@@ -60,7 +69,9 @@ export type OsVariant = 'mac' | 'win';
  * Phase enumerator — used for telemetry, DOM dataset attributes, and the
  * DestructionState discriminator. Sprint 4 covered faz0..faz3; Sprint 5
  * extends with faz4..faz7 (file wipe + disk format + BSOD + bootloop);
- * Sprint 6 will add faz8 (reveal).
+ * Sprint 6 adds faz8-reveal + faz8-son-ekran (reveal phase + closing
+ * tableau — split for FSM clarity since reveal/son-ekran have distinct
+ * owner constellations and lifecycles).
  */
 export type DestructionPhase =
   | 'faz0'
@@ -70,7 +81,9 @@ export type DestructionPhase =
   | 'faz4'
   | 'faz5'
   | 'faz6'
-  | 'faz7';
+  | 'faz7'
+  | 'faz8-reveal'
+  | 'faz8-son-ekran';
 
 /**
  * Discriminated union for the destruction-director FSM.
@@ -82,17 +95,36 @@ export type DestructionPhase =
  *                        → Bootloop. faz7 carries `cycleIndex` for the
  *                        bootloop iteration counter (each 3s cycle ticks
  *                        the counter; reveal in Sprint 6 reads it to decide
- *                        when to short-circuit to faz8).
+ *                        when to short-circuit to faz8-reveal).
+ *   faz8-reveal        — Sprint 6 variant: 50-55sn reveal. Destruction
+ *                        overlay fades out, lobby restored, bulb pulse
+ *                        normalises, camera dolly-out, audio bed fades in.
+ *                        Reference PLAN.md §7 lines 290-303.
+ *   faz8-son-ekran     — Sprint 6 variant: 55-65sn closing tableau.
+ *                        Revolver-on-table framing held; sigara dumanı
+ *                        (optional, designer §6); door-close audio at
+ *                        ~7sn into son-ekran; Cyrillic disclaimer "Это
+ *                        просто шутка." centred ~3sn into son-ekran +
+ *                        TR subtitle "Bu sadece bir şaka."; optional
+ *                        restart-hint mounts at ~7sn (Sprint 6 ships
+ *                        HINT TEXT only — TEKRAR/ÇIK BUTTON UI is
+ *                        deferred to Sprint 7+).
  *   aborted            — terminal state; either user ESC-held or sequence
  *                        completed cleanly. Director can be re-armed only by
- *                        re-mounting (lobby reload).
+ *                        re-mounting (lobby reload) or — for Sprint 6 — by
+ *                        R-key (`requestRestart()` on the director handle)
+ *                        while in `faz8-son-ekran`.
  *
  * Exhaustive switch on `kind` + `assertNever` (in destruction-state.ts)
  * forces every consumer to handle every variant.
  *
- * NOTE: Sprint 6 will add `| { kind: 'faz8'; os: OsVariant; startedAtMs: number }`
- * (Reveal phase). Keep the assertNever exhaustiveness — adding faz8 will
- * surface as a compile error until every switch is updated.
+ * Sprint 6 split rationale: reveal (50-55sn) and son-ekran (55-65sn)
+ * are TWO discrete phases with DISTINCT owner constellations (reveal
+ * owns ambient-recovery audio + camera dolly timer; son-ekran owns
+ * door-close audio + disclaimer + restart-hint + R key handler).
+ * Combining them into a single `kind: 'faz8'` would re-introduce the
+ * shared-owner ambiguity TH-S4-01 closure forbids. Splitting is also
+ * consistent with the FSM clarity rule Sprint 5 enforced for faz4-7.
  */
 export type DestructionState =
   | { kind: 'idle' }
@@ -104,6 +136,8 @@ export type DestructionState =
   | { kind: 'faz5'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz6'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz7'; os: OsVariant; startedAtMs: number; cycleIndex: number }
+  | { kind: 'faz8-reveal'; os: OsVariant; startedAtMs: number }
+  | { kind: 'faz8-son-ekran'; os: OsVariant; startedAtMs: number }
   | { kind: 'aborted'; reason: 'esc-hold' | 'completed' };
 
 /* ------------------------------------------------------------------------ */
@@ -193,6 +227,25 @@ export interface DestructionDirectorHandle {
   readonly start: () => Promise<void>;
   /** Force-abort the in-flight sequence; transitions to `aborted`. */
   readonly abort: (reason: 'esc-hold' | 'completed') => void;
+  /**
+   * Sprint 6 — request restart from the `faz8-son-ekran` state. No-op
+   * outside that state (the FSM is monotonic except at this single re-
+   * entry point). Implementation walks back through `faz8-reveal`
+   * re-entry (designer §6: "another roll" rather than a fresh boot —
+   * the restart hint copy uses "TEKRAR" not "YENİDEN BAŞLAT").
+   *
+   * KIOSK SAFETY (S9 risk): MUST NOT call `app.quit` /
+   * `BrowserWindow.close` / `process.exit` / any IPC exit channel —
+   * the joke app is a single-window kiosk; quitting would dump the
+   * user back to their actual OS shell which kills the bit.
+   *
+   * Triggered by: R-key listener in `src/renderer/scene-mount.ts`
+   * (top-level keydown; gates on FSM `kind === 'faz8-son-ekran'`).
+   */
+  readonly requestRestart: () => void;
+  /** Read current FSM state — used by the R-key gate (Sprint 6 R key
+   * binding scaffold only fires when `kind === 'faz8-son-ekran'`). */
+  readonly getState: () => DestructionState;
   /** Full teardown; safe to call once. */
   readonly dispose: () => void;
 }
@@ -354,4 +407,77 @@ export interface WinBiosBootloopHandle extends ChromeHandle {
   readonly kind: 'win-bios-bootloop';
   readonly element: HTMLElement;
   setState(state: 'no-boot' | 'restart-pending'): void;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 chrome handles — Faz 8 reveal + son-ekran surfaces              */
+/*                                                                          */
+/* TH-S5-04 closure carried forward: every handle carries a `kind`          */
+/* discriminator so callers narrow via `handle.kind === '<x>'` instead of  */
+/* `as`-casting. Sprint 6 pre-declares this for every Faz 8 surface       */
+/* up-front (same discipline as Sprint 5 Phase 1).                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Faz 8 disclaimer handle — Sprint 6 closing tableau surface.
+ *
+ * Owns the centred bilingual disclaimer block — Cyrillic primary
+ * ("Это просто шутка.") + Turkish subtitle ("Bu sadece bir şaka.").
+ * Fades in at FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS (~3sn into son-ekran)
+ * over FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS (1sn). Final opacity capped
+ * at FAZ8_DISCLAIMER_OPACITY_MAX (0.9) so the lobby read remains the
+ * primary visual; the text is the WHISPER, not the headline.
+ *
+ * Owner: faz8-son-ekran.ts (FAZ8_DISCLAIMER_OWNER decree). Lane B fills
+ * the body (mount DOM, ARIA labelling, CSS class wiring). The setters
+ * exist so the runner can swap the primary/secondary copy at any time
+ * (e.g. translation re-evaluation under locale-switch — Sprint 7+).
+ */
+export interface Faz8DisclaimerHandle extends ChromeHandle {
+  readonly kind: 'faz8-disclaimer';
+  readonly element: HTMLElement;
+  /** Replace the primary Cyrillic copy (default: "Это просто шутка."). */
+  readonly setPrimaryText: (text: string) => void;
+  /** Replace the secondary Turkish copy (default: "Bu sadece bir şaka."). */
+  readonly setSecondaryText: (text: string) => void;
+}
+
+/**
+ * Faz 8 restart-hint handle — Sprint 6 optional surface.
+ *
+ * Owns the centred bilingual restart-hint text shown at
+ * FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS (~7sn into son-ekran). Sprint 6
+ * SCOPE BOUNDARY: this is HINT TEXT only — Sprint 7+ replaces with
+ * actual TEKRAR / ÇIK button UI (referenced by PLAN §7 line 302).
+ * Opacity capped at FAZ8_SON_EKRAN_RESTART_HINT_OPACITY (0.4) so the
+ * hint reads as a discreet whisper, not a UI call-to-action.
+ *
+ * The hint conveys: "R = TEKRAR" (Cyrillic + TR mirroring). When the
+ * user presses R, the destruction-director's `requestRestart()` is
+ * invoked (R-key binding in scene-mount.ts).
+ *
+ * Owner: faz8-son-ekran.ts (FAZ8_RESTART_HINT_OWNER decree).
+ */
+export interface Faz8RestartHintHandle extends ChromeHandle {
+  readonly kind: 'faz8-restart-hint';
+  readonly element: HTMLElement;
+  /** Replace the bilingual hint copy. */
+  readonly setHintText: (textRu: string, textTr: string) => void;
+}
+
+/**
+ * Faz 8 volumetric-smoke handle — Sprint 6 OPTIONAL surface.
+ *
+ * Phase 2A designer decision: may be DROPPED if the perf cost outweighs
+ * the atmosphere read (the lobby cigarette smoke column already runs
+ * via the Sprint 3 SmokeHandle; this is an OPTIONAL second column over
+ * the revolver-on-table composite). The scaffold ships in Sprint 6
+ * Phase 1 so the type surface is in place; Phase 2A drops the file if
+ * the designer decides against the second column.
+ *
+ * Owner: faz8-son-ekran.ts (FAZ8_VOLUMETRIC_SMOKE_OWNER decree).
+ */
+export interface Faz8VolumetricSmokeHandle extends ChromeHandle {
+  readonly kind: 'faz8-volumetric-smoke';
+  readonly element: HTMLElement;
 }
