@@ -1,9 +1,10 @@
 /**
- * Faz 8 restart-hint chrome — Sprint 6 Phase 1 SCAFFOLD.
+ * Faz 8 restart-hint chrome — Sprint 6 Phase 2B Lane B FILL.
  *
- * Owns the centred bilingual restart-hint text shown 7 seconds into
- * son-ekran. The hint conveys "R = TEKRAR" (Cyrillic + TR mirroring)
- * so the user knows the R-key restart binding is available.
+ * Owns the bottom-centred bilingual restart-hint text shown 7 seconds
+ * into son-ekran. The hint conveys "R = TEKRAR" (or Cyrillic
+ * equivalent) so the user knows the R-key restart binding is
+ * available.
  *
  * SCOPE BOUNDARY (Sprint 6): HINT TEXT only. Sprint 7+ replaces the
  * static hint with TEKRAR / ÇIK button UI per PLAN §7 line 302.
@@ -13,55 +14,56 @@
  * SHARED RESOURCES OWNED: FAZ8_RESTART_HINT_OWNER decree —
  * faz8-son-ekran.ts owns the lifecycle (mount + dispose).
  *
- * Lane B Phase 2B implementation outline (the body this stub
- * replaces):
+ * LOCALE-CONDITIONAL RENDERING — this surface differs from the
+ * disclaimer's bilingual-stack treatment: per i18n strings.ts comment
+ * (line 317), "the user sees ONE line in their UI locale (not
+ * bilingual)". We resolve the user's locale via `resolveUserLocale()`
+ * at mount time and render the matching string. The runner threads
+ * BOTH locales in opts (hintRu + hintTr) so the chrome stays
+ * declarative — no i18n imports here, no key lookups — Lane 0 owns
+ * the key→string resolution at the call site.
  *
- *   1. CONSTRUCT root <p class="faz8-restart-hint"> with two child
- *      <span> elements:
- *        - <span lang="ru"> — Cyrillic hint
- *        - <span lang="tr"> — Turkish hint
- *      Separated by a designer-defined glyph (designer §6 may
- *      choose " / " or " · " — Phase 2A locks). Initial opacity 0;
- *      CSS class toggle fades to FAZ8_SON_EKRAN_RESTART_HINT_OPACITY
- *      (0.4) on attach.
+ * Lane B fill (this body):
+ *   1. CONSTRUCT root <p class="faz8-restart-hint"> — single element,
+ *      single locale text. Initial opacity 0 (anchors CSS transition).
+ *   2. ATTACH to opts.hostElement (apartment scene root). CSS handles
+ *      positioning: position:absolute, bottom:48px, centred horizontally
+ *      via left:50% + translateX(-50%).
+ *   3. ARIA: role="status" aria-live="off" per Phase 2A §20 matrix
+ *      row 42 — the hint is informational + low-urgency; aria-live=off
+ *      keeps the screen reader from announcing the appearance of a
+ *      hint the user may never act on. The lang attribute matches the
+ *      resolved locale so the screen reader (if it lands on the
+ *      element via tab/explore) uses the correct voice.
+ *   4. setHintText: imperative `.textContent` mutation. Receives BOTH
+ *      locales so locale-switch refreshes from Lane 0 can re-resolve
+ *      at runtime (re-checks resolveUserLocale() each call so a
+ *      mid-session locale flip would pick the new branch). No
+ *      re-render of the element itself.
+ *   5. DISPOSE: idempotent. Removes the element + honours the abort
+ *      signal.
  *
- *   2. ATTACH to opts.hostElement (the destruction overlay
- *      container). Same rAF-class-toggle pattern as
- *      mountFaz8Disclaimer so the browser sees the transition.
+ * Reduced-motion: the CSS @media (prefers-reduced-motion: reduce)
+ * block drops the transition; the .is-visible class snap-jumps to
+ * opacity 0.4. No JS gating needed here.
  *
- *   3. ARIA:
- *      - Root: role="note"
- *      - Cyrillic span: lang="ru"
- *      - Turkish span: lang="tr"
+ * NO Cyrillic/Turkish strings hardcoded HERE — Lane 0 wires the i18n
+ * keys (destruction.faz8.restart.hint) at the son-ekran call site.
  *
- *   4. setHintText: imperative `.textContent` mutation; no re-
- *      render (Lane 0 may drive this to re-evaluate i18n keys).
- *
- *   5. DISPOSE: detach signal-aborted listener (if any) + remove
- *      element from parent. Idempotent.
- *
- * Reduced-motion gate (designer Phase 2A §16 — Sprint 6 extends):
- *   - Skip the fade; jump to final opacity at mount.
- *
- * NO Cyrillic/Turkish strings hardcoded HERE — Phase 2B Lane B
- * receives the strings via `opts.hintRu` / `opts.hintTr` which are
- * i18n-resolved at the son-ekran call site (Lane 0 wires keys).
- *
- * Target line count: ~80-110L when Lane B fills.
- *
- * PHASE 2B LANE B — frontend-dev fills body
+ * PHASE 2B LANE B — frontend-dev FILLED
  */
 
+import { resolveUserLocale } from '../../../i18n/strings.js';
 import type { Faz8RestartHintHandle } from '../types.js';
 
 /**
- * Mount option bag — son-ekran threads the i18n-resolved hint
- * strings + the AbortSignal + the hostElement.
+ * Mount option bag — son-ekran threads BOTH locale strings so the
+ * chrome can re-resolve on locale-switch without re-mounting.
  */
 export interface MountFaz8RestartHintOptions {
-  /** Cyrillic hint copy. Phase 2B Lane 0 wires; e.g. "R = ЕЩЁ РАЗ". */
+  /** Cyrillic hint copy. Phase 2B Lane 0 wires; e.g. "Нажмите R для перезапуска". */
   readonly hintRu: string;
-  /** Turkish hint copy. e.g. "R = TEKRAR". */
+  /** Turkish hint copy. e.g. "Yeniden başlatmak için R'ye basın". */
   readonly hintTr: string;
   /** Abort signal — dispose triggers when the signal fires. */
   readonly signal: AbortSignal;
@@ -71,43 +73,55 @@ export interface MountFaz8RestartHintOptions {
 
 /**
  * Mount the Faz 8 restart-hint chrome. Returns a Faz8RestartHintHandle
- * whose `setHintText` setter imperatively mutates the rendered text
- * and whose `dispose()` removes the element.
+ * whose `setHintText(textRu, textTr)` setter re-resolves the locale +
+ * mutates the rendered text, and whose `dispose()` removes the
+ * element.
  *
- * Sprint 6 Phase 1 stub: returns a no-op handle with an empty
- * placeholder element. Lane B Phase 2B fills the DOM + ARIA + CSS
- * wiring per the implementation outline above.
+ * CSS class hooks consumed (see destruction.css §"Faz 8 Son ekran"):
+ *   - `.faz8-restart-hint`            — root, opacity 0, bottom-centred
+ *   - `.faz8-restart-hint.is-visible` — fade-in end state (Lane A toggles)
  */
 export function mountFaz8RestartHint(
   opts: MountFaz8RestartHintOptions,
 ): Faz8RestartHintHandle {
-  // Phase 1 scaffold: minimal placeholder element so callers can
-  // wire the handle into the DOM tree before Lane B fills.
-  const element = document.createElement('p');
-  element.className = 'faz8-restart-hint';
-  element.dataset['scaffold'] = 'phase-1';
-  element.dataset['hintRu'] = opts.hintRu;
-  element.dataset['hintTr'] = opts.hintTr;
+  const root = document.createElement('p');
+  root.className = 'faz8-restart-hint';
+  // ARIA: status + off — informational, low-urgency. The hint may
+  // never be acted on; we do not interrupt the screen reader for it.
+  root.setAttribute('role', 'status');
+  root.setAttribute('aria-live', 'off');
+
+  // Inline opacity 0 anchors the CSS transition start point.
+  root.style.opacity = '0';
+
+  // Render the single locale-matching string. Capture the resolver
+  // result so setHintText can repeat the same logic for locale-switch.
+  const initialLocale = resolveUserLocale();
+  root.setAttribute('lang', initialLocale);
+  root.textContent = initialLocale === 'ru' ? opts.hintRu : opts.hintTr;
+
+  opts.hostElement.appendChild(root);
 
   let disposed = false;
   const handle: Faz8RestartHintHandle = {
     kind: 'faz8-restart-hint',
-    element,
+    element: root,
     setHintText: (textRu: string, textTr: string): void => {
-      element.dataset['hintRu'] = textRu;
-      element.dataset['hintTr'] = textTr;
+      // Re-resolve locale so a mid-session switch picks the new branch.
+      const locale = resolveUserLocale();
+      root.setAttribute('lang', locale);
+      root.textContent = locale === 'ru' ? textRu : textTr;
     },
     dispose: (): void => {
       if (disposed) return;
       disposed = true;
-      if (element.parentNode !== null) {
-        element.parentNode.removeChild(element);
+      if (root.parentNode !== null) {
+        root.parentNode.removeChild(root);
       }
     },
   };
 
-  // Wire the abort signal so the parent runner's signal aborts the
-  // chrome alongside it.
+  // Honor opts.signal — dispose when the parent runner aborts.
   if (opts.signal.aborted) {
     handle.dispose();
   } else {

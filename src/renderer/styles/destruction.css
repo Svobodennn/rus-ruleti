@@ -1041,101 +1041,267 @@
 }
 
 /* ========================================================================== */
-/* SPRINT 6 — Faz 8 Reveal + Son-ekran styles (PLACEHOLDERS for Lane B)       */
+/* SPRINT 6 — Faz 8 Reveal + Son-ekran styles (Lane B FILLED)                 */
 /*                                                                            */
-/* Phase 1 scaffolds the section headers and the class hooks Lane B will      */
-/* attach styles to. Lane B Phase 2B fills:                                   */
-/*   - .destruction-takeover.is-faz8-revealing — opacity fade-out keyframes  */
-/*     for the reveal phase (3sn linear ramp via @keyframes faz8-reveal-fade)*/
+/* Phase 2B Lane B fills:                                                     */
+/*   - .destruction-takeover.is-fading-out — opacity 1→0 transition for      */
+/*     the reveal phase (3sn ease-out-quad).                                   */
 /*   - .faz8-disclaimer + child selectors — Cyrillic primary + Turkish       */
-/*     subtitle typography, fade-in @keyframes, opacity cap, centred layout  */
-/*   - .faz8-restart-hint + child selectors — discreet bilingual hint text  */
-/*     (lower opacity than disclaimer); fade-in keyframes                    */
-/*   - .faz8-volumetric-smoke — OPTIONAL second smoke column (Phase 2A       */
-/*     designer may drop)                                                     */
-/*   - reduced-motion media queries that disable the fade keyframes and      */
-/*     snap to final opacity (a11y matrix §16 extends with Faz 8 rows)       */
+/*     subtitle typography, opacity-cap transition, centred layout.          */
+/*   - .faz8-restart-hint + .is-visible — bottom-centred locale-conditional */
+/*     hint text (single-line; opacity 0.4 cap; PT Serif 14px).             */
+/*   - .faz8-smoke-source + .faz8-smoke-trail + @keyframes faz8-smoke-rise   */
+/*     — CSS-only D-2 mode='css' / D-4 source='desk-ashtray'.                */
+/*   - @media (prefers-reduced-motion: reduce) gates for the four surfaces   */
+/*     (matrix §20 rows 38, 41, 42, 43).                                      */
 /*                                                                            */
-/* Constants the Lane B styles MUST consume via CSS custom properties so the */
-/* SSOT remains in src/shared/scene-destruction-constants.ts:                 */
-/*   - FAZ8_REVEAL_FADE_DURATION_MS → --faz8-reveal-fade-duration             */
-/*   - FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS → --faz8-disclaimer-fade-duration*/
-/*   - FAZ8_DISCLAIMER_OPACITY_MAX → --faz8-disclaimer-opacity-max            */
-/*   - FAZ8_SON_EKRAN_RESTART_HINT_OPACITY → --faz8-restart-hint-opacity     */
+/* Constants consumed via CSS custom properties so the SSOT stays in         */
+/* src/shared/scene-destruction-constants.ts:                                 */
+/*   --faz8-reveal-fade-duration   ← FAZ8_REVEAL_FADE_DURATION_MS  (3000ms)  */
+/*   --faz8-reveal-fade-easing     ← FAZ8_REVEAL_FADE_EASING                 */
+/*   --faz8-disclaimer-fade-in-ms  ← FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS    */
+/*   --faz8-disclaimer-fade-easing ← FAZ8_DISCLAIMER_FADE_EASING             */
+/*   --faz8-disclaimer-opacity-max ← FAZ8_DISCLAIMER_OPACITY_MAX   (0.9)    */
+/*   --faz8-volumetric-smoke-rise-ms ← FAZ8_VOLUMETRIC_SMOKE_RISE_DURATION_MS*/
 /* The destruction-director (or the chrome mount fns) writes these custom   */
 /* properties onto element.style at mount; CSS reads them via var(...).      */
+/* Defensive fallbacks make the styles coherent even without the writes.     */
 /* ========================================================================== */
 
 /* ------------------------------------------------------------------------ */
-/* Faz 8 reveal — destruction overlay fade-out (PLACEHOLDER for Lane B)     */
+/* Faz 8 reveal (50-55sn) — destruction overlay fade-out                    */
 /* ------------------------------------------------------------------------ */
 
-/* PLACEHOLDER — Lane B Phase 2B fills.
- * Engages when faz8-reveal.ts adds `is-faz8-revealing` to the takeover
- * overlay. The transition runs FAZ8_REVEAL_FADE_DURATION_MS (3sn) linear.
- *
- * .destruction-takeover.is-faz8-revealing {
- *   animation: faz8-reveal-fade var(--faz8-reveal-fade-duration, 3000ms)
- *              linear 1 forwards;
- * }
- * @keyframes faz8-reveal-fade {
- *   0% { opacity: 1; }
- *   100% { opacity: 0; }
- * }
+/* Engages when faz8-reveal.ts toggles `.is-fading-out` on the
+ * `.destruction-takeover` overlay (Lane A owns the toggle). The transition
+ * uses CSS custom properties so the SSOT stays in
+ * src/shared/scene-destruction-constants.ts:
+ *   --faz8-reveal-fade-duration ← FAZ8_REVEAL_FADE_DURATION_MS (3000ms)
+ *   --faz8-reveal-fade-easing   ← FAZ8_REVEAL_FADE_EASING
+ *                                  (cubic-bezier(0.25, 0.46, 0.45, 0.94) =
+ *                                  ease-out-quad; gentle settle, no snap).
+ * Defensive fallbacks make the transition coherent even without the
+ * inline custom-property writes.
  */
+.destruction-takeover.is-fading-out {
+  transition: opacity var(--faz8-reveal-fade-duration, 3000ms)
+              var(--faz8-reveal-fade-easing, cubic-bezier(0.25, 0.46, 0.45, 0.94));
+  opacity: 0;
+}
 
 /* ------------------------------------------------------------------------ */
-/* Faz 8 disclaimer — Cyrillic primary + Turkish subtitle (PLACEHOLDER)     */
+/* Faz 8 Son ekran (55-65sn) — disclaimer (Cyrillic primary + TR secondary) */
 /* ------------------------------------------------------------------------ */
 
-/* PLACEHOLDER — Lane B Phase 2B fills.
- *
- * .faz8-disclaimer { ... centred layout, initial opacity 0 ... }
- * .faz8-disclaimer.is-revealed {
- *   opacity: var(--faz8-disclaimer-opacity-max, 0.9);
- *   transition: opacity var(--faz8-disclaimer-fade-duration, 1000ms) linear;
- * }
- * .faz8-disclaimer__primary { ... Cyrillic typography (lang="ru") ... }
- * .faz8-disclaimer__secondary { ... Turkish caption-size sibling ... }
- *
- * @media (prefers-reduced-motion: reduce) {
- *   .faz8-disclaimer.is-revealed { transition: none; }
- * }
- */
+/* Centred bilingual disclaimer block. Mounted at t=0 of son-ekran with
+ * inline opacity:0 (set in mountFaz8Disclaimer). Lane A toggles
+ * .is-visible at t=3sn (FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS) to drive
+ * the fade-in to FAZ8_DISCLAIMER_OPACITY_MAX (0.9). Position is
+ * absolute / centred via translate(-50%, -50%); z-index 9001 keeps it
+ * above the restart hint (9000). pointer-events: none — the disclaimer
+ * is read-only chrome, no interaction targets. */
+.faz8-disclaimer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9001;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--faz8-disclaimer-fade-in-ms, 1000ms)
+              var(--faz8-disclaimer-fade-easing, cubic-bezier(0.4, 0, 0.6, 1));
+}
+
+.faz8-disclaimer.is-visible {
+  opacity: var(--faz8-disclaimer-opacity-max, 0.9);
+}
+
+/* Cyrillic primary line — Old Standard TT preferred (Sprint 0 bundled
+ * OFL Cyrillic-complete serif). PT Serif fallback covers a font-load
+ * race; Georgia covers a worst-case install gap. Letter-spacing -0.5px
+ * matches FAZ8_DISCLAIMER_PRIMARY_LETTER_SPACING_PX. Text-shadow per
+ * FAZ8_DISCLAIMER_TEXT_SHADOW — soft black halation reads as candle-
+ * light on old paper, congruent with the kirli-kâğıt palette. */
+.faz8-disclaimer-primary {
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-size: 64px;
+  letter-spacing: -0.5px;
+  color: #7a6a4e;
+  text-shadow: 0 0 8px rgba(10, 9, 8, 0.4);
+  margin: 0 0 24px;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+/* Turkish secondary line — PT Serif preferred (Sprint 0 bundled OFL
+ * Latin-extended renders "şaka" cleanly). opacity 0.85 inside the
+ * already-capped parent (effective ~0.77 total) keeps the gloss
+ * subordinate to the primary line — the 64px/28px size hierarchy plus
+ * the 0.85 opacity together create the "subtitle, not competing line"
+ * read FAZ8_DISCLAIMER_SECONDARY_FONT_PX is designed around. */
+.faz8-disclaimer-secondary {
+  font-family: 'PT Serif', 'Old Standard TT', Georgia, serif;
+  font-size: 28px;
+  color: #7a6a4e;
+  opacity: 0.85;
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.3;
+}
 
 /* ------------------------------------------------------------------------ */
-/* Faz 8 restart-hint — bilingual R-key hint (PLACEHOLDER)                  */
+/* Faz 8 Son ekran (55-65sn) — restart hint (bottom-centred whisper)        */
 /* ------------------------------------------------------------------------ */
 
-/* PLACEHOLDER — Lane B Phase 2B fills.
- *
- * .faz8-restart-hint { ... centred, initial opacity 0 ... }
- * .faz8-restart-hint.is-revealed {
- *   opacity: var(--faz8-restart-hint-opacity, 0.4);
- *   transition: opacity 600ms linear;
- * }
- * .faz8-restart-hint span[lang="ru"] { ... Cyrillic glyph styling ... }
- * .faz8-restart-hint span[lang="tr"] { ... Turkish styling ... }
- *
- * @media (prefers-reduced-motion: reduce) {
- *   .faz8-restart-hint.is-revealed { transition: none; }
- * }
- */
+/* Locale-conditional single-line hint shown at bottom-centre. Mounted
+ * at t=0 of son-ekran with inline opacity:0; Lane A toggles .is-visible
+ * at t=7sn (FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS). Opacity caps at
+ * FAZ8_SON_EKRAN_RESTART_HINT_OPACITY (0.4) so the hint reads as a
+ * discreet whisper, not a UI call-to-action. PT Serif matches the
+ * disclaimer secondary line — keeps the typographic palette tight.
+ * z-index 9000 — below the disclaimer (9001) so an overlap (unlikely
+ * with the bottom-inset) defers to the disclaimer's reading priority. */
+.faz8-restart-hint {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9000;
+  pointer-events: none;
+  margin: 0;
+  font-family: 'PT Serif', 'Old Standard TT', Georgia, serif;
+  font-size: 14px;
+  color: #7a6a4e;
+  opacity: 0;
+  transition: opacity 500ms ease-in-out;
+}
+
+.faz8-restart-hint.is-visible {
+  opacity: 0.4;
+}
 
 /* ------------------------------------------------------------------------ */
-/* Faz 8 volumetric smoke — OPTIONAL second column (PLACEHOLDER)            */
-/*                                                                          */
-/* PHASE 2A DESIGNER DECISION REQUIRED — may be dropped.                    */
+/* Faz 8 Son ekran (55-65sn) — volumetric smoke (CSS-only, D-4 ashtray)    */
 /* ------------------------------------------------------------------------ */
 
-/* PLACEHOLDER — Lane B Phase 2B fills IF Phase 2A designer retains the
- * second smoke column. Otherwise this section ships empty (and the JS
- * mount call is short-circuited at the son-ekran call site).
+/* Source anchor positioned at masa front-right (D-4 'desk-ashtray' in
+ * the procedural-poster snapshot). The procedural lobby snapshot is
+ * background-painted in the same .destruction-takeover region, so the
+ * percent-positioned anchor lands on the ashtray asset there. Exact
+ * coords are a designer-tuned approximation — Sprint 7 may move these
+ * to scene-destruction-constants.ts if the snapshot framing changes.
+ * z-index 9000 sits beneath the disclaimer (9001) so the smoke reads
+ * THROUGH the disclaimer text, not over it. pointer-events: none —
+ * decorative, non-interactive. */
+.faz8-smoke-source {
+  position: absolute;
+  right: 22%;
+  bottom: 38%;
+  width: 60px;
+  height: 1px;
+  z-index: 9000;
+  pointer-events: none;
+}
+
+/* Rising smoke trail — radial gradient ellipse pointing UP from the
+ * source anchor. The @keyframes loop drives the 6sn rise envelope
+ * (translateY + scale + opacity peak in the middle). transform-origin
+ * sits at the bottom of the trail so scale grows AWAY from the
+ * source. filter: blur softens the column edge (atmospheric haze, not
+ * a hard ellipse). peak opacity is FAZ8_VOLUMETRIC_SMOKE_OPACITY_MAX
+ * (0.12) — well below the disclaimer 0.9 so the read stays clean. */
+.faz8-smoke-trail {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, 0) scale(1);
+  width: 80px;
+  height: 240px;
+  background: radial-gradient(
+    ellipse at 50% 100%,
+    rgba(255, 250, 240, 0.18) 0%,
+    rgba(255, 250, 240, 0.08) 35%,
+    transparent 70%
+  );
+  filter: blur(8px);
+  opacity: 0;
+  animation: faz8-smoke-rise
+             var(--faz8-volumetric-smoke-rise-ms, 6000ms)
+             ease-in-out infinite;
+}
+
+/* Smoke rise envelope — 6sn loop. The column starts at the source
+ * (opacity 0 at 0% / 100% so the loop seams cleanly), peaks in the
+ * middle (opacity FAZ8_VOLUMETRIC_SMOKE_OPACITY_MAX = 0.12), and
+ * drifts upward + slightly wider via scale. ease-in-out on the
+ * animation property smooths the loop boundary; the keyframes
+ * themselves are the visible envelope. */
+@keyframes faz8-smoke-rise {
+  0% {
+    transform: translate(-50%, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.08;
+  }
+  50% {
+    transform: translate(-50%, -80px) scale(1.1);
+    opacity: 0.12;
+  }
+  80% {
+    opacity: 0.06;
+  }
+  100% {
+    transform: translate(-50%, -160px) scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 Reduced motion gates                                      */
+/* destruction-direction.md §20 matrix rows 38, 41, 42, 43                  */
+/* ------------------------------------------------------------------------ */
+
+/* Snap-to-end-state for every Faz 8 visual envelope. Audio events
+ * (door-close accent, bulb breathing) are NOT gated here — see §20
+ * line 2643: "only visual motion is" gated under reduced-motion.
+ * Camera dolly + audio bed gain ramp live in Lane A logic — those
+ * gates are NOT in this CSS block.
  *
- * .faz8-volumetric-smoke { ... pointer-events: none; absolute fill ... }
- * @keyframes faz8-volumetric-smoke-drift { ... slow drift envelope ... }
- *
- * @media (prefers-reduced-motion: reduce) {
- *   .faz8-volumetric-smoke { animation: none; opacity: 0.2; }
- * }
- */
+ * Anticipated conflict (additive): Lane A may add gates for ambient
+ * fade-in / camera dolly inside the existing master gate (lines
+ * 474-509). Both sets coexist — additive rules do not collide. */
+@media (prefers-reduced-motion: reduce) {
+  /* Row 38: destruction overlay fade-out instant. */
+  .destruction-takeover.is-fading-out {
+    transition: none;
+    opacity: 0;
+  }
+
+  /* Row 41: disclaimer fade-in instant. .is-visible snap-jumps to
+   * the opacity cap (no transition between opacity 0 → 0.9). */
+  .faz8-disclaimer {
+    transition: none;
+  }
+  .faz8-disclaimer.is-visible {
+    opacity: 0.9;
+  }
+
+  /* Row 42: restart hint fade-in instant. */
+  .faz8-restart-hint {
+    transition: none;
+  }
+  .faz8-restart-hint.is-visible {
+    opacity: 0.4;
+  }
+
+  /* Row 43: smoke rise loop disabled; the column holds as a static
+   * low-opacity haze (atmospheric read preserved without motion). */
+  .faz8-smoke-trail {
+    animation: none;
+    opacity: 0.06;
+    transform: translate(-50%, -80px) scale(1.1);
+  }
+}
