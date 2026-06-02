@@ -1072,3 +1072,327 @@ export const FAZ8_R_KEY_HANDLER_OWNER = 'faz8-son-ekran' as const;
  * ESC-hold abort without ambiguity.
  */
 export const FAZ8_CAMERA_DOLLY_TIMER_OWNER = 'faz8-reveal' as const;
+
+/* ========================================================================== */
+/* SPRINT 6 PHASE 2A — Faz 8 design FILL (color + motion + typography)        */
+/*                                                                            */
+/* Phase 1 declared the timing skeleton + OWNER decrees (lines 873-1074).     */
+/* This block (added Sprint 6 Phase 2A, 2026-06-02) fills the aesthetic       */
+/* knobs Phase 1 left as designer-decision-pending: easing curves for the     */
+/* reveal envelopes, color/typography for the disclaimer + restart-hint, and  */
+/* ADSR + low-pass spec for the door-close audio accent.                      */
+/*                                                                            */
+/* Reference: destruction-direction.md §18-§19 (Sprint 6 extension).          */
+/*                                                                            */
+/* Lane Phase 2B consumers:                                                   */
+/*   - Lane A (kraken):     reveal envelope rAF loop reads easing constants  */
+/*                          here; door-close synth reads ADSR + low-pass.    */
+/*   - Lane B (frontend):   chrome/faz8-disclaimer.ts + faz8-restart-hint.ts */
+/*                          import typography + color constants directly.    */
+/*   - Lane 0 (i18n):       no constants here are locale-switched; the       */
+/*                          Cyrillic/TR strings live in i18n/strings.ts.     */
+/* ========================================================================== */
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 reveal envelope easing                                     */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Destruction-overlay fade-out easing curve. cubic-bezier(0.25, 0.46, 0.45,
+ * 0.94) = "ease-out-quad" — gentle deceleration. Designer rationale: the
+ * overlay must DRAIN, not "transition". Linear was too clinical; ease-out
+ * lets the destruction "give way" — strong start (the storm leaving) then
+ * tapering tail (settling). Applied over FAZ8_REVEAL_FADE_DURATION_MS (3sn).
+ *
+ * NOTE: the Phase 1 JSDoc on FAZ8_REVEAL_FADE_DURATION_MS said "linear
+ * opacity ramp; designer choice — easing would read as stylised". Sprint 6
+ * Phase 2A REVISES that note: after sitting with the storyboard, the
+ * stylised easing IS what we want — the reveal is the most "scored" beat
+ * in the whole sequence (silence → fade → tableau), so a stylised curve
+ * is congruent. The Phase 1 JSDoc remains for archaeology but this
+ * constant is the authoritative easing.
+ */
+export const FAZ8_REVEAL_FADE_EASING = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)' as const;
+
+/**
+ * Camera dolly-out easing curve. cubic-bezier(0.65, 0, 0.35, 1) =
+ * "ease-in-out-quart" — gentle start, accelerated middle, gentle end.
+ * Designer rationale (D-3): the dolly is the only camera motion in the
+ * whole 65sn timeline that the user explicitly READS as camera (every
+ * other camera surface is a shake or a snap). The ease-in lets the
+ * camera "decide" to dolly out; the ease-out lets it "arrive" at the
+ * lobby framing. Symmetric in/out so neither edge is rushed. Applied
+ * over the full FAZ8_REVEAL_DURATION_MS (5sn — the dolly runs for the
+ * entire reveal window, including the silence pause).
+ */
+export const FAZ8_REVEAL_DOLLY_EASING = 'cubic-bezier(0.65, 0, 0.35, 1)' as const;
+
+/**
+ * Ambient audio bed baseline target (dB FS). -24dB — the Sprint 1 lobby
+ * ambient sits here at idle (bulb hum + radio static + faint Temnaya).
+ * The Faz 8 ambient-recovery handle ramps the bed back from -∞ (Sprint 5
+ * established total silence via destruction-audio's master gate) over
+ * FAZ8_REVEAL_AMBIENT_RAMP_MS (3sn) using a linear gain ramp. -24dB is
+ * the "quiet but present" target — the user has been listening to a
+ * total-blackout silence pause for 1sn and the ambient creep must feel
+ * like ROOM RETURNING, not music starting. -24dB is below conversation
+ * volume, above the noise floor.
+ */
+export const FAZ8_AUDIO_BED_BASELINE_GAIN_DB = -24;
+
+/**
+ * Bulb pulse normalisation target frequency (Hz). Sprint 1 §2 established
+ * the resting ambient breathing at 0.4Hz (slow tidal pulse — once every
+ * 2.5sn). Sprint 5 destruction phases REPLACED this with the destruction-
+ * amplitude flicker (14Hz tied to the AC-buzz). Faz 8 reveal restores
+ * the resting frequency. The normalisation runs across the full reveal
+ * window (5sn) — by son-ekran the bulb is breathing at Sprint 1 rate.
+ */
+export const FAZ8_BULB_PULSE_RESTING_HZ = 0.4;
+
+/**
+ * Bulb pulse normalisation amplitude (intensity ratio). Sprint 1 ambient
+ * breathing modulates bulb intensity ±5% from baseline (the resting
+ * heart-rate of the room). Faz 8 reveal interpolates from the Sprint 5
+ * destruction-amplitude flicker back to this resting amplitude.
+ */
+export const FAZ8_BULB_PULSE_RESTING_AMPLITUDE = 0.05;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 disclaimer typography + color                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Disclaimer primary line font size (px). 64px — large enough to read as
+ * a STATEMENT (the punchline of the entire 65sn arc), small enough not
+ * to dominate the revolver-on-table composition. Designer rationale: at
+ * 1920×1080 native, 64px = 3.3% of viewport height, large enough to be
+ * THE thing on screen, small enough that 40+ year-old eyes don't read
+ * it as "shouting". Reference string: "Это просто шутка." (4 Cyrillic
+ * words + period, ~16 glyphs depending on letter widths).
+ *
+ * Font-family: Old Standard TT (Sprint 0 bundled, OFL, Cyrillic-complete).
+ * The serif treatment reads as "considered statement" — sans-serif would
+ * read as "system message" which is the OPPOSITE of the joke reveal.
+ */
+export const FAZ8_DISCLAIMER_PRIMARY_FONT_PX = 64;
+
+/**
+ * Disclaimer primary line letter-spacing (px). -0.5px — slight negative
+ * tracking. Old Standard TT at 64px reads slightly loose at default
+ * tracking; -0.5px tightens the words without making the text look
+ * "compressed". Reference: typographer's default "tight headline" at
+ * 60-72px display size.
+ */
+export const FAZ8_DISCLAIMER_PRIMARY_LETTER_SPACING_PX = -0.5;
+
+/**
+ * Disclaimer secondary line font size (px). 28px — roughly 44% of the
+ * primary (64px) size. This ratio (0.44) sits between "subtitle"
+ * (0.5-0.6 = sibling read) and "footer" (0.25-0.3 = subordinate read).
+ * 0.44 = "subordinate but legible" — the TR translation reads as the
+ * gloss-on-the-original, not as a competing line.
+ *
+ * Font-family: PT Serif Regular (Sprint 0 bundled, OFL, full Cyrillic +
+ * Latin diacritics for Turkish — though TR text doesn't need Cyrillic
+ * glyphs, PT Serif's Latin-extended is what makes "şaka" render cleanly).
+ */
+export const FAZ8_DISCLAIMER_SECONDARY_FONT_PX = 28;
+
+/**
+ * Vertical gap between primary + secondary lines (px). 24px — comfortable
+ * "sibling text" spacing. Less (12-16px) would read as one paragraph;
+ * more (32-40px) would read as two unrelated lines. 24px sits in the
+ * "obviously paired" sweet spot — visually-grouped but textually-
+ * distinguished.
+ */
+export const FAZ8_DISCLAIMER_GAP_PX = 24;
+
+/**
+ * Disclaimer text color (kirli kâğıt). #7a6a4e — PLAN §2 line 48 palette
+ * entry. The same color the intro disclaimer (Sprint 0 disclaimer.css
+ * line 69, 96) uses for the TR text. Using the SAME color closes the
+ * narrative loop: intro disclaimer → 65sn destruction journey →
+ * son-ekran disclaimer. The "kirli kâğıt" palette is the room's voice;
+ * the destruction palette (white modal text, blue BSOD, etc.) belongs
+ * to the systems being mocked. Returning to kirli kâğıt = returning to
+ * the room = the system was lying, the room was always there.
+ */
+export const FAZ8_DISCLAIMER_COLOR = '#7a6a4e' as const;
+
+/**
+ * Disclaimer text-shadow. 0 0 8px rgba(10, 9, 8, 0.4) — soft black
+ * halation around the glyphs. Reads as "candlelight illumination" on
+ * an old paper document — congruent with the kirli-kâğıt palette and
+ * with the room's tungsten bulb (the bulb is the only light source by
+ * son-ekran). NOTE: 10/9/8 is the lobby base background hex split —
+ * very dark warm-brown-black. The 0.4 alpha keeps the shadow from
+ * reading as "glow" (which would feel UI-like) and instead as
+ * "depth" (which feels object-like).
+ */
+export const FAZ8_DISCLAIMER_TEXT_SHADOW = '0 0 8px rgba(10, 9, 8, 0.4)' as const;
+
+/**
+ * Disclaimer secondary line stagger delay (ms). 200ms after the primary
+ * fade-in begins. The stagger reinforces the reading order: Russian
+ * first (the bolder, larger line — the joke), Turkish second (the
+ * subtitle — the gloss). 200ms is enough for the eye to land on the
+ * Russian glyphs before the Turkish appears (saccade time + initial
+ * letter-recognition is ~180-220ms in casual reading).
+ */
+export const FAZ8_DISCLAIMER_SECONDARY_STAGGER_MS = 200;
+
+/**
+ * Disclaimer fade-in easing curve. cubic-bezier(0.4, 0, 0.6, 1) =
+ * "ease-in-out-sine" — symmetric, gentle, no "snap" character. The
+ * disclaimer must APPEAR, not "animate in" — easing should be felt
+ * but not seen.
+ */
+export const FAZ8_DISCLAIMER_FADE_EASING = 'cubic-bezier(0.4, 0, 0.6, 1)' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 restart-hint typography + color                            */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Restart-hint font size (px). 14px — small UI hint, deliberately
+ * below the "read this" threshold for a casual glance. The user who
+ * notices it can press R; the user who doesn't gets the 10sn
+ * son-ekran timeout and exits naturally. Designer choice for the
+ * "whisper" register (cf. FAZ8_SON_EKRAN_RESTART_HINT_OPACITY = 0.4).
+ *
+ * Font-family: PT Serif Regular (SAME family as the disclaimer
+ * secondary line — keeps the typographic palette tight; the hint
+ * reads as "another quiet voice" not "a new UI element").
+ */
+export const FAZ8_RESTART_HINT_FONT_PX = 14;
+
+/**
+ * Restart-hint text color. Same kirli-kâğıt #7a6a4e as the disclaimer.
+ * Visual unity — both the disclaimer and the hint belong to the room's
+ * voice, not the system's voice. The opacity gap
+ * (FAZ8_SON_EKRAN_RESTART_HINT_OPACITY = 0.4 vs FAZ8_DISCLAIMER_OPACITY_MAX
+ * = 0.9) does the hierarchy work; color stays unified.
+ */
+export const FAZ8_RESTART_HINT_COLOR = '#7a6a4e' as const;
+
+/**
+ * Restart-hint bottom inset from viewport edge (px). 48px — comfortable
+ * "footer hint" placement. 24px would feel cramped; 72px would feel
+ * detached. 48px is the standard "page footer" spacing in
+ * editorial-typography references.
+ */
+export const FAZ8_RESTART_HINT_BOTTOM_INSET_PX = 48;
+
+/**
+ * Restart-hint fade-in duration (ms). 500ms — twice the
+ * disclaimer-secondary stagger (200ms). The hint is a whisper; a
+ * 500ms fade lets it "appear" rather than "snap in".
+ */
+export const FAZ8_RESTART_HINT_FADE_IN_MS = 500;
+
+/**
+ * Restart-hint separator glyph between locale variants. ' · ' (middle
+ * dot, padded with spaces). Designer choice: bullet (·) over slash (/)
+ * because slash reads as "either/or option" (which is wrong — the
+ * three locale variants are the SAME hint in three languages, not a
+ * choice between them). The middle-dot reads as "and also" / "list
+ * separator". Reference: typesetter's convention for inline locale
+ * concatenation.
+ */
+export const FAZ8_RESTART_HINT_SEPARATOR = ' · ' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 door-close audio accent — ADSR + low-pass                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Door-close attack time (ms). 5ms — fast attack. A real apartment door
+ * latch click is essentially instantaneous; the 5ms attack lets the
+ * onset transient land cleanly without a click artefact on the Web
+ * Audio gain ramp.
+ */
+export const FAZ8_DOOR_CLOSE_ATTACK_MS = 5;
+
+/**
+ * Door-close decay time (ms). 40ms — short decay after the latch
+ * onset. The door wood reverberates briefly before settling.
+ */
+export const FAZ8_DOOR_CLOSE_DECAY_MS = 40;
+
+/**
+ * Door-close sustain ratio (0-1). 0.8 — high sustain. The "body" of
+ * the door-close (the wood resonance + apartment-hallway short reverb
+ * tail) sits at 80% of peak after the attack+decay transient.
+ */
+export const FAZ8_DOOR_CLOSE_SUSTAIN_RATIO = 0.8;
+
+/**
+ * Door-close release time (ms). 200ms — longer release. The reverb
+ * tail decays over 200ms; longer than this would read as "music
+ * release" not "door release"; shorter would clip the resonance.
+ */
+export const FAZ8_DOOR_CLOSE_RELEASE_MS = 200;
+
+/**
+ * Door-close low-pass cutoff (Hz). 150Hz — aggressive low-pass.
+ * Removes all high-frequency content (the "click" character of a
+ * latch) and leaves only the LOW-FREQUENCY THUMP. Designer rationale:
+ * the door-close is an OFF-STAGE event ("a door, somewhere, closed")
+ * — it should sound MUFFLED, as if heard through a wall or from
+ * another room. 150Hz is below the human-voice fundamental range
+ * (80-260Hz) so the door doesn't read as "someone speaking", and
+ * above 100Hz (the lower bound of useful playback on consumer
+ * laptop speakers) so the thump is actually audible.
+ */
+export const FAZ8_DOOR_CLOSE_LOWPASS_HZ = 150;
+
+/**
+ * Door-close peak gain (linear, 0-1). 0.3 — moderate. The accent
+ * must be audible against the recovering ambient bed (which sits at
+ * -24dB = ~0.063 linear) but not startling. 0.3 = ~-10dB FS which is
+ * "clearly audible but not loud" against -24dB ambient.
+ */
+export const FAZ8_DOOR_CLOSE_PEAK_GAIN = 0.3;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 6 Faz 8 volumetric smoke (OPTIONAL — D-2 may DROP)                 */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Volumetric smoke render mode. 'css' = CSS-only @keyframes + radial-
+ * gradient transform (Phase 2A D-2 RECOMMENDED). 'canvas2d' = particle
+ * system (Phase 2A D-2 DEFER unless perf budget allows). 'none' = the
+ * handle short-circuits and renders nothing (allows D-2 DROP without
+ * removing the handle from the chrome module's mount sequence).
+ *
+ * Phase 2A choice: 'css' — see destruction-direction.md §19 D-2.
+ */
+export const FAZ8_VOLUMETRIC_SMOKE_MODE = 'css' as const;
+
+/**
+ * Smoke rise loop duration (ms). 6000ms = 6 second loop. Within the
+ * 5-8sn spec band. 6sn = "noticeable but not metronomic" — long
+ * enough that the eye doesn't read it as a repeating loop on first
+ * cycle, short enough that the user sees ≥ 1 full rise within the
+ * 10sn son-ekran window.
+ */
+export const FAZ8_VOLUMETRIC_SMOKE_RISE_DURATION_MS = 6000;
+
+/**
+ * Smoke source position relative to viewport (D-4 designer choice).
+ * 'desk-ashtray' = column rises from masa front-right (where the
+ * lobby ashtray asset sits in the procedural-poster snapshot).
+ * Designer rationale: anchors the smoke to a diegetic source visible
+ * in the lobby snapshot. Alternative 'off-screen-right' rejected —
+ * an unanchored column reads as "atmospheric VFX" not "cigarette
+ * smoke".
+ */
+export const FAZ8_VOLUMETRIC_SMOKE_SOURCE = 'desk-ashtray' as const;
+
+/**
+ * Smoke peak opacity. 0.12 — well below the disclaimer 0.9. The smoke
+ * is atmospheric haze, not a primary visual. Lane B should keep this
+ * low so the disclaimer reads cleanly through it.
+ */
+export const FAZ8_VOLUMETRIC_SMOKE_OPACITY_MAX = 0.12;

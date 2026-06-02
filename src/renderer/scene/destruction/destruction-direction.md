@@ -2198,3 +2198,600 @@ rather than incidental.*
 ## Files designer did NOT touch (Sprint 5 Phase 2B collision-safety)
 
 Per Sprint 5 Phase 2A scope: lane controllers (faz4-7 `.ts`), chrome modules (`chrome/mac-*.ts`, `chrome/win-*.ts`), `audio/destruction-audio.ts` synth factories, `i18n/strings.ts` destruction subtree, `styles/destruction.css`, and `assets/destruction/win-bsod-qr.png` — all left untouched for Phase 2B parallel lanes. `atmosphere-direction.md` not extended: Sprint 4 §9 fog + bulb state remains valid throughout Faz 4-7 (destruction is overlay-driven; lobby underneath unchanged).
+
+---
+
+# Sprint 6 Phase 2A extension — Faz 8 (reveal + son ekran)
+
+> Designer note. Authored 2026-06-02 by designer agent (Sprint 6 Phase 2A
+> SOLO) for the Sprint 6 Phase 2B parallel implementers: `i18n-expert`
+> (Lane 0, SEQUENCE-LOCK FIRST), `kraken` (Lane A — reveal + son-ekran
+> envelopes + audio), `frontend-dev` (Lane B — disclaimer + restart-hint
+> + optional volumetric-smoke chrome + CSS). Sprint 4 §1-§9 and Sprint 5
+> §10-§17 above are the prerequisite reading — DO NOT re-read Faz 0-7
+> specs from this section; reference them by line. Sprint 6 caps NEW
+> content at ≤ 600L per TH-S5-06 enforcement.
+>
+> Sprint 5 left the user inside the bootloop with bleed #4 (revolver-on-
+> table, 800ms, 48sn) just visible. Sprint 6 carries them out of the
+> destruction and into the room. The arc is **"the storm has ended; what
+> remains?"**. The answer is: the room, the bulb, the revolver — and the
+> joke. The destruction never touched the room; the room was always
+> there; the system was the lie. Faz 8 is split into TWO discrete
+> sub-phases (Phase 1 FSM precedent):
+>
+>   - **faz8-reveal (50-55sn)** — 5sn fade-back. The "after the storm"
+>     beat: silence pivot, destruction drains, bulb settles, camera
+>     dollies out, ambient returns. No text, no UI — just the room
+>     coming back into focus.
+>
+>   - **faz8-son-ekran (55-65sn)** — 10sn closing tableau. The
+>     revolver-on-table composite holds; door-closes off-screen; the
+>     Cyrillic disclaimer fades in (primary "Это просто шутка." +
+>     subtitle "Bu sadece bir şaka."); optional restart-hint mounts at
+>     ~7sn.
+>
+> The Phase 1 kraken scaffold (commit `90899cc`) declared the FSM
+> transitions, the OWNER decrees, and the timing skeleton. This Phase
+> 2A pass FILLS the aesthetic knobs (color, typography, easing curves,
+> ADSR + low-pass for door-close audio) and DECIDES four pending
+> questions (D-1 restart-hint ship, D-2 volumetric-smoke ship, D-3 dolly
+> easing, D-4 smoke source position).
+
+---
+
+## Table of contents (Sprint 6 extension)
+
+- [§18 Faz 8 Reveal (50-55sn) — drain + recover](#18-faz-8-reveal-50-55sn--drain--recover)
+- [§19 Faz 8 Son ekran (55-65sn) — closing tableau](#19-faz-8-son-ekran-55-65sn--closing-tableau)
+- [§20 prefers-reduced-motion matrix — Sprint 6 NEW surfaces only](#20-prefers-reduced-motion-matrix--sprint-6-new-surfaces-only)
+
+---
+
+## 18. Faz 8 Reveal (50-55sn) — drain + recover
+
+The reveal is the only beat in the 65sn sequence with zero diegetic
+text and zero UI chrome. It is pure environment: the destruction
+overlay drains, the bulb settles, the camera dollies out, the ambient
+audio returns. Five concurrent envelopes share the 5-second window;
+the silence pause at the start is the narrative pivot.
+
+### The 5-second pacing budget
+
+| Sub-window | Duration | Envelopes active |
+|------------|----------|------------------|
+| 0-1sn (silence pivot) | 1sn | bulb-pulse-norm (begun), camera-dolly (begun); destruction-overlay HOLDS at opacity 1; audio at -∞ |
+| 1-4sn (drain) | 3sn | destruction-overlay opacity 1→0 (easing), ambient bed -∞ → -24dB (linear), bulb-pulse-norm continues, camera-dolly continues |
+| 4-5sn (hold) | 1sn | destruction-overlay AT 0; ambient stable; bulb-pulse-norm continues; camera-dolly continues |
+
+The silence pivot is the load-bearing 1 second. Sprint 5 ended with
+the bootloop's BIOS-blue or pure-black state, the HDD-grind synth
+still spinning, the AC-buzz still ticking. At t=50000ms (Faz 8
+entry), all destruction audio is CUT TO -∞ AT ONCE (not faded —
+abruptly silenced). The screen holds at full destruction overlay.
+For 1 full second the user experiences: visual destruction + total
+silence. That contradiction is the pivot — the visual still says
+"destruction" but the audio has already left the destruction
+soundscape. The next thing the user hears (ambient creep) and the
+next thing they see (overlay draining) will be unified back into
+the room.
+
+### Destruction-overlay fade-out
+
+| Knob | Value | Source |
+|------|-------|--------|
+| Opacity start | 1 (full destruction visible) | Sprint 5 end-state |
+| Opacity end | 0 (transparent) | Faz 8 reveal end |
+| Duration | 3000ms (= `FAZ8_REVEAL_FADE_DURATION_MS`) | Sub-window starts at +1000ms, ends at +4000ms |
+| Easing | `FAZ8_REVEAL_FADE_EASING` = `cubic-bezier(0.25, 0.46, 0.45, 0.94)` (ease-out-quad) | §18 designer choice |
+| z-index | 10000 (destruction overlay) | Sprint 4 §6 stacking |
+
+Designer rationale on the easing: Phase 1 JSDoc on
+`FAZ8_REVEAL_FADE_DURATION_MS` originally said "linear opacity ramp;
+designer choice — easing would read as stylised". Phase 2A
+REVISES — the stylised easing IS what we want here. The reveal is
+the most "scored" beat in the entire 65sn sequence (silence → fade
+→ tableau), so a stylised curve is congruent with the deliberate
+pacing. The Phase 1 JSDoc remains as archaeology but the
+`FAZ8_REVEAL_FADE_EASING` constant is the authoritative spec.
+
+The ease-out character (gentle deceleration) lets the destruction
+"give way" — strong start (the storm leaving), tapering tail
+(settling). Reads as "the destruction is RECEDING" rather than
+"the screen reset" or "fade transition".
+
+### Bulb pulse normalisation
+
+The bulb has been on Sprint 5's destruction-amplitude flicker since
+the bang (14Hz AC-buzz lock). Faz 8 reveal interpolates it back to
+the Sprint 1 ambient breathing rate over the full 5-second window:
+
+| Knob | Sprint 5 (destruction) | Sprint 1 / Faz 8 (resting) | Interpolation |
+|------|------------------------|----------------------------|---------------|
+| Pulse frequency | 14Hz (AC-buzz-locked) | 0.4Hz (= `FAZ8_BULB_PULSE_RESTING_HZ`) | Linear over 5sn |
+| Pulse amplitude | ±35% intensity (destruction) | ±5% intensity (= `FAZ8_BULB_PULSE_RESTING_AMPLITUDE`) | Linear over 5sn |
+
+The normalisation BEGINS at Faz 8 entry (t=0 of reveal, NOT after
+the silence pause) so by t=1sn (silence end) the bulb is already
+visibly slowing — the player who looks at the bulb during the
+silence pause sees "something is settling" before anything else
+changes. By son-ekran entry (t=5sn into reveal) the bulb is at
+Sprint 1 resting rate.
+
+### Camera dolly-out
+
+| Knob | Value | Source |
+|------|-------|--------|
+| Pull-back magnitude | 10° yaw+pitch recovery (= `FAZ8_REVEAL_CAMERA_DOLLY_DEGREES`) | Phase 1 timing decree |
+| Reference framing | Sprint 4 intimate desk framing (BANG_CAMERA_SHAKE_DEG=5 displacement carried) | Sprint 4 §2 |
+| Target framing | Lobby room reveal (slightly higher, slightly further) | Faz 8 design |
+| Duration | 5000ms (= full `FAZ8_REVEAL_DURATION_MS`) | Single envelope across full reveal |
+| Easing | `FAZ8_REVEAL_DOLLY_EASING` = `cubic-bezier(0.65, 0, 0.35, 1)` (ease-in-out-quart) | §18 D-3 decision |
+
+Designer rationale on D-3 (ease-in-out-quart): the dolly is the
+only camera motion in the whole 65sn timeline that the user
+explicitly READS as camera — every other camera surface is a shake
+(Sprint 4 BANG_CAMERA_SHAKE) or a snap (Sprint 5 disk-format
+takeover). Other curves considered:
+
+- `ease-out-cubic` — rejected: too rushed at the start, would clash
+  with the silence pivot's "deliberate calm".
+- `ease-in-cubic` — rejected: too rushed at the end, would clash
+  with the son-ekran's "hold the framing" requirement.
+- `linear` — rejected: reads as automated, mechanical.
+- `ease-in-out-quart` (D-3 PICKED) — symmetric, gentle in/out, the
+  camera "decides" to dolly out (ease-in), accelerates through the
+  middle, and "arrives" at the lobby framing (ease-out).
+
+The dolly runs across the FULL 5-second reveal window including
+the silence pause. The user who is looking at the bulb during the
+silence pause also sees the framing slowly widening — the silence
+is not "frozen", the world is moving, the audio just isn't
+narrating it.
+
+### Audio recovery — ambient bed -∞ → -24dB
+
+| Knob | Value | Source |
+|------|-------|--------|
+| Start gain | -∞ dB (total silence after Sprint 5 cut) | Sprint 5 destruction-audio close |
+| Target gain | -24dB FS (= `FAZ8_AUDIO_BED_BASELINE_GAIN_DB`) | §18 designer choice |
+| Duration | 3000ms (= `FAZ8_REVEAL_AMBIENT_RAMP_MS`) | Sub-window starts at +1000ms (silence end), ends at +4000ms |
+| Ramp shape | Linear gain ramp | Web Audio `linearRampToValueAtTime` — perceptually feels like "room creeping back" |
+
+The ambient bed is the Sprint 1 lobby stack: bulb hum (60Hz +
+harmonics, low) + radio static (AM noise) + faint Temnaya bayan
+akordeonu sample. The Sprint 5 destruction-audio close cut the
+master gate at Faz 7 exit; Faz 8 reveal does not "rewind" that
+state — it constructs a fresh `AmbientRecoveryHandle` (Lane A,
+owner = `AMBIENT_RECOVERY_AUDIO_OWNER` = `'faz8-reveal'`) that
+ramps a new ambient bus from -∞ to -24dB.
+
+-24dB is the "quiet but present" target. After 1sn of total
+blackout silence, the user's ears have adjusted; the ambient
+creep needs to feel like ROOM RETURNING, not music starting.
+-24dB sits below conversation volume, above the noise floor —
+"there is sound here again, but it is not pressing".
+
+Note: PLAN §7 line 293 mentions "Radyo statik → Temnaya-tarzı
+melodi başa sarmış gibi" (radio static → Temnaya-style melody as
+if rewound). Sprint 6 scope ships ONLY the ambient bed creep —
+the Temnaya rewind-rewind treatment is deferred to post-S6
+(reveal jingle, per PLAN §7 line 301, also deferred per Phase 1
+scope boundary).
+
+---
+
+## 19. Faz 8 Son ekran (55-65sn) — closing tableau
+
+The son-ekran is the 10-second closing held-frame. The composition
+is a wide-ish lobby framing (post-dolly-out) with the revolver on
+the desk (Bleed #4 narrative payoff: in bleed #4 at 48sn the
+revolver was glimpsed pointed AT the table; in son-ekran the
+revolver is FULLY at rest on the table). Three discrete elements
+stage on top of this framing: an off-screen door-close audio
+accent, the Cyrillic disclaimer block, and (optional) the restart
+hint.
+
+### Held framing — revolver on the desk
+
+| Element | Treatment |
+|---------|-----------|
+| Camera | Held at Faz 8 reveal end position (post-dolly, slightly higher + further than Sprint 4 intimate framing). No further camera motion during son-ekran. |
+| Bulb | Sprint 1 ambient breathing (0.4Hz, ±5% intensity) — continues from reveal end |
+| Revolver | At rest on desk, namlusu (barrel) touching desk surface — explicit narrative payoff of Bleed #4 |
+| Ambient audio | -24dB bed sustained (bulb hum + radio static + faint Temnaya) |
+| Apartment bleeds | NONE — bleeds were the destruction's "the room is leaking through". The destruction is over; the room is what is. No bleed needed. |
+
+The composition stays static for 10 seconds. Within that 10 seconds
+the three staged elements appear in sequence:
+
+| t (within son-ekran) | Event |
+|----------------------|-------|
+| 0sn | Composition revealed (transition from reveal end). |
+| 2sn (= `FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS`) | Off-screen door-close audio accent fires (single-shot). |
+| 3sn (= `FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS`) | Disclaimer primary line begins fade-in. |
+| 3.2sn (= 3sn + `FAZ8_DISCLAIMER_SECONDARY_STAGGER_MS`) | Disclaimer secondary line begins fade-in. |
+| 4sn (= 3sn + `FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS`) | Disclaimer primary at full opacity 0.9. |
+| 4.2sn | Disclaimer secondary at full opacity 0.75 (= 0.9 × 0.83). |
+| 7sn (= `FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS`) | Restart hint begins fade-in (IF D-1 ships). |
+| 7.5sn | Restart hint at opacity 0.4. |
+| 10sn | Son-ekran exit (FSM returns to entry — director either exits or loops on R-key). |
+
+### Off-screen door-close audio accent
+
+The door-close is a single-fire procedural audio event (Sprint 4
+Lesson 3 — no `.ogg`/`.wav` vendoring). Sub-bass thump with
+aggressive low-pass to read as "muffled, off-stage, in another
+room". Lane A constructs the `DoorCloseAccentHandle`; the synth
+spec lives in the constants and is reproduced here for designer
+intent:
+
+| Synth knob | Value (constant) | Designer reasoning |
+|------------|------------------|--------------------|
+| ADSR attack | 5ms (= `FAZ8_DOOR_CLOSE_ATTACK_MS`) | Fast onset — real door-latch click is essentially instantaneous; 5ms avoids click artefact on the Web Audio gain ramp |
+| ADSR decay | 40ms (= `FAZ8_DOOR_CLOSE_DECAY_MS`) | Short decay — the wood reverberates briefly before settling |
+| ADSR sustain ratio | 0.8 (= `FAZ8_DOOR_CLOSE_SUSTAIN_RATIO`) | High sustain — wood-body resonance + apartment-hallway short reverb tail at 80% of peak |
+| ADSR release | 200ms (= `FAZ8_DOOR_CLOSE_RELEASE_MS`) | Long release — the reverb tail decays smoothly; shorter clips, longer reads as music |
+| Low-pass cutoff | 150Hz (= `FAZ8_DOOR_CLOSE_LOWPASS_HZ`) | Removes click character, leaves only LOW-FREQUENCY THUMP — sounds heard through a wall |
+| Peak gain | 0.3 linear (≈-10dB FS) (= `FAZ8_DOOR_CLOSE_PEAK_GAIN`) | Clearly audible against -24dB ambient but not startling |
+| Trigger time | 2000ms into son-ekran (= `FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS`) | Lands BEFORE the disclaimer fade-in so it reads as "something just settled" not "disclaimer triggered a sound" |
+
+The door-close is a SINGLE non-looped fire. It is the only event
+in son-ekran with a clean "this happened" character; everything
+else fades in continuously. The single-shot character is the point
+— it locates the user spatially in the lobby ("someone closed a
+door, somewhere") without specifying a source.
+
+### Cyrillic disclaimer block
+
+The disclaimer is a centred two-line text block: Russian primary,
+Turkish subtitle. The Russian line is the joke punchline; the
+Turkish line is the gloss for non-Russian-readers. The visual
+hierarchy MUST land the Russian first (the larger, bolder line).
+
+| Element | Spec |
+|---------|------|
+| Primary text content | "Это просто шутка." (Russian, "It is just a joke."), via `STRINGS.destruction.faz8.disclaimerPrimary` |
+| Primary font-family | `'Old Standard TT', 'PT Serif', Georgia, serif` (Sprint 0 OFL bundle stack) |
+| Primary font-size | 64px (= `FAZ8_DISCLAIMER_PRIMARY_FONT_PX`) |
+| Primary letter-spacing | -0.5px (= `FAZ8_DISCLAIMER_PRIMARY_LETTER_SPACING_PX`) |
+| Primary font-weight | 400 (Regular — Old Standard TT does not ship a heavier weight in our bundle) |
+| Primary opacity target | 0.9 (= `FAZ8_DISCLAIMER_OPACITY_MAX`) |
+| Secondary text content | "Bu sadece bir şaka." (Turkish), via `STRINGS.destruction.faz8.disclaimerSecondary` |
+| Secondary font-family | `'PT Serif', Georgia, serif` (PT Serif Regular, OFL) |
+| Secondary font-size | 28px (= `FAZ8_DISCLAIMER_SECONDARY_FONT_PX`) |
+| Secondary font-weight | 400 (Regular) |
+| Secondary opacity target | ≈0.75 (cascaded: 0.9 × 0.83 — let Lane B set explicit `opacity: 0.75` on `.faz8-disclaimer__secondary` for clarity, not via inheritance) |
+| Gap between lines | 24px (= `FAZ8_DISCLAIMER_GAP_PX`) margin-top on secondary |
+| Color (both lines) | #7a6a4e (= `FAZ8_DISCLAIMER_COLOR`) — kirli kâğıt palette (PLAN §2 line 48; matches intro disclaimer Sprint 0) |
+| Text-shadow (both) | `0 0 8px rgba(10, 9, 8, 0.4)` (= `FAZ8_DISCLAIMER_TEXT_SHADOW`) — soft warm-black halation |
+| Alignment | Centred (block centred horizontally + vertically in viewport via flexbox; primary above secondary) |
+| Fade-in duration | 1000ms (= `FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS`) |
+| Fade-in easing | `FAZ8_DISCLAIMER_FADE_EASING` = `cubic-bezier(0.4, 0, 0.6, 1)` (ease-in-out-sine) |
+| Secondary stagger after primary fade-in starts | 200ms (= `FAZ8_DISCLAIMER_SECONDARY_STAGGER_MS`) |
+| z-index | 10100 (above destruction overlay 10000; below restart-hint 10110) |
+| ARIA role | `role="status"` on container; `aria-live="polite"` on container so the disclaimer is announced once when it fades in |
+
+Designer rationale (full JSDoc in `scene-destruction-constants.ts`
+Faz 8 design FILL block):
+
+- **Serif over sans.** Destruction phases used system sans-serifs
+  (`-apple-system`, `Segoe UI Variable`, Consolas) — those are the
+  OS voices. The room has always spoken in serif (intro disclaimer,
+  procedural poster). The son-ekran disclaimer continues that
+  convention: this is the ROOM speaking, finally.
+- **Size + opacity hierarchy.** 28/64 = 0.44 ratio = "subordinate
+  but legible"; 0.75/0.9 = 0.83 opacity ratio reinforces the same.
+  TR reads as gloss on RU, not as a competing line.
+- **#7a6a4e kirli-kâğıt closes the narrative loop.** Intro
+  disclaimer used this color → 65sn destruction (system voices in
+  their own palettes) → son-ekran returns to it. "The room was
+  always there." Text-shadow rgba(10,9,8,0.4) = candlelight halation
+  on old paper, congruent with the tungsten bulb.
+- **200ms stagger = saccade + letter-recognition window.** The eye
+  lands on "ШУТКА" before "şaka" arrives.
+
+### Restart hint (D-1 — RECOMMENDED SHIP)
+
+| Element | Spec |
+|---------|------|
+| Mount offset | 7000ms into son-ekran (= `FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS`) |
+| Text content | "R = ЕЩЁ РАЗ · R = TEKRAR · R = restart" (RU · TR · EN, concatenated with middle-dot separator `FAZ8_RESTART_HINT_SEPARATOR`) |
+| i18n keys | `STRINGS.destruction.faz8.restartHintRu`, `restartHintTr`, `restartHintEn` |
+| Font-family | `'PT Serif', Georgia, serif` (same as disclaimer secondary — keeps typographic palette tight) |
+| Font-size | 14px (= `FAZ8_RESTART_HINT_FONT_PX`) |
+| Color | #7a6a4e (= `FAZ8_RESTART_HINT_COLOR`) — same as disclaimer |
+| Opacity target | 0.4 (= `FAZ8_SON_EKRAN_RESTART_HINT_OPACITY`) |
+| Position | Bottom of viewport, centred horizontally, 48px from edge (= `FAZ8_RESTART_HINT_BOTTOM_INSET_PX`) |
+| Fade-in duration | 500ms (= `FAZ8_RESTART_HINT_FADE_IN_MS`) |
+| Fade-in easing | `cubic-bezier(0.4, 0, 0.6, 1)` (matches disclaimer easing) |
+| z-index | 10110 (above disclaimer 10100, above destruction overlay 10000) |
+| ARIA | `role="status"`, `aria-live="off"` (the disclaimer already announced; the hint is decorative — screen-reader users get keyboard-shortcuts via the app shell instead) |
+
+**D-1 decision: SHIP in Sprint 6.**
+
+Rationale:
+
+- **Low implementation cost.** Phase 1 already scaffolded the chrome
+  module + R-key binding + FSM `requestRestart()` surface; only the
+  CSS rules + i18n keys remain. Lane B + Lane 0 work in Phase 2B.
+- **High UX value.** The 10sn son-ekran is a forced wait. Without a
+  hint, the user with a keyboard either guesses (frustrating) or
+  exits via window-close (anti-climactic). With a hint, the user has
+  a clear and discoverable affordance to re-experience the sequence
+  (which is exactly what some users will want after the joke lands).
+- **Whisper register matches Sprint 7+ deferred UI buttons.** PLAN
+  §7 line 302 specifies "ЕЩЁ РАЗ / TEKRAR + ВЫЙТИ / ÇIK" buttons in
+  the post-S6 future. The Sprint 6 hint at opacity 0.4, font-size
+  14px, bottom-centred at 48px inset is explicitly the "soft
+  precursor" to those buttons — when buttons replace the hint, the
+  hint disappears and the buttons land in the same visual region.
+- **Kiosk safety closure.** Phase 1 wired the `requestRestart()`
+  surface with explicit Risk S9 closure (no `app.quit` / no
+  `BrowserWindow.close` / no IPC exit). Shipping the hint in Sprint
+  6 lets Phase 3 QA validate the R-key restart loop end-to-end.
+
+The middle-dot `·` separator (rather than `/`) is the typesetter's
+convention for inline locale concatenation. Slash reads as
+"either/or option" which is wrong — the three locales are the SAME
+hint in three languages, not a choice.
+
+### Volumetric smoke (D-2 — RECOMMENDED SHIP if CSS-only viable)
+
+The PLAN §2 line 19 establishes "sigara dumanı" as part of the
+room's atmosphere. Sprint 6 son-ekran can include a slow-rising
+smoke column from the desk ashtray to reinforce the "the room is
+still here, breathing" beat.
+
+| Element | Spec |
+|---------|------|
+| Mount lifecycle | Active for the entire son-ekran (mount at son-ekran entry, dispose at exit) |
+| Source position | `desk-ashtray` (= `FAZ8_VOLUMETRIC_SMOKE_SOURCE`) — column rises from masa front-right where the lobby ashtray asset sits in the procedural-poster snapshot |
+| Rise loop duration | 6000ms (= `FAZ8_VOLUMETRIC_SMOKE_RISE_DURATION_MS`) — within the 5-8sn spec band |
+| Peak opacity | 0.12 (= `FAZ8_VOLUMETRIC_SMOKE_OPACITY_MAX`) |
+| Render mode | CSS-only @keyframes + radial-gradient + transform (= `FAZ8_VOLUMETRIC_SMOKE_MODE` = `'css'`) |
+| z-index | 10050 (above destruction overlay 10000, below disclaimer 10100) |
+| ARIA | `aria-hidden="true"` (decorative atmospheric element) |
+
+**D-2 decision: SHIP in Sprint 6 with `FAZ8_VOLUMETRIC_SMOKE_MODE
+= 'css'` (CSS-only render).**
+
+Rationale:
+
+- **CSS-only is viable.** A single absolutely-positioned `<div>`
+  with `radial-gradient(ellipse at bottom, rgba(255,255,250,0.12),
+  transparent 70%)` + a CSS @keyframes animation translating it
+  upward + slight scale + opacity envelope is a single GPU
+  composite layer. On M1 60fps this is sub-1ms per frame — well
+  within budget.
+- **Atmospheric reinforcement.** PLAN §2 line 19 lists "sigara
+  dumanı" alongside the bulb and the radio as the room's
+  signature atmosphere. The destruction phases stripped this; the
+  son-ekran restores it. The smoke is the visible-breath of the
+  room: the bulb is light, the radio is sound, the smoke is air.
+- **Designer fallback.** If Phase 2B Lane B reports M1 perf
+  regression (frame-time > 16.6ms with smoke mounted), flip
+  `FAZ8_VOLUMETRIC_SMOKE_MODE` to `'none'` — the handle then
+  short-circuits and the son-ekran ships without smoke. The fade-
+  back option is to defer to canvas2d post-S6 (which would be a
+  particle system, more expensive but more realistic).
+
+Canvas2D rejected for Sprint 6 because: (a) it adds a render loop
+that runs for the full 10sn son-ekran, (b) it requires a particle
+allocator + texture preload that doesn't exist elsewhere in the
+destruction subsystem, and (c) the CSS-only version delivers 80%
+of the visual read at 10% of the perf cost.
+
+### D-3 decision (camera dolly easing) — RECAPPED
+
+The dolly easing decision lives in §18 above. Recapping: **D-3
+PICKED ease-in-out-quart** (`cubic-bezier(0.65, 0, 0.35, 1)`, =
+`FAZ8_REVEAL_DOLLY_EASING`). See §18 "Camera dolly-out" for the
+full rationale and the alternatives considered.
+
+### D-4 decision (smoke source position) — RECAPPED
+
+The smoke source decision lives in the "Volumetric smoke" table
+above. Recapping: **D-4 PICKED `desk-ashtray`** (= `FAZ8_VOLUMETRIC_SMOKE_SOURCE`)
+because anchoring the smoke to a diegetic source visible in the
+lobby snapshot reads as "cigarette smoke rising from the ashtray
+on the desk" — whereas `off-screen-right` would read as
+"atmospheric VFX" with no diegetic source.
+
+---
+
+## 20. prefers-reduced-motion matrix — Sprint 6 NEW surfaces only
+
+Sprint 4 §8 (lines 943-967) audited 22 Faz 0-3 surfaces. Sprint 5
+§16 (lines 2009-2025) audited 15 Faz 4-7 surfaces. Sprint 6 ADDS
+the following 6 new Faz 8 surfaces below. **DO NOT DUPLICATE** the
+Sprint 4 + Sprint 5 surfaces here; lane teams consult Sprint 4 §8
+and Sprint 5 §16 by line number for any Faz 0-7 references.
+
+### Sprint 6 NEW surfaces matrix
+
+| #  | Surface                                  | OS      | Default behaviour                          | Reduced-motion behaviour                            | A11y role               | ARIA                                | Owner            |
+|----|------------------------------------------|---------|--------------------------------------------|-----------------------------------------------------|-------------------------|-------------------------------------|------------------|
+| 38 | Faz 8 destruction-overlay fade-out       | mac+win | Opacity 1→0 over 3sn with ease-out-quad   | Instant jump to opacity 0 at reveal entry           | n/a (overlay)           | n/a                                 | kraken (A)       |
+| 39 | Faz 8 camera dolly-out                   | mac+win | 10° pull-back over 5sn with ease-in-out-quart | Instant jump to dolly-end position at reveal entry  | n/a (camera)            | n/a                                 | kraken (A)       |
+| 40 | Faz 8 ambient bed gain ramp              | mac+win | Linear -∞ → -24dB over 3sn                 | Instant jump to -24dB at silence-pivot end (t=1sn)   | n/a (audio)             | n/a                                 | kraken (A)       |
+| 41 | Faz 8 disclaimer fade-in (primary + secondary) | mac+win | Linear opacity 0 → 0.9 / 0.75 over 1sn (200ms stagger) | Static opacity 0.9 / 0.75 from disclaimer-enter at t=3sn | status                  | `role=status aria-live=polite`      | frontend-dev (B) |
+| 42 | Faz 8 restart-hint fade-in               | mac+win | Linear opacity 0 → 0.4 over 500ms          | Static opacity 0.4 from hint-enter at t=7sn         | status                  | `role=status aria-live=off`         | frontend-dev (B) |
+| 43 | Faz 8 volumetric smoke rise loop (CSS)   | mac+win | CSS @keyframes translateY + scale + opacity loop (6sn cycle) | Static low-opacity radial gradient (no transform animation) | n/a (decorative)        | `aria-hidden=true`                  | frontend-dev (B) |
+
+**Total Sprint 6 NEW surfaces audited: 6.**
+**Surfaces with active reduced-motion alternative: 6.**
+**Surfaces unchanged under reduced-motion (already static): 0.**
+
+### Cumulative matrix totals (Sprint 4 + Sprint 5 + Sprint 6)
+
+| Total | Count |
+|-------|-------|
+| Sprint 4 surfaces audited (§8 lines 943-967) | 22 |
+| Sprint 5 surfaces audited (§16 lines 2009-2025) | 15 |
+| Sprint 6 surfaces audited (this section) | 6 |
+| **Combined cumulative total** | **43** |
+
+### Reduced-motion design notes for Faz 8
+
+Faz 8 reduced-motion is more radical than Sprint 4/5: the reveal
+overlay/camera/audio-bed envelopes are pure transit between Sprint
+5 end-state and son-ekran start-state — there is no in-motion
+chrome to keep legible. All three SNAP to end-state at reveal entry
+(t=0sn). The user experiences: bootloop → instant jump to lobby (5sn
+quiet hold) → instant jump to disclaimer + hint (mount timing
+preserved at t=3sn / t=7sn; opacity is static). Audio events (door-
+close, bulb 0.4Hz breathing) are NOT gated — only visual motion is.
+Smoke under reduced-motion holds as a static low-opacity radial
+gradient (atmospheric haze preserved without rising-column motion).
+If D-2 drops to `'none'`, surface #43 disappears from the matrix.
+
+### Phase 3 verification grep (Sprint 6 additive)
+
+Phase 3 qa-engineer extends the Sprint 4 + Sprint 5 greps with
+Sprint 6 file coverage:
+
+```bash
+grep -rn "prefers-reduced-motion" src/renderer/scene/destruction/chrome/faz8-*.ts
+grep -rn "PREFERS_REDUCED_MOTION_QUERY" src/renderer/scene/destruction/faz8-*.ts
+grep -rn "@media (prefers-reduced-motion: reduce)" src/renderer/styles/destruction.css
+```
+
+Expected counts after Sprint 6: Sprint 4 (≥ 21 gated surfaces) +
+Sprint 5 (≥ 11 gated surfaces) + Sprint 6 (≥ 6 gated surfaces) =
+**≥ 38 distinct file:line gate occurrences**. If the count is
+< 38, a Faz 8 gate is missing — identify which §20 row has no
+corresponding grep hit and route back to the owning lane.
+
+---
+
+## Sprint 6 lane scope assignment
+
+Sprint 6 has 3 active lanes (Lane 0 + Lane A + Lane B). Phase 2B
+parallel implementers consult this section to know what is
+DESIGN-MANDATED (this SSOT enforces) versus LANE IMPLEMENTATION
+CHOICE (the lane decides at implementation time).
+
+### Lane 0 (i18n-expert) — SEQUENCE-LOCK FIRST
+
+**Design-mandated**:
+- `STRINGS.destruction.faz8.disclaimerPrimary` = `"Это просто шутка."`
+  (Russian — presentation-constant, NOT locale-switched; same string
+  regardless of `currentLocale`).
+- `STRINGS.destruction.faz8.disclaimerSecondary` = `"Bu sadece bir şaka."`
+  (Turkish — presentation-constant, NOT locale-switched).
+- `STRINGS.destruction.faz8.restartHintRu` = `"R = ЕЩЁ РАЗ"`
+- `STRINGS.destruction.faz8.restartHintTr` = `"R = TEKRAR"`
+- `STRINGS.destruction.faz8.restartHintEn` = `"R = restart"`
+
+**Lane implementation choice**:
+- Whether to concatenate the three restart-hint locales in the i18n
+  layer (returning a single string) or in the chrome layer (using
+  `FAZ8_RESTART_HINT_SEPARATOR`). Designer suggestion: chrome layer
+  joins, so the i18n keys remain pure single-locale values.
+
+### Lane A (kraken — audio + reveal/son-ekran envelopes)
+
+**Design-mandated**:
+- Reveal envelope choreography: silence pivot 0-1sn, drain 1-4sn,
+  hold 4-5sn (§18).
+- Destruction-overlay fade easing: `FAZ8_REVEAL_FADE_EASING`
+  (cubic-bezier(0.25, 0.46, 0.45, 0.94)).
+- Camera dolly easing: `FAZ8_REVEAL_DOLLY_EASING`
+  (cubic-bezier(0.65, 0, 0.35, 1)) — D-3 choice.
+- Camera dolly magnitude: `FAZ8_REVEAL_CAMERA_DOLLY_DEGREES` = 10.
+- Bulb pulse normalisation target: `FAZ8_BULB_PULSE_RESTING_HZ` = 0.4,
+  `FAZ8_BULB_PULSE_RESTING_AMPLITUDE` = 0.05 (linear interp over 5sn).
+- Audio bed baseline: `FAZ8_AUDIO_BED_BASELINE_GAIN_DB` = -24, linear
+  ramp over `FAZ8_REVEAL_AMBIENT_RAMP_MS` = 3sn (after 1sn silence).
+- Door-close ADSR + low-pass: see §19 synth table; all values are
+  authoritative constants (`FAZ8_DOOR_CLOSE_*`).
+- Door-close trigger at `FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS` = 2000ms
+  into son-ekran (single-shot, non-looped).
+
+**Lane implementation choice**:
+- Door-close fundamental: OscillatorNode (sub-bass square) OR brown-
+  noise burst into the 150Hz low-pass. Both render the same thump.
+- Bulb-pulse interpolation: linear targets are mandated; per-cycle
+  waveform shape stays as Sprint 1 sine ambient pulse.
+- AmbientRecoveryHandle construction: designer suggestion fresh
+  GainNode + fresh source loads (Sprint 5 close disposed the
+  destruction-audio graph; fresh bus avoids leftover state).
+
+### Lane B (frontend-dev — chrome + CSS + optional smoke)
+
+**Design-mandated**:
+- Disclaimer typography: all `FAZ8_DISCLAIMER_*` constants are
+  authoritative (font-family stack, font-size, letter-spacing,
+  color, text-shadow, gap, stagger).
+- Disclaimer opacity targets: 0.9 primary (= `FAZ8_DISCLAIMER_OPACITY_MAX`),
+  0.75 secondary (explicit, not cascaded — set `opacity: 0.75` on
+  `.faz8-disclaimer__secondary`).
+- Disclaimer fade easing: `FAZ8_DISCLAIMER_FADE_EASING`
+  (cubic-bezier(0.4, 0, 0.6, 1)).
+- Disclaimer z-index: 10100.
+- Restart-hint: all `FAZ8_RESTART_HINT_*` constants are
+  authoritative; D-1 SHIP confirmed.
+- Restart-hint z-index: 10110.
+- Volumetric smoke: D-2 SHIP with `FAZ8_VOLUMETRIC_SMOKE_MODE = 'css'`;
+  source = `'desk-ashtray'` (D-4); peak opacity 0.12.
+- Volumetric smoke z-index: 10050.
+- Reduced-motion gates: all 6 surfaces in §20 matrix require gates;
+  Phase 3 grep enforces.
+
+**Lane implementation choice**:
+- Smoke CSS @keyframes timing functions (designer suggestion: linear
+  translateY + ease-in-out-sine opacity — "puff-rise-dissipate").
+- DOM grouping: single `<section role="region" aria-label="Son ekran">`
+  parent for ARIA grouping; disclaimer + hint as children (suggestion).
+- Font-family stack: `'Old Standard TT', 'PT Serif', Georgia, serif`
+  (primary) + `'PT Serif', Georgia, serif` (secondary/hint). All glyphs
+  required (Cyrillic ё, Latin ş ı) covered by Sprint 0 OFL bundle.
+
+### Cross-lane invariants (Sprint 4 + 5 + 6 cumulative)
+
+These hold across ALL Faz 0-8 lanes and Phase 3 qa-engineer scans
+for them. Sprint 6 ADDS invariants 6-8 below to the Sprint 5
+invariants 1-5 (which remain unchanged):
+
+6. **No `app.quit` / no `BrowserWindow.close` in R-key handler.**
+   Phase 3 grep:
+   `grep -rn "app\.quit\|BrowserWindow\.close\|window\.api\..*[Ee]xit" src/renderer/scene/destruction/ src/renderer/scene-mount.ts`
+   should return zero results from the Faz 8 R-key restart path.
+   The `requestRestart()` surface mutates FSM state and aborts the
+   inner signal — that is the entire side-effect surface (Risk S9
+   closure carried forward from Phase 1).
+7. **No bundled Cyrillic font outside Sprint 0 OFL stack.** Phase 3
+   grep: `grep -rn "@font-face" src/renderer/styles/destruction*.css`
+   should NOT show any new font declaration. Faz 8 disclaimer uses
+   `'Old Standard TT', 'PT Serif', Georgia, serif` — all already
+   bundled at Sprint 0.
+8. **No external audio asset for door-close.** Phase 3 grep:
+   `grep -rn "\.ogg\|\.wav\|\.mp3" src/renderer/scene/audio/destruction-audio-faz8.ts`
+   should return zero results. Door-close is procedural per Sprint 4
+   Lesson 3 (no audio asset vendoring).
+
+---
+
+*End of Sprint 6 Phase 2A designer pass. Sprint 6 §18-§20 are
+additive to Sprint 4 §1-§9 and Sprint 5 §10-§17. Combined: SSOT
+for the entire Faz 0-8 destruction sequence; this is the LAST
+destruction-direction designer pass. Phase 5 retro should revisit
+§18 silence-pivot duration: we chose 1.0sn (PLAN §7 line 291 spec
+1.5sn) to keep son-ekran beats intact; QA observation overrides.*
+
+## Files this Sprint 6 designer pass authored or edited
+| File | Change |
+|------|--------|
+| `src/renderer/scene/destruction/destruction-direction.md` | Extended in place with §18-§20 (Path A — Sprint 5 precedent). |
+| `src/shared/scene-destruction-constants.ts` | Sprint 6 Phase 2A design FILL appended (Faz 8 color + motion + typography + audio ADSR). |
+
+## Files designer did NOT touch (Sprint 6 Phase 2B collision-safety)
+
+Per Sprint 6 Phase 2A scope: lane controllers (`faz8-reveal.ts`,
+`faz8-son-ekran.ts`), chrome modules (`chrome/faz8-*.ts`), audio
+synth factories (`audio/destruction-audio-faz8.ts`), `i18n/strings.ts`
+destruction subtree, `styles/destruction.css`, and `scene-mount.ts`
+R-key listener — all left untouched for Phase 2B parallel lanes.
+`atmosphere-direction.md` not extended: Sprint 1 ambient state is
+RESTORED (not redefined) by the reveal.
