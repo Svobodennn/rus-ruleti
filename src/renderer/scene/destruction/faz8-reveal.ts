@@ -55,7 +55,6 @@
 
 import log from 'electron-log/renderer';
 import type { PerspectiveCamera } from 'three';
-import type { AudioBedHandle } from '../audio/audio-bed.js';
 import type {
   AmbientRecoveryHandle,
   DestructionAudioHandle,
@@ -90,7 +89,6 @@ export interface Faz8RevealRunArgs {
   readonly signal: AbortSignal;
   readonly container: HTMLElement;
   readonly destructionAudio: DestructionAudioHandle;
-  readonly audio: AudioBedHandle;
   readonly camera: PerspectiveCamera;
   readonly lighting: BulbLightHandle;
 }

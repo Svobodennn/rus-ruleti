@@ -1105,7 +1105,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 9001;
+  z-index: 10100;
   text-align: center;
   pointer-events: none;
   opacity: 0;
@@ -1167,11 +1167,11 @@
   bottom: 48px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9000;
+  z-index: 10110;
   pointer-events: none;
   margin: 0;
   font-family: 'PT Serif', 'Old Standard TT', Georgia, serif;
-  font-size: 14px;
+  font-size: 18px;
   color: #7a6a4e;
   opacity: 0;
   transition: opacity 500ms ease-in-out;

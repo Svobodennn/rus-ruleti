@@ -49,6 +49,7 @@
  * PHASE 2B LANE B — frontend-dev FILLED
  */
 
+import type { FAZ8_DISCLAIMER_OWNER } from '../../../../shared/scene-destruction-constants.js';
 import type { Faz8DisclaimerHandle } from '../types.js';
 
 /**
@@ -56,12 +57,20 @@ import type { Faz8DisclaimerHandle } from '../types.js';
  * Turkish strings + the AbortSignal (so the chrome can dispose
  * cleanly when the parent runner aborts) + the hostElement (the
  * apartment scene root the disclaimer attaches into).
+ *
+ * TH-S5-03 enforcement: `caller` must be the FAZ8_DISCLAIMER_OWNER
+ * constant — only faz8-son-ekran.ts holds that constant so only it
+ * can construct the disclaimer chrome.
  */
 export interface MountFaz8DisclaimerOptions {
+  /** TH-S5-03 owner enforcement — must be FAZ8_DISCLAIMER_OWNER. */
+  readonly caller: typeof FAZ8_DISCLAIMER_OWNER;
   /** Cyrillic primary copy. Default at call site: "Это просто шутка." */
   readonly primaryRu: string;
   /** Turkish secondary copy. Default at call site: "Bu sadece bir şaka." */
   readonly secondaryTr: string;
+  /** i18n-resolved aria-label for screen readers (locale-specific). */
+  readonly ariaLabel: string;
   /** Abort signal — dispose triggers when the signal fires. */
   readonly signal: AbortSignal;
   /** Parent DOM element the disclaimer attaches into. */
@@ -89,11 +98,13 @@ export function mountFaz8Disclaimer(
   // the current utterance to finish before announcing.
   root.setAttribute('role', 'status');
   root.setAttribute('aria-live', 'polite');
-
-  // Inline opacity 0 so the CSS transition has a definite "from"
-  // anchor. The .is-visible class supplies the "to" anchor via the
-  // var(--faz8-disclaimer-opacity-max, 0.9) default in destruction.css.
-  root.style.opacity = '0';
+  root.setAttribute('aria-label', opts.ariaLabel);
+  // Do NOT set inline opacity here. The CSS class `.faz8-disclaimer`
+  // already declares `opacity: 0` as the base state; the CSS rule
+  // `.faz8-disclaimer.is-visible` provides the `opacity: 0.9` end-
+  // state. Lane A (faz8-son-ekran.ts) toggles `.is-visible` via a
+  // rAF callback after mount — any inline style.opacity would shadow
+  // the class rule and prevent the CSS transition from firing.
 
   // Cyrillic primary line — h2 for semantic weight ("considered
   // statement" headline). lang="ru" lets screen readers route the

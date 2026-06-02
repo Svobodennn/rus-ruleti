@@ -53,7 +53,7 @@ import type { AudioBedHandle } from '../audio/audio-bed.js';
 import type { BulbLightHandle } from '../lighting.js';
 import { mountDestructionAudio } from '../audio/destruction-audio.js';
 import type { DestructionAudioHandle } from '../audio/destruction-audio.js';
-import { AMBIENT_RECOVERY_AUDIO_OWNER } from '../../../shared/scene-destruction-constants.js';
+import { AMBIENT_RECOVERY_AUDIO_OWNER, DOOR_CLOSE_AUDIO_OWNER } from '../../../shared/scene-destruction-constants.js';
 import { runFaz0 } from './faz0-bang.js';
 import { runFaz1 } from './faz1-critical-dialog.js';
 import { runFaz2 } from './faz2-takeover.js';
@@ -528,7 +528,7 @@ async function runOneFaz8Cycle(
   const destructionAudio = nonNull(runtime.destructionAudio);
   await startFaz8Reveal({
     os, signal: outerSignal, container, destructionAudio,
-    audio: deps.audio, camera: deps.camera, lighting: deps.lighting,
+    camera: deps.camera, lighting: deps.lighting,
   });
   if (outerSignal.aborted) return;
   runtime.fsmState = onFaz8RevealComplete(runtime.fsmState, performance.now());
@@ -536,7 +536,9 @@ async function runOneFaz8Cycle(
   // ONLY the son-ekran (outer ESC-hold signal stays intact).
   runtime.sonEkranAbortCtrl = new AbortController();
   const sonEkranSignal = AbortSignal.any([outerSignal, runtime.sonEkranAbortCtrl.signal]);
-  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, destructionAudio });
+  // chromeHost=document.body: chrome must be a sibling of the takeover
+  // overlay, NOT a child — the takeover is opacity:0 by son-ekran entry.
+  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio });
   runtime.sonEkranAbortCtrl = null;
   if (outerSignal.aborted) return;
   // If FSM advanced to faz8-reveal via requestRestart, leave it (loop
@@ -607,12 +609,10 @@ function requestRestart(runtime: DirectorRuntime): void {
     return;
   }
   log.info('destruction-director: requestRestart fired');
-  // Dispose prior reveal's AmbientRecoveryHandle so the next cycle re-
-  // allocates clean. Chrome handles (disclaimer + restart-hint) auto-
-  // dispose via their sonEkranSignal abort listeners (Lane B wiring).
-  runtime.destructionAudio
-    ?.getOwnedAudio(AMBIENT_RECOVERY_AUDIO_OWNER)
-    ?.dispose();
+  // Dispose prior reveal + son-ekran audio handles so the next cycle
+  // re-allocates clean. Chrome handles auto-dispose via abort listeners.
+  runtime.destructionAudio?.getOwnedAudio(AMBIENT_RECOVERY_AUDIO_OWNER)?.dispose();
+  runtime.destructionAudio?.getOwnedAudio(DOOR_CLOSE_AUDIO_OWNER)?.dispose();
   runtime.fsmState = onFaz8RestartRequested(runtime.fsmState, performance.now());
   runtime.sonEkranAbortCtrl?.abort();
 }

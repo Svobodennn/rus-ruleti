@@ -54,17 +54,26 @@
  */
 
 import { resolveUserLocale } from '../../../i18n/strings.js';
+import type { FAZ8_RESTART_HINT_OWNER } from '../../../../shared/scene-destruction-constants.js';
 import type { Faz8RestartHintHandle } from '../types.js';
 
 /**
  * Mount option bag — son-ekran threads BOTH locale strings so the
  * chrome can re-resolve on locale-switch without re-mounting.
+ *
+ * TH-S5-03 enforcement: `caller` must be the FAZ8_RESTART_HINT_OWNER
+ * constant — only faz8-son-ekran.ts holds that constant so only it
+ * can construct the restart-hint chrome.
  */
 export interface MountFaz8RestartHintOptions {
+  /** TH-S5-03 owner enforcement — must be FAZ8_RESTART_HINT_OWNER. */
+  readonly caller: typeof FAZ8_RESTART_HINT_OWNER;
   /** Cyrillic hint copy. Phase 2B Lane 0 wires; e.g. "Нажмите R для перезапуска". */
   readonly hintRu: string;
   /** Turkish hint copy. e.g. "Yeniden başlatmak için R'ye basın". */
   readonly hintTr: string;
+  /** i18n-resolved aria-label for screen readers (locale-specific). */
+  readonly ariaLabel: string;
   /** Abort signal — dispose triggers when the signal fires. */
   readonly signal: AbortSignal;
   /** Parent DOM element the hint attaches into. */
@@ -90,9 +99,13 @@ export function mountFaz8RestartHint(
   // never be acted on; we do not interrupt the screen reader for it.
   root.setAttribute('role', 'status');
   root.setAttribute('aria-live', 'off');
-
-  // Inline opacity 0 anchors the CSS transition start point.
-  root.style.opacity = '0';
+  root.setAttribute('aria-label', opts.ariaLabel);
+  // Do NOT set inline opacity here. The CSS class `.faz8-restart-hint`
+  // already declares `opacity: 0` as the base state; the CSS rule
+  // `.faz8-restart-hint.is-visible` provides the `opacity: 0.4` end-
+  // state. Lane A (faz8-son-ekran.ts) toggles `.is-visible` via a
+  // rAF callback after mount — any inline style.opacity would shadow
+  // the class rule and prevent the CSS transition from firing.
 
   // Render the single locale-matching string. Capture the resolver
   // result so setHintText can repeat the same logic for locale-switch.

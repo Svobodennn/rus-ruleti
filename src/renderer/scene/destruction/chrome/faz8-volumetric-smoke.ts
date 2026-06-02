@@ -48,13 +48,20 @@
  * PHASE 2B LANE B — frontend-dev FILLED (D-2 mode='css', D-4 source='desk-ashtray')
  */
 
+import type { FAZ8_VOLUMETRIC_SMOKE_OWNER } from '../../../../shared/scene-destruction-constants.js';
 import type { Faz8VolumetricSmokeHandle } from '../types.js';
 
 /**
  * Mount option bag — son-ekran threads the AbortSignal + hostElement.
  * No content strings; the smoke is purely a visual atmosphere layer.
+ *
+ * TH-S5-03 enforcement: `caller` must be the FAZ8_VOLUMETRIC_SMOKE_OWNER
+ * constant — only faz8-son-ekran.ts holds that constant so only it
+ * can mount the volumetric smoke chrome.
  */
 export interface MountFaz8VolumetricSmokeOptions {
+  /** TH-S5-03 owner enforcement — must be FAZ8_VOLUMETRIC_SMOKE_OWNER. */
+  readonly caller: typeof FAZ8_VOLUMETRIC_SMOKE_OWNER;
   /** Abort signal — dispose triggers when the signal fires. */
   readonly signal: AbortSignal;
   /** Parent DOM element the smoke layer attaches into. */

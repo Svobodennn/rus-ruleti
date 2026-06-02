@@ -53,6 +53,10 @@ import type {
 import { createDoorCloseAccentHandle } from '../audio/destruction-audio-faz8.js';
 import {
   DOOR_CLOSE_AUDIO_OWNER,
+  FAZ8_DISCLAIMER_OWNER,
+  FAZ8_RESTART_HINT_OWNER,
+  FAZ8_VOLUMETRIC_SMOKE_OWNER,
+  FAZ8_VOLUMETRIC_SMOKE_MODE,
   FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
   FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS,
   FAZ8_SON_EKRAN_DURATION_MS,
@@ -60,23 +64,42 @@ import {
 } from '../../../shared/scene-destruction-constants.js';
 import { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
 import { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
+import { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
 import { t, resolveUserLocale } from '../../i18n/strings.js';
 import type {
   Faz8DisclaimerHandle,
   Faz8RestartHintHandle,
+  Faz8VolumetricSmokeHandle,
   OsVariant,
 } from './types.js';
 
 /**
  * Runner arg bag — destruction-director threads the dependencies
- * son-ekran needs. `container` is the destruction overlay element
- * (same one reveal faded out — kept around so son-ekran can host the
- * disclaimer / restart-hint mounts).
+ * son-ekran needs.
+ *
+ * `container` is the destruction-takeover overlay element (the one
+ * reveal faded out) — kept for reference but NOT the chrome host.
+ *
+ * `chromeHost` is the element into which the disclaimer / restart-hint
+ * / volumetric-smoke chrome are mounted. MUST be a sibling of the
+ * destruction-takeover (or document.body) so its opacity is independent
+ * of the takeover's CSS transition (takeover fades to opacity:0 during
+ * reveal; children of an opacity:0 parent are invisible by compositor
+ * multiply regardless of their own opacity). Per chrome JSDoc
+ * (faz8-disclaimer.ts:23-25): "Lane A passes the apartment scene root
+ * (NOT the destruction-takeover overlay)".
  */
 export interface Faz8SonEkranRunArgs {
   readonly os: OsVariant;
   readonly signal: AbortSignal;
   readonly container: HTMLElement;
+  /**
+   * Host element for Faz 8 son-ekran chrome (disclaimer, restart-hint,
+   * volumetric smoke). Must NOT be the destruction-takeover overlay or
+   * a descendant of it — that overlay is at opacity:0 by son-ekran
+   * entry and would hide all child chrome. Typically document.body.
+   */
+  readonly chromeHost: HTMLElement;
   readonly destructionAudio: DestructionAudioHandle;
 }
 
@@ -99,7 +122,11 @@ export async function startFaz8SonEkran(
   log.info('faz8-son-ekran: start', { os: opts.os });
 
   const timers = new Set<ReturnType<typeof setTimeout>>();
-  const handles: Faz8SonEkranHandles = { disclaimer: null, restartHint: null };
+  const handles: Faz8SonEkranHandles = {
+    disclaimer: null,
+    restartHint: null,
+    volumetricSmoke: null,
+  };
   const onAbort = (): void => {
     for (const id of timers) clearTimeout(id);
     timers.clear();
@@ -115,12 +142,14 @@ export async function startFaz8SonEkran(
   // natural completion the signal never fires, so we walk the bag here.
   handles.disclaimer?.dispose();
   handles.restartHint?.dispose();
+  handles.volumetricSmoke?.dispose();
 }
 
 /** Mutable handle bag — populated as Lane B mount fns are invoked. */
 interface Faz8SonEkranHandles {
   disclaimer: Faz8DisclaimerHandle | null;
   restartHint: Faz8RestartHintHandle | null;
+  volumetricSmoke: Faz8VolumetricSmokeHandle | null;
 }
 
 /**
@@ -150,6 +179,11 @@ function constructAndRegisterDoorClose(
  * registers its setTimeout id with the shared abort-tracking Set so
  * a late ESC-hold wipes them in O(n). Pattern mirrors
  * faz0-bang.scheduleFaz0Cues.
+ *
+ * Volumetric smoke (BLOCKER-002 fix): mounted immediately at son-ekran
+ * entry (not deferred) so the CSS @keyframes animation starts from t=0.
+ * FAZ8_VOLUMETRIC_SMOKE_MODE='none' short-circuits the mount call —
+ * the kill-switch lives in scene-destruction-constants.ts.
  */
 function scheduleSonEkranCues(
   opts: Faz8SonEkranRunArgs,
@@ -157,6 +191,14 @@ function scheduleSonEkranCues(
   handles: Faz8SonEkranHandles,
   timers: Set<ReturnType<typeof setTimeout>>,
 ): void {
+  // Mount volumetric smoke immediately at son-ekran entry.
+  if (!opts.signal.aborted && FAZ8_VOLUMETRIC_SMOKE_MODE === 'css') {
+    handles.volumetricSmoke = mountFaz8VolumetricSmoke({
+      caller: FAZ8_VOLUMETRIC_SMOKE_OWNER,
+      signal: opts.signal,
+      hostElement: opts.chromeHost,
+    });
+  }
   timers.add(
     setTimeout((): void => {
       if (!opts.signal.aborted) doorClose.trigger();
@@ -183,6 +225,16 @@ function scheduleSonEkranCues(
  * setPrimaryText/setSecondaryText explicitly so the bilingual contract
  * (RU literal under .primary, TR literal under .secondary across BOTH
  * locale trees) is honoured at the call site.
+ *
+ * BLOCKER-001 fix: after mount, a rAF callback removes the (now
+ * absent) inline opacity anchor and toggles `.is-visible` on the
+ * returned element. The rAF deferral lets the browser paint one frame
+ * with `opacity:0` (from the CSS class) so the CSS transition has a
+ * definite starting point before the end-state class is added.
+ *
+ * BLOCKER-003 fix: opts.chromeHost (document.body or scene root) is
+ * used as hostElement, NOT opts.container (the destruction-takeover
+ * overlay which is at opacity:0 by son-ekran entry).
  */
 function mountDisclaimerIfActive(
   opts: Faz8SonEkranRunArgs,
@@ -192,15 +244,25 @@ function mountDisclaimerIfActive(
   const locale = resolveUserLocale();
   const primary = t('destruction.faz8.disclaimer.primary', locale);
   const secondary = t('destruction.faz8.disclaimer.secondary', locale);
+  const ariaLabel = t('destruction.faz8.disclaimer.aria-label', locale);
   const handle = mountFaz8Disclaimer({
+    caller: FAZ8_DISCLAIMER_OWNER,
     primaryRu: primary,
     secondaryTr: secondary,
+    ariaLabel,
     signal: opts.signal,
-    hostElement: opts.container,
+    hostElement: opts.chromeHost,
   });
   handle.setPrimaryText(primary);
   handle.setSecondaryText(secondary);
   handles.disclaimer = handle;
+  // Trigger CSS fade-in: one rAF so the browser paints opacity:0
+  // (CSS base state) first, then the is-visible class drives 0→0.9.
+  requestAnimationFrame((): void => {
+    if (!opts.signal.aborted) {
+      handle.element.classList.add('is-visible');
+    }
+  });
 }
 
 /**
@@ -208,6 +270,9 @@ function mountDisclaimerIfActive(
  * resolved hint text. The TR variant is the user's primary locale
  * gloss; the RU variant is the diegetic immersion line. Lane B
  * stacks both via the FAZ8_RESTART_HINT_SEPARATOR (middle-dot).
+ *
+ * BLOCKER-001 fix: rAF toggles `.is-visible` after mount.
+ * BLOCKER-003 fix: uses opts.chromeHost, not opts.container.
  */
 function mountRestartHintIfActive(
   opts: Faz8SonEkranRunArgs,
@@ -216,14 +281,25 @@ function mountRestartHintIfActive(
   if (opts.signal.aborted) return;
   const hintRu = t('destruction.faz8.restart.hint', 'ru');
   const hintTr = t('destruction.faz8.restart.hint', 'tr');
+  const locale = resolveUserLocale();
+  const ariaLabel = t('destruction.faz8.restart.hint', locale);
   const handle = mountFaz8RestartHint({
+    caller: FAZ8_RESTART_HINT_OWNER,
     hintRu,
     hintTr,
+    ariaLabel,
     signal: opts.signal,
-    hostElement: opts.container,
+    hostElement: opts.chromeHost,
   });
   handle.setHintText(hintRu, hintTr);
   handles.restartHint = handle;
+  // Trigger CSS fade-in: one rAF so the browser paints opacity:0
+  // (CSS base state) first, then the is-visible class drives 0→0.4.
+  requestAnimationFrame((): void => {
+    if (!opts.signal.aborted) {
+      handle.element.classList.add('is-visible');
+    }
+  });
 }
 
 /**
