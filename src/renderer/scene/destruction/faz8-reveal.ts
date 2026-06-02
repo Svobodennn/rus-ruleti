@@ -27,7 +27,7 @@
  *
  *   2. CONCURRENT FADE-OUT + AUDIO RAMP-IN + CAMERA DOLLY
  *      (FAZ8_REVEAL_SILENCE_PAUSE_MS → FAZ8_REVEAL_DURATION_MS):
- *      a. Toggle container.classList `is-faz8-revealing` so Lane B
+ *      a. Toggle container.classList `is-fading-out` so Lane B
  *         CSS keyframes drive opacity 1 → 0 over
  *         FAZ8_REVEAL_FADE_DURATION_MS (3sn).
  *      b. AmbientRecoveryHandle.fadeIn(FAZ8_REVEAL_AMBIENT_RAMP_MS).
@@ -74,7 +74,7 @@ import {
 import type { OsVariant } from './types.js';
 
 /** CSS class Lane B keyframes engage off for the overlay fade-out. */
-const FAZ8_REVEAL_OVERLAY_CLASS = 'is-faz8-revealing';
+const FAZ8_REVEAL_OVERLAY_CLASS = 'is-fading-out';
 /** Sprint 1 baseline bulb factor — `1.0` restores BULB_LIGHT.intensity. */
 const FAZ8_BULB_BASELINE_FACTOR = 1;
 
