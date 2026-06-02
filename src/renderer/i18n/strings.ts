@@ -283,6 +283,68 @@ export const STRINGS = {
           restarting: 'Перезапуск…',
         },
       },
+      /**
+       * Sprint 6 Faz 8 — Reveal + Son ekran disclaimer + restart hint + a11y.
+       *
+       * Bilingual presentation contract (PRIMARY + SECONDARY disclaimer):
+       *
+       *   `disclaimer.primary` and `disclaimer.secondary` are
+       *   PRESENTATION-CONSTANT — they render the SAME literal regardless of
+       *   the runtime `currentLocale`. The disclaimer block visually presents
+       *   the Russian punchline first (large serif, top) and the Turkish
+       *   gloss below (smaller serif, secondary opacity). Both lines appear
+       *   together for every user, every session — the bilingual stack IS
+       *   the design (see designer Phase 2A §19 lines 2445-2492, and the
+       *   Sprint 5 "ШУТКА / ŞAKA" precedent for `panicHeadlineRu` /
+       *   `panicHeadlineTr` under `destruction.faz6.mac`).
+       *
+       *   Concretely:
+       *     - `STRINGS.ru.destruction.faz8.disclaimer.primary` = Russian
+       *     - `STRINGS.tr.destruction.faz8.disclaimer.primary` = Russian (SAME)
+       *     - `STRINGS.ru.destruction.faz8.disclaimer.secondary` = Turkish
+       *     - `STRINGS.tr.destruction.faz8.disclaimer.secondary` = Turkish (SAME)
+       *
+       *   The TR-locale tree carries the SAME Russian literal under
+       *   `disclaimer.primary` because the disclaimer is delivered in the
+       *   language of the immersion. Likewise, the RU-locale tree carries
+       *   the SAME Turkish literal under `disclaimer.secondary` because the
+       *   gloss is always the Turkish translation. Lane B (frontend-dev)
+       *   resolves both via `t(key, locale)` at the son-ekran call site and
+       *   the chrome stacks the two lines in a single `<section>` block.
+       *
+       * Locale-specific keys (follow UI locale):
+       *
+       *   `restart.hint` — locale-switched single-line muted hint. The user
+       *   sees ONE line in their UI locale (not bilingual). Lane B may also
+       *   choose to render all three locales (RU · TR · EN) joined with the
+       *   `FAZ8_RESTART_HINT_SEPARATOR` middle-dot delimiter — that is a
+       *   chrome-layer concern; this i18n leaf returns single-locale values.
+       *   The English line is NOT keyed here (it is a presentation constant
+       *   the chrome may inline if joining-mode is chosen).
+       *
+       *   `son-ekran.aria-label` / `disclaimer.aria-label` — screen-reader
+       *   labels, locale-specific so the announced text matches the user's
+       *   locale. Defensive a11y: the disclaimer surface uses
+       *   `role="status" aria-live="polite"`; the son-ekran parent surface
+       *   uses `role="region" aria-label=…`. Both labels follow the runtime
+       *   locale because they are heard, not seen — there is no bilingual
+       *   visual stack to mirror.
+       *
+       * No template tokens at this layer.
+       */
+      faz8: {
+        disclaimer: {
+          primary: 'Это просто шутка.',
+          secondary: 'Bu sadece bir şaka.',
+          'aria-label': 'Сообщение: это просто шутка.',
+        },
+        restart: {
+          hint: 'Нажмите R для перезапуска',
+        },
+        'son-ekran': {
+          'aria-label': 'Шутка закончена. Револьвер лежит на столе.',
+        },
+      },
     },
   },
   tr: {
@@ -452,6 +514,39 @@ export const STRINGS = {
           headline: 'Önyüklenebilir aygıt bulunamadı',
           action: 'F1 ile tekrarla, F2 ile ayarlara gir',
           restarting: 'Yeniden başlatılıyor…',
+        },
+      },
+      /**
+       * Mirror of `STRINGS.ru.destruction.faz8`. See the RU-tree comment
+       * for the full bilingual-disclaimer contract.
+       *
+       * `disclaimer.primary` here carries the SAME Russian literal as
+       * `STRINGS.ru.destruction.faz8.disclaimer.primary` — the primary
+       * disclaimer is a presentation constant in Russian (the language
+       * of the immersion). Likewise `disclaimer.secondary` carries the
+       * SAME Turkish literal across both locale trees — the secondary
+       * line is always the Turkish gloss.
+       *
+       * Only `restart.hint`, `son-ekran.aria-label`, and
+       * `disclaimer.aria-label` are locale-specific (follow UI locale).
+       * Turkish phrasing follows the formal-imperative register that
+       * matches the destruction-direction `restart` family in the
+       * Sprint 5 trees ("R'ye basın" infinitive-imperative). The aria-
+       * labels follow the same calm, descriptive register used by
+       * Turkish screen-reader conventions ("bitti" past-passive,
+       * "duruyor" present-progressive for the still-life tableau).
+       */
+      faz8: {
+        disclaimer: {
+          primary: 'Это просто шутка.',
+          secondary: 'Bu sadece bir şaka.',
+          'aria-label': 'Mesaj: bu sadece bir şaka.',
+        },
+        restart: {
+          hint: "Yeniden başlatmak için R'ye basın",
+        },
+        'son-ekran': {
+          'aria-label': 'Şaka bitti. Tabanca masada duruyor.',
         },
       },
     },
