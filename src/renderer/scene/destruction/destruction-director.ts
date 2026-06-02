@@ -53,6 +53,7 @@ import type { AudioBedHandle } from '../audio/audio-bed.js';
 import type { BulbLightHandle } from '../lighting.js';
 import { mountDestructionAudio } from '../audio/destruction-audio.js';
 import type { DestructionAudioHandle } from '../audio/destruction-audio.js';
+import { AMBIENT_RECOVERY_AUDIO_OWNER } from '../../../shared/scene-destruction-constants.js';
 import { runFaz0 } from './faz0-bang.js';
 import { runFaz1 } from './faz1-critical-dialog.js';
 import { runFaz2 } from './faz2-takeover.js';
@@ -569,11 +570,14 @@ function abortSequence(
 /**
  * Sprint 6 — request restart from the `faz8-son-ekran` state.
  *
+ * Risk S9 — kiosk-safe restart. Verify Phase 3 QA smoke.
+ *
  * KIOSK SAFETY (S9 closure): MUST NOT call app.quit /
  * BrowserWindow.close / process.exit / any IPC exit channel. The
  * joke app is a single-window kiosk — quitting would dump the user
  * back to their OS shell which kills the bit. This function only
- * mutates FSM state + aborts the son-ekran signal.
+ * mutates FSM state + aborts the son-ekran signal + disposes the
+ * prior reveal's audio handle so the next cycle re-allocates clean.
  *
  * Triggered by: scene-mount.ts R-key listener (top-level keydown
  * gates on getState().kind === 'faz8-son-ekran').
@@ -582,9 +586,15 @@ function abortSequence(
  *   1. Verify FSM is in faz8-son-ekran (defence — the R-key listener
  *      already gates, but a stale handle reference could call here
  *      from a different state).
- *   2. Apply the onFaz8RestartRequested pure transition so the FSM
+ *   2. Dispose the prior AmbientRecoveryHandle from the audio pool
+ *      so the next reveal cycle re-constructs cleanly without
+ *      leaking the previous brown-noise BufferSource graph. Chrome
+ *      handles (disclaimer + restart-hint) dispose automatically
+ *      via their sonEkranSignal abort listeners (Lane B mount fns
+ *      attach those at mount time).
+ *   3. Apply the onFaz8RestartRequested pure transition so the FSM
  *      records the restart cycle entry.
- *   3. Abort the sonEkranAbortCtrl so the son-ekran runner short-
+ *   4. Abort the sonEkranAbortCtrl so the son-ekran runner short-
  *      circuits. The outer loop in runFaz8RevealAndSonEkran observes
  *      the FSM state on the next iteration and runs a fresh reveal.
  */
@@ -597,10 +607,14 @@ function requestRestart(runtime: DirectorRuntime): void {
     return;
   }
   log.info('destruction-director: requestRestart fired');
+  // Dispose prior reveal's AmbientRecoveryHandle so the next cycle re-
+  // allocates clean. Chrome handles (disclaimer + restart-hint) auto-
+  // dispose via their sonEkranSignal abort listeners (Lane B wiring).
+  runtime.destructionAudio
+    ?.getOwnedAudio(AMBIENT_RECOVERY_AUDIO_OWNER)
+    ?.dispose();
   runtime.fsmState = onFaz8RestartRequested(runtime.fsmState, performance.now());
-  if (runtime.sonEkranAbortCtrl !== null) {
-    runtime.sonEkranAbortCtrl.abort();
-  }
+  runtime.sonEkranAbortCtrl?.abort();
 }
 
 /** Cancel the MutationObserver fallback timer. */
@@ -644,13 +658,9 @@ function disposeDirector(runtime: DirectorRuntime): void {
     document.removeEventListener('bang-fired', runtime.eventHandler);
     runtime.eventHandler = null;
   }
-  if (runtime.escDispose !== null) {
-    runtime.escDispose();
-    runtime.escDispose = null;
-  }
-  if (!runtime.abortCtrl.signal.aborted) {
-    runtime.abortCtrl.abort();
-  }
+  runtime.escDispose?.();
+  runtime.escDispose = null;
+  if (!runtime.abortCtrl.signal.aborted) runtime.abortCtrl.abort();
   disposeSequenceArtifacts(runtime);
 }
 
