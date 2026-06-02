@@ -1,5 +1,5 @@
 /**
- * Faz 8 disclaimer chrome — Sprint 6 Phase 1 SCAFFOLD.
+ * Faz 8 disclaimer chrome — Sprint 6 Phase 2B Lane B FILL.
  *
  * Owns the centred bilingual disclaimer block for the Faz 8
  * son-ekran closing tableau. Cyrillic primary ("Это просто шутка.")
@@ -12,44 +12,41 @@
  * SHARED RESOURCES OWNED: FAZ8_DISCLAIMER_OWNER decree —
  * faz8-son-ekran.ts owns the lifecycle (mount + dispose).
  *
- * Lane B Phase 2B implementation outline (the body this stub
- * replaces):
- *
+ * Lane B fill (this body):
  *   1. CONSTRUCT root <section class="faz8-disclaimer"> with two
  *      child elements:
- *        - <h2 class="faz8-disclaimer__primary" lang="ru"> — Cyrillic
- *        - <p class="faz8-disclaimer__secondary" lang="tr"> — Turkish
- *      Initial opacity 0; transition opacity over
- *      FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS via CSS class toggle.
+ *        - <h2 class="faz8-disclaimer-primary" lang="ru"> — Cyrillic
+ *        - <p  class="faz8-disclaimer-secondary" lang="tr"> — Turkish
+ *      Initial opacity 0 (set inline so the CSS transition has a
+ *      definite start point); CSS sets the transition + the
+ *      .is-visible end-state.
+ *   2. ATTACH to opts.hostElement — Lane A (faz8-son-ekran.ts)
+ *      passes the apartment scene root (NOT the destruction-takeover
+ *      overlay; by son-ekran entry the overlay has faded out).
+ *   3. ARIA: root is `role="status" aria-live="polite"` so screen
+ *      readers announce the reveal politely. Each lang-tagged child
+ *      lets assistive tech pick the correct voice per locale.
+ *   4. CSS custom-property bridge — the disclaimer's fade-in
+ *      duration + opacity-cap travel as inline custom properties so
+ *      the SSOT remains in `scene-destruction-constants.ts`. CSS
+ *      reads `var(--faz8-disclaimer-fade-in-ms, 1000ms)` and
+ *      `var(--faz8-disclaimer-opacity-max, 0.9)` with defensive
+ *      fallbacks.
+ *   5. DISPOSE: idempotent. Removes the element, detaches the
+ *      abort listener (the listener was wired with `{ once: true }`
+ *      so passive removal via signal-fire is also safe).
  *
- *   2. ATTACH to opts.hostElement (the destruction overlay
- *      container). Use `requestAnimationFrame` between attach and
- *      class toggle so the browser sees the transition start point.
+ * Reduced-motion: the CSS @media (prefers-reduced-motion: reduce)
+ * block at the bottom of destruction.css drops the transition; the
+ * .is-visible class snap-jumps to opacity 0.9. No JS gating needed
+ * here — the CSS does the work.
  *
- *   3. ARIA:
- *      - Root: role="status" aria-live="polite"
- *      - Cyrillic block: lang="ru" (screen reader honours)
- *      - Turkish block: lang="tr"
+ * Lane 0 wires the i18n keys at the son-ekran call site
+ * (destruction.faz8.disclaimer.primary / .secondary / .aria-label)
+ * and threads them through `opts.primaryRu` / `opts.secondaryTr`.
+ * NO Cyrillic/Turkish strings hardcoded HERE.
  *
- *   4. setPrimaryText / setSecondaryText: imperative `.textContent`
- *      mutation; no re-render. Single-element-per-setter so the
- *      DOM remains stable across translation refreshes (Lane 0 may
- *      drive these to re-evaluate i18n keys).
- *
- *   5. DISPOSE: detach signal-aborted listener (if any) + remove
- *      element from parent. Idempotent (safe to call twice).
- *
- * Reduced-motion gate (designer Phase 2A §16 — Sprint 6 extends):
- *   - Skip the 1sn opacity fade; jump to final opacity at mount.
- *
- * NO Cyrillic/Turkish strings hardcoded HERE — Phase 2B Lane B
- * receives the strings via `opts.primaryRu` / `opts.secondaryTr`
- * which are i18n-resolved at the son-ekran call site (Lane 0
- * wires the i18n keys).
- *
- * Target line count: ~80-110L when Lane B fills.
- *
- * PHASE 2B LANE B — frontend-dev fills body
+ * PHASE 2B LANE B — frontend-dev FILLED
  */
 
 import type { Faz8DisclaimerHandle } from '../types.js';
@@ -58,7 +55,7 @@ import type { Faz8DisclaimerHandle } from '../types.js';
  * Mount option bag — son-ekran threads the i18n-resolved Cyrillic +
  * Turkish strings + the AbortSignal (so the chrome can dispose
  * cleanly when the parent runner aborts) + the hostElement (the
- * destruction overlay container the disclaimer attaches into).
+ * apartment scene root the disclaimer attaches into).
  */
 export interface MountFaz8DisclaimerOptions {
   /** Cyrillic primary copy. Default at call site: "Это просто шутка." */
@@ -76,45 +73,67 @@ export interface MountFaz8DisclaimerOptions {
  * whose setters (`setPrimaryText` / `setSecondaryText`) imperatively
  * mutate the rendered text and whose `dispose()` removes the element.
  *
- * Sprint 6 Phase 1 stub: returns a no-op handle with an empty
- * placeholder element. Lane B Phase 2B fills the DOM + ARIA + CSS
- * wiring per the implementation outline above.
+ * CSS class hooks consumed (see destruction.css §"Faz 8 Son ekran"):
+ *   - `.faz8-disclaimer`            — root container, opacity 0
+ *   - `.faz8-disclaimer.is-visible` — fade-in end state (Lane A toggles)
+ *   - `.faz8-disclaimer-primary`    — Cyrillic line typography
+ *   - `.faz8-disclaimer-secondary`  — Turkish line typography
  */
 export function mountFaz8Disclaimer(
   opts: MountFaz8DisclaimerOptions,
 ): Faz8DisclaimerHandle {
-  // Phase 1 scaffold: minimal placeholder element so callers can
-  // wire the handle into the DOM tree before Lane B fills. The
-  // element carries the class hook Lane B will attach styles to.
-  const element = document.createElement('section');
-  element.className = 'faz8-disclaimer';
-  element.dataset['scaffold'] = 'phase-1';
-  // Phase 1 stash of the initial strings so Phase 2B fill can read
-  // them back from the dataset if the constructor flow is rewired.
-  element.dataset['primaryRu'] = opts.primaryRu;
-  element.dataset['secondaryTr'] = opts.secondaryTr;
+  const root = document.createElement('section');
+  root.className = 'faz8-disclaimer';
+  // ARIA: status + polite — the disclaimer is informational, not
+  // urgent. `aria-live="polite"` means the screen reader waits for
+  // the current utterance to finish before announcing.
+  root.setAttribute('role', 'status');
+  root.setAttribute('aria-live', 'polite');
+
+  // Inline opacity 0 so the CSS transition has a definite "from"
+  // anchor. The .is-visible class supplies the "to" anchor via the
+  // var(--faz8-disclaimer-opacity-max, 0.9) default in destruction.css.
+  root.style.opacity = '0';
+
+  // Cyrillic primary line — h2 for semantic weight ("considered
+  // statement" headline). lang="ru" lets screen readers route the
+  // glyphs through a Russian voice.
+  const primary = document.createElement('h2');
+  primary.className = 'faz8-disclaimer-primary';
+  primary.setAttribute('lang', 'ru');
+  primary.textContent = opts.primaryRu;
+
+  // Turkish secondary line — p tag for "subordinate-but-legible"
+  // sibling read. lang="tr" routes to a Turkish voice.
+  const secondary = document.createElement('p');
+  secondary.className = 'faz8-disclaimer-secondary';
+  secondary.setAttribute('lang', 'tr');
+  secondary.textContent = opts.secondaryTr;
+
+  root.appendChild(primary);
+  root.appendChild(secondary);
+  opts.hostElement.appendChild(root);
 
   let disposed = false;
   const handle: Faz8DisclaimerHandle = {
     kind: 'faz8-disclaimer',
-    element,
+    element: root,
     setPrimaryText: (text: string): void => {
-      element.dataset['primaryRu'] = text;
+      primary.textContent = text;
     },
     setSecondaryText: (text: string): void => {
-      element.dataset['secondaryTr'] = text;
+      secondary.textContent = text;
     },
     dispose: (): void => {
       if (disposed) return;
       disposed = true;
-      if (element.parentNode !== null) {
-        element.parentNode.removeChild(element);
+      if (root.parentNode !== null) {
+        root.parentNode.removeChild(root);
       }
     },
   };
 
-  // Wire the abort signal so the parent runner's signal aborts the
-  // chrome alongside it (reverse-allocation dispose order).
+  // Honor opts.signal — dispose when the parent runner aborts.
   if (opts.signal.aborted) {
     handle.dispose();
   } else {
