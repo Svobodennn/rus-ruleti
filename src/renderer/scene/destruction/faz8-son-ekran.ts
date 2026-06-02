@@ -1,7 +1,7 @@
 /**
  * Faz 8 — Son ekran (55-65sn).
  *
- * Sprint 6 Phase 1 SCAFFOLD. PLAN §7 lines 290-303 narrative spec
+ * Sprint 6 Phase 2B Lane A fill. PLAN §7 lines 290-303 narrative spec
  * (closing tableau portion — reveal lives in faz8-reveal.ts).
  *
  * WHO CALLS THIS: destruction-director.ts (Sprint 6 extends the FSM
@@ -11,92 +11,67 @@
  *
  * SHARED RESOURCES OWNED (per scene-destruction-constants.ts owner
  * decrees):
- *   - DOOR_CLOSE_AUDIO_OWNER (destruction-audio's
- *     createDoorCloseAccentHandle, single-fire at
+ *   - DOOR_CLOSE_AUDIO_OWNER (DoorCloseAccentHandle, single-fire at
  *     FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS = 2sn into son-ekran)
- *   - FAZ8_DISCLAIMER_OWNER (chrome/faz8-disclaimer.ts — Cyrillic
- *     primary + Turkish subtitle; fades in at
- *     FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS = 3sn)
- *   - FAZ8_RESTART_HINT_OWNER (chrome/faz8-restart-hint.ts — R key
- *     hint text; fades in at
- *     FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS = 7sn; Sprint 6 scope
- *     boundary — TEKRAR/ÇIK BUTTON UI deferred to Sprint 7+)
- *   - FAZ8_VOLUMETRIC_SMOKE_OWNER (chrome/faz8-volumetric-smoke.ts
- *     — OPTIONAL second smoke column over revolver-on-table; Phase
- *     2A designer may drop)
+ *   - FAZ8_DISCLAIMER_OWNER (Faz8DisclaimerHandle — Cyrillic primary +
+ *     Turkish subtitle; fades in at FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS
+ *     = 3sn)
+ *   - FAZ8_RESTART_HINT_OWNER (Faz8RestartHintHandle — R-key hint
+ *     text; fades in at FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS = 7sn;
+ *     Sprint 6 scope: HINT TEXT only — Sprint 7+ adds buttons)
+ *   - FAZ8_VOLUMETRIC_SMOKE_OWNER (Faz8VolumetricSmokeHandle — Phase
+ *     2A may DROP; only mounted when handle constructed)
  *
- * CALLEES (Lane A + Lane B fill these in Phase 2B):
- *   - destruction-audio.ts#createDoorCloseAccentHandle (Lane A)
- *   - chrome/faz8-disclaimer.ts#mountFaz8Disclaimer (Lane B)
- *   - chrome/faz8-restart-hint.ts#mountFaz8RestartHint (Lane B)
- *   - chrome/faz8-volumetric-smoke.ts#mountFaz8VolumetricSmoke
- *     (Lane B — OPTIONAL)
+ * Body sequence:
+ *   1. Construct + register DoorCloseAccentHandle (audio).
+ *   2. Schedule door-close trigger at 2sn via setTimeout (abort-aware).
+ *   3. Schedule disclaimer fade-in at 3sn (mount via Lane B fn,
+ *      override text via i18n-resolved STRINGS values).
+ *   4. Schedule restart-hint fade-in at 7sn (mount via Lane B fn).
+ *   5. Hold for total 10sn or abort.
  *
- * Lane A Phase 2B implementation outline (the body this stub
- * replaces):
+ * R key handling: scoped to son-ekran via the existing scene-mount.ts
+ * keydown listener which gates on `getState().kind === 'faz8-son-ekran'`.
+ * This runner does NOT install/remove a new listener — the binding is
+ * window-level and FSM-gated by the director.
  *
- *   1. ENTRY (0sn into son-ekran):
- *      - Revolver-on-table framing is already held from reveal
- *        (the camera dolly-out resolved before this runner is
- *        invoked, so no further camera mutation).
- *      - Optional: mount Faz8VolumetricSmoke if Phase 2A designer
- *        retained the second smoke column.
- *
- *   2. DOOR-CLOSE ACCENT (2sn into son-ekran):
- *      - Trigger DoorCloseAccentHandle.trigger() — single-fire
- *        procedural synth (heavy low-frequency thump ≤ 80Hz, ~250ms
- *        envelope). Reduced-motion: -6dB amplitude.
- *
- *   3. DISCLAIMER FADE-IN (3sn into son-ekran):
- *      - Mount Faz8DisclaimerHandle with Cyrillic primary ("Это
- *        просто шутка.") + Turkish subtitle ("Bu sadece bir şaka.").
- *      - Fade in over FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS (1sn) to
- *        FAZ8_DISCLAIMER_OPACITY_MAX (0.9).
- *      - Lane 0 wires i18n keys; the text values above are Phase 1
- *        defaults — Lane 0 may override via setPrimaryText/Secondary.
- *
- *   4. RESTART-HINT FADE-IN (7sn into son-ekran):
- *      - Mount Faz8RestartHintHandle with bilingual hint ("R =
- *        TEKRAR" or equivalent). Fade to
- *        FAZ8_SON_EKRAN_RESTART_HINT_OPACITY (0.4).
- *      - SCOPE BOUNDARY: HINT TEXT only. Sprint 7+ replaces with
- *        TEKRAR/ÇIK BUTTON UI per PLAN §7 line 302.
- *
- *   5. HOLD (until FAZ8_SON_EKRAN_DURATION_MS or R-key restart):
- *      - The son-ekran holds the tableau indefinitely up to the
- *        10-second cap. If the user presses R the director's
- *        requestRestart() transitions back to faz8-reveal (kiosk-
- *        safe re-entry; no app.quit). If the user does nothing the
- *        runner resolves at FAZ8_SON_EKRAN_DURATION_MS and the
- *        director transitions to `aborted{completed}`.
- *
- * Reduced-motion gate (designer Phase 2A §16 — Sprint 6 extends):
- *   - Disclaimer fade-in becomes an instant opacity-cap snap at
- *     FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS.
- *   - Restart-hint fade-in becomes an instant opacity-cap snap at
- *     FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS.
- *   - Door-close audio amplitude -6dB (gate inside createDoorCloseAccentHandle).
- *   - Volumetric smoke OPTIONAL drop (Phase 2A); if shipped, the
- *     smoke column's reduced-motion gate skips spawn.
- *
- * Target line count: ~150-200L when Lane A + Lane B fill.
- *
- * PHASE 2B LANE A — kraken fills body
+ * Reduced-motion gate (designer Phase 2A §16):
+ *   - Disclaimer fade-in: Lane B chrome handles via prefers-reduced-
+ *     motion @media @keyframes; this runner only toggles the class.
+ *   - Restart-hint fade-in: Lane B chrome handles via the same gate.
+ *   - Door-close audio amplitude -6dB: gated inside
+ *     createDoorCloseAccentHandle (Lane A audio factory).
+ *   - Volumetric smoke OPTIONAL drop (Phase 2A); if shipped, the smoke
+ *     column's reduced-motion gate skips spawn at the mount fn.
  */
 
 import log from 'electron-log/renderer';
-import type { DestructionAudioHandle } from '../audio/destruction-audio.js';
-import type { OsVariant } from './types.js';
+import type {
+  DestructionAudioHandle,
+  DoorCloseAccentHandle,
+} from '../audio/destruction-audio.js';
+import { createDoorCloseAccentHandle } from '../audio/destruction-audio-faz8.js';
+import {
+  DOOR_CLOSE_AUDIO_OWNER,
+  FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
+  FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS,
+  FAZ8_SON_EKRAN_DURATION_MS,
+  FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS,
+} from '../../../shared/scene-destruction-constants.js';
+import { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
+import { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
+import { t, resolveUserLocale } from '../../i18n/strings.js';
+import type {
+  Faz8DisclaimerHandle,
+  Faz8RestartHintHandle,
+  OsVariant,
+} from './types.js';
 
 /**
  * Runner arg bag — destruction-director threads the dependencies
  * son-ekran needs. `container` is the destruction overlay element
- * (same one reveal faded out — kept around so son-ekran can use it
- * as the host for the disclaimer / restart-hint / smoke mounts).
- *
- * Lane A consumes `destructionAudio` for the DoorCloseAccentHandle
- * construct site. Lane B consumes `container` as the chrome handle
- * host element.
+ * (same one reveal faded out — kept around so son-ekran can host the
+ * disclaimer / restart-hint mounts).
  */
 export interface Faz8SonEkranRunArgs {
   readonly os: OsVariant;
@@ -112,21 +87,160 @@ export interface Faz8SonEkranRunArgs {
  * the inner signal so this runner resolves and the FSM transitions
  * back to faz8-reveal).
  *
- * Sprint 6 Phase 1 stub returns `Promise.resolve()` immediately so
- * the FSM scaffolding can be exercised by the director without a
- * real son-ekran body in place.
- *
- * Phase 2B Lane A + Lane B fill the body per the implementation
- * outline in this file's JSDoc.
+ * Door-close audio + disclaimer + restart-hint mounts are scheduled
+ * via setTimeout against the shared timer set; the abort handler
+ * wipes them in O(n) so a late ESC-hold cancels every pending mount
+ * cleanly.
  */
 export async function startFaz8SonEkran(
   opts: Faz8SonEkranRunArgs,
 ): Promise<void> {
-  // Phase 1 scaffold trace — when Lane A wires the body this log
-  // line will be replaced with the real son-ekran envelope start.
-  log.info('faz8-son-ekran: scaffold entry (Phase 1 stub)', {
-    os: opts.os,
-    aborted: opts.signal.aborted,
+  if (opts.signal.aborted) return;
+  log.info('faz8-son-ekran: start', { os: opts.os });
+
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  const handles: Faz8SonEkranHandles = { disclaimer: null, restartHint: null };
+  const onAbort = (): void => {
+    for (const id of timers) clearTimeout(id);
+    timers.clear();
+  };
+  opts.signal.addEventListener('abort', onAbort, { once: true });
+
+  const doorClose = constructAndRegisterDoorClose(opts);
+  scheduleSonEkranCues(opts, doorClose, handles, timers);
+  await waitForSonEkranEnd(opts.signal, timers);
+  opts.signal.removeEventListener('abort', onAbort);
+}
+
+/** Mutable handle bag — populated as Lane B mount fns are invoked. */
+interface Faz8SonEkranHandles {
+  disclaimer: Faz8DisclaimerHandle | null;
+  restartHint: Faz8RestartHintHandle | null;
+}
+
+/**
+ * Construct DoorCloseAccentHandle via caller-typed factory + register
+ * into destructionAudio owner pool so the director's
+ * disposeSequenceArtifacts walks it down at teardown.
+ *
+ * TH-S5-03 enforcement: the factory's `caller: typeof
+ * DOOR_CLOSE_AUDIO_OWNER` parameter rejects cross-lane misuse at the
+ * compiler — only this site can pass the matching owner constant.
+ */
+function constructAndRegisterDoorClose(
+  opts: Faz8SonEkranRunArgs,
+): DoorCloseAccentHandle {
+  const handle = createDoorCloseAccentHandle({
+    caller: DOOR_CLOSE_AUDIO_OWNER,
+    signal: opts.signal,
+    audioContext: opts.destructionAudio.context,
+    destination: opts.destructionAudio.destination,
   });
-  return Promise.resolve();
+  opts.destructionAudio.registerOwnedAudio(DOOR_CLOSE_AUDIO_OWNER, handle);
+  return handle;
+}
+
+/**
+ * Schedule every son-ekran cue at its designer offset. Each cue
+ * registers its setTimeout id with the shared abort-tracking Set so
+ * a late ESC-hold wipes them in O(n). Pattern mirrors
+ * faz0-bang.scheduleFaz0Cues.
+ */
+function scheduleSonEkranCues(
+  opts: Faz8SonEkranRunArgs,
+  doorClose: DoorCloseAccentHandle,
+  handles: Faz8SonEkranHandles,
+  timers: Set<ReturnType<typeof setTimeout>>,
+): void {
+  timers.add(
+    setTimeout((): void => {
+      if (!opts.signal.aborted) doorClose.trigger();
+    }, FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS),
+  );
+  timers.add(
+    setTimeout(
+      (): void => mountDisclaimerIfActive(opts, handles),
+      FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
+    ),
+  );
+  timers.add(
+    setTimeout(
+      (): void => mountRestartHintIfActive(opts, handles),
+      FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS,
+    ),
+  );
+}
+
+/**
+ * Mount the Faz 8 disclaimer chrome at the 3sn mark and override the
+ * text via i18n-resolved STRINGS. Lane B's mount fn already accepts
+ * the strings via opts.primaryRu/secondaryTr — we also call
+ * setPrimaryText/setSecondaryText explicitly so the bilingual contract
+ * (RU literal under .primary, TR literal under .secondary across BOTH
+ * locale trees) is honoured at the call site.
+ */
+function mountDisclaimerIfActive(
+  opts: Faz8SonEkranRunArgs,
+  handles: Faz8SonEkranHandles,
+): void {
+  if (opts.signal.aborted) return;
+  const locale = resolveUserLocale();
+  const primary = t('destruction.faz8.disclaimer.primary', locale);
+  const secondary = t('destruction.faz8.disclaimer.secondary', locale);
+  const handle = mountFaz8Disclaimer({
+    primaryRu: primary,
+    secondaryTr: secondary,
+    signal: opts.signal,
+    hostElement: opts.container,
+  });
+  handle.setPrimaryText(primary);
+  handle.setSecondaryText(secondary);
+  handles.disclaimer = handle;
+}
+
+/**
+ * Mount the Faz 8 restart-hint chrome at the 7sn mark with i18n-
+ * resolved hint text. The TR variant is the user's primary locale
+ * gloss; the RU variant is the diegetic immersion line. Lane B
+ * stacks both via the FAZ8_RESTART_HINT_SEPARATOR (middle-dot).
+ */
+function mountRestartHintIfActive(
+  opts: Faz8SonEkranRunArgs,
+  handles: Faz8SonEkranHandles,
+): void {
+  if (opts.signal.aborted) return;
+  const hintRu = t('destruction.faz8.restart.hint', 'ru');
+  const hintTr = t('destruction.faz8.restart.hint', 'tr');
+  const handle = mountFaz8RestartHint({
+    hintRu,
+    hintTr,
+    signal: opts.signal,
+    hostElement: opts.container,
+  });
+  handle.setHintText(hintRu, hintTr);
+  handles.restartHint = handle;
+}
+
+/**
+ * Wait for FAZ8_SON_EKRAN_DURATION_MS to elapse OR `signal` to abort,
+ * whichever comes first. Resolves either way — the abort tracking
+ * already cleared any in-flight cue timers. Pattern matches
+ * faz0-bang.waitForFaz0End.
+ */
+function waitForSonEkranEnd(
+  signal: AbortSignal,
+  timers: Set<ReturnType<typeof setTimeout>>,
+): Promise<void> {
+  return new Promise<void>((resolve): void => {
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const id = setTimeout((): void => {
+      timers.delete(id);
+      resolve();
+    }, FAZ8_SON_EKRAN_DURATION_MS);
+    timers.add(id);
+    signal.addEventListener('abort', (): void => resolve(), { once: true });
+  });
 }
