@@ -110,6 +110,11 @@ export async function startFaz8SonEkran(
   scheduleSonEkranCues(opts, doorClose, handles, timers);
   await waitForSonEkranEnd(opts.signal, timers);
   opts.signal.removeEventListener('abort', onAbort);
+  // Explicit chrome dispose on natural exit — abort-path dispose is wired
+  // via the chrome mount fns' AbortSignal listeners, but on the 10sn
+  // natural completion the signal never fires, so we walk the bag here.
+  handles.disclaimer?.dispose();
+  handles.restartHint?.dispose();
 }
 
 /** Mutable handle bag — populated as Lane B mount fns are invoked. */
