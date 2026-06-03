@@ -814,6 +814,7 @@ manifest → security-reviewer audit → new commit).
 | **Model gecikmesi Sprint 4'ü engeller (S4)** | Orta | Orta | **Sprint 3 sonu model freeze checkpoint** |
 | **Crash visibility sıfır (S5)** | ÇÖZÜLDÜ | — | **electron-log + crashReporter** |
 | Soviet imagery kültürel hassasiyet | Düşük | Orta | Hammer & sickle / Lenin yok. Genel "Eastern Bloc" estetik |
+| **R-key restart kiosk'tan çıkış (S9)** | ÇÖZÜLDÜ | — | **Renderer-only FSM mutation + signal abort. R-key handler gated on `getState().kind === 'faz8-son-ekran'`; `requestRestart()` does NOT call `app.quit` / `BrowserWindow.close` / `process.exit` / any IPC exit channel. 3× KIOSK SAFETY doc-block comments + grep audit confirmed in Sprint 6 security audit.** |
 
 ---
 
@@ -1988,4 +1989,141 @@ Audit confirmed. Sprint 4 ships clean. The destruction subsystem is theater buil
 `npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (same 4 prod deps as Sprint 2/3/4; no new prod deps).
 
 The joke-app narrative invariant is preserved: `os.userInfo().username` (Sprint 4) remains the ONLY system-touching call in the entire codebase. Faz 4-7 chrome is 100% DOM + Canvas2D + Web Audio synth + CSS — pure theater.
+
+---
+
+## Sprint 6 Security Audit
+
+> **Reviewer:** `security-reviewer` agent (Phase 3)
+> **Audit date:** 2026-06-02
+> **Commit reviewed:** `aeec1a6` (Sprint 6 Phase 2B merged; reveal class-name alignment fix). Diff baseline: `2ded2f9` (Sprint 5 close). 17 files changed, +3533/-28 lines. Sprint 6 scope: Faz 8 (reveal + son ekran) — destruction overlay fade-out, lobby restore, Cyrillic disclaimer, restart hint, CSS-only volumetric smoke, procedural door-close audio, R-key restart loop.
+> **Handoff:** `.claude/cache/handoffs/sprint6/phase3-security.md`
+
+### Scope
+
+Eight-item review per Phase 3 directive:
+
+1. No new IP / telif risks (no bundled proprietary assets)
+2. CSP unchanged (electron.vite.config.ts + renderer/index.html + main process)
+3. Preload + IPC channels unchanged (Sprint 0-5 surface preserved)
+4. `npm audit --omit=dev` clean
+5. Kiosk safety (Risk S9 — R key handler must be renderer-only)
+6. LEGAL.md no append required
+7. Risk register update (S9 entry)
+8. Defensive code patterns (audio dispose, DOM cleanup, timer clearing, listener removal)
+
+### 1. IP / Telif Risk — PASS
+
+| Surface | Status | Evidence |
+|---------|--------|----------|
+| New bundled fonts | NONE | `find src/renderer/fonts -type f` returns identical Sprint 5 manifest (PT Serif + Old Standard TT + DSEG7 — all OFL) |
+| SF Pro / Helvetica Neue / Segoe UI / Cascadia | System refs only | All hits in `destruction.css` and `chrome/*.ts` predate Sprint 6; new Faz 8 CSS uses `'Old Standard TT', 'PT Serif', Georgia, serif` (already-licensed) |
+| Apple / Microsoft logos | NONE NEW | `find src/renderer/assets -type f` returns identical Sprint 5 inventory (7 GLBs + win-bsod-qr.png + READMEs) |
+| Cyrillic disclaimer "Это просто шутка." | Generic Russian phrase | `STRINGS.ru.destruction.faz8.disclaimer.primary` line 337 — everyday Russian, NOT a copyrighted quote |
+| Turkish disclaimer "Bu sadece bir şaka." | Generic Turkish phrase | `STRINGS.tr.destruction.faz8.disclaimer.secondary` line 542 — everyday Turkish, NOT a copyrighted quote |
+| Restart hint copy ("Нажмите R для перезапуска" / "Yeniden başlatmak için R'ye basın") | Mechanical instruction text | Neither sentence appears as a copyrighted slogan |
+| Volumetric smoke (Phase 2A D-2=`'css'`) | CSS-only, no asset | `chrome/faz8-volumetric-smoke.ts` constructs two divs + CSS keyframes; no `<img>`, no `background-image: url()`, no sprite |
+| Door-close sound effect | Procedural Web Audio | `destruction-audio-faz8.ts::createDoorCloseAccentHandle` — OscillatorNode sine @ 70Hz + BiquadFilter + GainNode ADSR. NO .ogg/.wav bundled |
+| Ambient recovery audio | Procedural Web Audio | `destruction-audio-faz8.ts::createAmbientRecoveryHandle` — brown-noise BufferSource + lowpass + gain ramp. NO .ogg/.wav bundled |
+
+C1, S6, S8 carry forward as CLOSED / MITIGATED. TH-S4-02 + TH-S4-03 carry forward as advisories.
+
+### 2. CSP Audit — PASS (Byte-identical to Sprint 5)
+
+`git diff 2ded2f9..HEAD -- electron.vite.config.ts src/renderer/index.html src/main/` returns **zero diff**. The Sprint 5 CSP (verified in §Sprint 5 Security Audit, B.) carries forward unchanged:
+
+```text
+default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;
+font-src 'self'; script-src 'self'; media-src 'self';
+```
+
+`session.defaultSession.setPermissionRequestHandler` still hard-denies every WebAPI permission. `BrowserWindow.webPreferences` still has `sandbox:true, contextIsolation:true, nodeIntegration:false, webSecurity:true`. No inline `style=` HTML attributes introduced — Faz 8 chrome uses CSSOM property assignment (`root.style.opacity = '0'`), which is not governed by `style-src`.
+
+### 3. Preload + IPC Audit — PASS (Byte-identical to Sprint 5)
+
+`git diff 2ded2f9..HEAD -- src/preload/ src/shared/ipc-channels.ts` returns **zero diff**. The 5-channel IPC surface (`app:quit`, `os:get`, `kiosk:toggle`, `frame:stats`, `os:get-username`) is unchanged. The `window.api` shape is unchanged. No new renderer→main exit surface exists.
+
+### 4. `npm audit --omit=dev` — PASS
+
+```
+$ npm audit --omit=dev
+found 0 vulnerabilities
+```
+
+Production deps unchanged from Sprint 5: `electron-log`, `howler`, `postprocessing`, `three`. Dev-only audit reports 10 advisories on toolchain deps (`electron`, `esbuild`/`vite`/`electron-vite`, `tar`/`electron-builder`) — none ship in packaged builds. Same advisory list as Sprint 5. Electron 41.x upgrade evaluation deferred to Sprint 9.
+
+### 5. Kiosk Safety (S9) — PASS
+
+**This is the central new safety check for Sprint 6.** Verified:
+
+1. **R-key handler** (`scene-mount.ts:137-150`) is a renderer-only `keydown` listener gated on three conditions: key is `'r'`, director handle non-null, FSM state `'faz8-son-ekran'`.
+2. **`requestRestart()`** (`destruction-director.ts:601-618`) performs ONLY: defensive dispose/state guards, AmbientRecoveryHandle dispose (Web Audio nodes only), pure-function FSM transition, renderer-side `AbortController.abort()`.
+3. **Grep audit clean**: zero hits for `ipcRenderer.send|app.quit|process.exit|window.close|api.requestQuit` in any Faz 8 code path (every match is a documentation comment or a legitimate Sprint 0-4 call like `window.api.getOS()`).
+4. **Defence-in-depth comment trail**: 3× `KIOSK SAFETY (S9 closure)` doc blocks at scene-mount.ts mount site, destruction-director.ts loop body, destruction-director.ts `requestRestart()` doc-block + 1× `KIOSK SAFETY (S9 risk)` doc on the `requestRestart` interface method in `types.ts`.
+
+**S9 conclusion: CLOSED.** The kiosk window cannot be exited via R-key under any FSM state. ESC-hold remains the only quit path.
+
+### 6. LEGAL.md No Append Required — PASS
+
+`git diff 2ded2f9..HEAD -- LEGAL.md` returns zero diff. **No append required:** PT Serif + Old Standard TT (LEGAL.md §Fonts lines 68-69) cover the entire Faz 8 typography surface. No new third-party libraries (`package.json` + `package-lock.json` zero diff). No new vendored assets. **Expected ZERO append, actual ZERO append.**
+
+### 7. Risk Register Update — S9 ADDED
+
+Appended to `§12 Riskler & Karşı Önlemler`:
+
+| Risk | Olasılık | Etki | Önlem |
+|------|----------|------|-------|
+| **R-key restart kiosk'tan çıkış (S9)** | ÇÖZÜLDÜ | — | **Renderer-only FSM mutation + signal abort. R-key handler gated on `getState().kind === 'faz8-son-ekran'`; `requestRestart()` does NOT call `app.quit` / `BrowserWindow.close` / `process.exit` / any IPC exit channel. 3× KIOSK SAFETY comments + grep audit confirmed in Sprint 6 security audit.** |
+
+Sprint 5 carry-forward status:
+- C1 (SF Pro / Helvetica Neue bundle) — STILL CLOSED
+- C2 (Cmd+Q kiosk) — STILL CLOSED
+- S2 (hardcoded username) — STILL CLOSED
+- S6 (wallpaper telif) — STILL CLOSED
+- **S7 (QR URL stability)** — OPEN ADVISORY (Sprint 9 compliance-expert re-check)
+- **S8 (real QR as MS IP)** — MITIGATED
+- TH-S4-01 (bleed double-fire) — UNCHANGED (Phase 4 spark fix still pending)
+- TH-S4-02 (bang.ogg asset) — STILL ADVISORY (Sprint 6 polish should bundle CC0/CC-BY OGG; not addressed this sprint — Faz 0 bang still procedural)
+- TH-S4-03 (Segoe UI Variable bundle) — STILL ADVISORY (Sprint 8 Win polish optional OFL bundle)
+
+### 8. Defensive Code Patterns — PASS
+
+| Pattern | Site | Verified |
+|---------|------|----------|
+| AudioContext node disposal | `AmbientRecoveryHandle.dispose()` (destruction-audio-faz8.ts:224-242) | `source.stop()` + 3× `disconnect()` in try/catch; idempotent flag |
+| AudioContext node disposal | `DoorCloseAccentHandle` (destruction-audio-faz8.ts:280-302 + 356-385) | `ended` event listener disconnects per-fire branch in try/catch; fresh nodes per trigger |
+| AudioContext pool teardown | `DestructionAudioHandle.dispose()` (destruction-audio.ts:196-213) | Walks `audioPool` Map with try/catch per entry; clears map; then disposes Sprint 4 chain in reverse-allocation order |
+| DOM element disposal | All 3 Faz 8 chrome mount fns (disclaimer / restart-hint / volumetric-smoke) | Idempotent `if (disposed) return;`; `parentNode !== null` guard before `removeChild` |
+| Timer cleanup on abort | `faz8-son-ekran.ts:101-107` | `Set<setTimeout>` tracked; `onAbort` clears all + `clearTimeout(timeoutId)` in `sleepWithAbort` |
+| rAF cleanup on abort | `faz8-reveal.ts::startCameraDolly` | Returned disposer calls `cancelAnimationFrame`; tick body gates on `active` + `signal.aborted` |
+| Event listener cleanup | `scene-mount.ts::installFaz8RestartKey` | Returns disposer; called from `deactivateScene` |
+| AbortSignal-already-aborted guard | All Faz 8 factories + chrome mount fns | `if (opts.signal.aborted) handle.dispose(); return;` |
+| AbortSignal one-shot listeners | All Faz 8 chrome mount fns + audio factories | `addEventListener('abort', ..., { once: true })` |
+| FSM state guard in `requestRestart` | `destruction-director.ts:603-608` | `if (fsmState.kind !== 'faz8-son-ekran') warn + return` |
+| Disposed-runtime guard in `requestRestart` | `destruction-director.ts:602` | `if (runtime.disposed) return;` |
+
+No new leak vectors. The Faz 8 scaffolds follow Sprint 4-5 dispose-discipline established by the destruction-audio + chrome mount conventions.
+
+### Section Summary
+
+| Section | Result |
+|---------|--------|
+| 1. IP / Telif Risk | PASS |
+| 2. CSP Audit | PASS (unchanged) |
+| 3. Preload + IPC Audit | PASS (unchanged) |
+| 4. npm audit --omit=dev | PASS (0 prod vulns) |
+| 5. Kiosk Safety (S9) | PASS (S9 CLOSED) |
+| 6. LEGAL.md no append | PASS (zero diff) |
+| 7. Risk Register update (S9) | DONE (this section) |
+| 8. Defensive Code Patterns | PASS |
+
+**8/8 PASS.**
+
+### Final Verdict
+
+**PASS — Sprint 6 Faz 8 ships clean.** CSP byte-identical to Sprint 5, preload byte-identical to Sprint 5, package.json byte-identical to Sprint 5. ZERO new IPC channels, ZERO new preload APIs, ZERO new dependencies, ZERO new CSP directives, ZERO new bundled assets, ZERO new third-party libs. One new risk added: **S9 (R-key kiosk safety) — CLOSED** by renderer-only FSM+signal-abort architecture.
+
+`npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (same 4 prod deps as Sprint 2/3/4/5; no new prod deps).
+
+The joke-app narrative invariant is preserved: `os.userInfo().username` (Sprint 4) remains the ONLY system-touching call in the entire codebase. Faz 0-8 chrome is 100% DOM + Canvas2D + Web Audio synth + CSS — pure theater.
 

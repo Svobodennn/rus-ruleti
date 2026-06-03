@@ -85,9 +85,11 @@ import {
   FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS,
   FAZ8_SON_EKRAN_DURATION_MS,
 } from '../../../shared/scene-destruction-constants.js';
-import { mountFaz8CikButton } from './chrome/faz8-cik-button.js';
+import {
+  mountFaz8CikButton,
+  mountFaz8TekrarButton,
+} from './chrome/faz8-action-buttons.js';
 import { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
-import { mountFaz8TekrarButton } from './chrome/faz8-tekrar-button.js';
 import { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
 import { t, resolveUserLocale } from '../../i18n/strings.js';
 import type {
