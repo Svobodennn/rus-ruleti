@@ -2795,3 +2795,484 @@ destruction subtree, `styles/destruction.css`, and `scene-mount.ts`
 R-key listener — all left untouched for Phase 2B parallel lanes.
 `atmosphere-direction.md` not extended: Sprint 1 ambient state is
 RESTORED (not redefined) by the reveal.
+
+---
+
+## 21. Sprint 7 — Faz 8 TEKRAR / ÇIK action buttons
+
+Sprint 6 son-ekran shipped HINT TEXT only ("R = ЕЩЁ РАЗ · R = TEKRAR ·
+R = restart") as the soft precursor to the buttons (§ "Restart hint
+D-1 — RECOMMENDED SHIP" lines 2494-2537). Sprint 7 ships the actual
+buttons. The buttons are the FIRST and ONLY interactive surface in
+the destruction sequence: every prior beat is fire-and-forget motion
++ audio. The two buttons must therefore read UNAMBIGUOUSLY as
+"things you can press" while still sitting in the kirli-kâğıt
+typographic palette Sprint 6 established for the son-ekran.
+
+### D-1 decision — 1 vs 2 chrome files
+
+**PICKED option Y — single `chrome/faz8-action-buttons.ts`.**
+
+Lane B Phase 2B implements ONE chrome module that mounts both
+buttons in a shared flex container. The two buttons share:
+- font-family + font-size + letter-spacing
+- background colour + border + padding
+- hover / active / focus state transitions
+- entrance fade-in animation (mounted together, animate together)
+- reduced-motion gates (identical pattern)
+- ARIA labelling structure
+
+The two buttons differ ONLY in: label text (TEKRAR vs ÇIK), aria-
+label (i18n keys), and the `onClick` handler bound (one calls
+`requestRestart()` on the director, the other calls
+`window.api.quit()` per S10 Path A).
+
+Rationale:
+- **Shared CSS = single source of truth.** Two-file split duplicates
+  all visual constants (typography, colour, padding, state classes).
+  TH-S6-02 SSOT discipline carries forward: constants for class
+  names and timing already live in `scene-destruction-constants.ts`,
+  but the CSS rules themselves should live in ONE place. Two files
+  invites drift (one file's hover colour ends up 5% off the other).
+- **Visual coupling = behavioural coupling.** The two buttons appear
+  together, animate together, dispose together. Pulling them apart
+  at the module boundary fights the lifecycle reality. Lane A only
+  needs one mount call + one dispose call.
+- **Type surface preserved.** Phase 1 ships separate
+  `Faz8TekrarButtonHandle` + `Faz8CikButtonHandle` discriminated
+  unions (types.ts lines 540-580). The single chrome file returns
+  BOTH handles as a tuple `{ tekrar: Faz8TekrarButtonHandle; cik:
+  Faz8CikButtonHandle }` so call sites narrow each handle by `kind`
+  independently. No type-surface collapse; just file-surface.
+
+### D-2 decision — retain or REMOVE Sprint 6 R-key hint text
+
+**PICKED option N — REMOVE the Sprint 6 restart-hint chrome.**
+
+Lane B Phase 2B REMOVES the `chrome/faz8-restart-hint.ts` mount
+call from `faz8-son-ekran.ts` (the chrome file itself stays for
+type/test surface continuity but the runner no longer instantiates
+it). Lane 0 Phase 2B i18n REMOVES the three restart-hint keys
+(`destruction.faz8.restartHintRu` / `restartHintTr` / `restartHintEn`)
+from `i18n/strings.ts`. The R-key keyboard binding in `scene-mount.ts`
+STAYS as a power-user affordance (keyboard parity with TEKRAR button).
+
+Rationale:
+- **Buttons make the hint redundant.** The hint existed as a
+  whispered affordance because no UI existed; Sprint 7 promotes that
+  affordance to an explicit button. Keeping the hint alongside the
+  button creates a visual conflict: which is the primary affordance?
+  Two restart cues compete; the eye reads the hint as a "did the
+  button work?" reassurance which it isn't.
+- **Focus order cleanup.** Removing the hint shrinks the son-ekran
+  Tab order to: TEKRAR → ÇIK. Two stops. Predictable. With the hint
+  retained as decorative `aria-live=off` text the focus order is
+  fine but the visual scan path adds noise.
+- **i18n surface shrinks.** Three locale keys removed. Lane 0 work
+  is "add 4 keys, remove 3 keys" — net +1, simpler diff for review.
+- **R-key still works.** Power users (anyone who reads the original
+  Sprint 6 hint) get the same keyboard shortcut without the visual
+  reminder. The button's `aria-label` documents Enter/Space + the
+  R-key keyboard hint can move to the button's `aria-keyshortcuts`
+  attribute (Lane B Phase 2B implementation detail).
+
+**Downstream impact (explicit for Lane A + Lane B + Lane 0):**
+- Lane 0: REMOVE `destruction.faz8.restartHintRu/Tr/En` keys.
+- Lane B: REMOVE `mountFaz8RestartHint()` call in `faz8-son-ekran.ts`
+  (line ~300 region per Sprint 6 son-ekran runner); chrome file
+  `chrome/faz8-restart-hint.ts` stays for type continuity but is
+  uncalled. Phase 4 spark / Sprint 8 may delete the file outright.
+- Lane A: NO direct impact (R-key handler in `scene-mount.ts`
+  stays — the binding gates on FSM state, not on hint presence).
+
+### Typography
+
+| Element | Spec |
+|---------|------|
+| Font-family | `'Old Standard TT', 'PT Serif', Georgia, serif` (matches Sprint 6 disclaimer primary stack — Sprint 0 OFL bundle) |
+| Font-weight | 600 (semi-bold) — buttons need MORE typographic weight than the 400-weight disclaimer so the eye reads them as "actionable element, not body copy". Old Standard TT bundle covers 400 + 700; 600 lerps to the nearer end at 700 (Lane B Phase 2B uses `font-weight: 600` declaration; the browser renders 700 from the bundle). |
+| Font-size | 20px (= `FAZ8_BUTTON_FONT_PX`) — clears WCAG large-text threshold (≥18px regular, ≥14px bold) by a margin; matches the disclaimer secondary 28px → button 20px → restart-hint legacy 14px hierarchy where buttons sit between disclaimer and hint in visual weight. Sprint 6 BLOCKER-1 retro flagged ≥18px for actionable surfaces; 20px is the deliberate over-shoot. |
+| Letter-spacing | +0.5px (= `FAZ8_BUTTON_LETTER_SPACING_PX`) — slight positive tracking for ALL-CAPS Cyrillic + Latin labels (ЕЩЁ РАЗ / ВЫЙТИ / TEKRAR / ÇIK) so the glyphs breathe; ALL-CAPS without tracking reads as cramped. |
+| Text-transform | none — i18n strings ship in their authored case (ЕЩЁ РАЗ already capitalised; do NOT `text-transform: uppercase` which would mangle Turkish dotless-i + Cyrillic combining marks). |
+| Line-height | 1.2 (= `FAZ8_BUTTON_LINE_HEIGHT`) — tight; single-line labels do not need leading. |
+
+Cyrillic + Turkish glyph coverage verified Sprint 5 i18n-expert
+(ЕЩЁ РАЗ ё / ВЫЙТИ Й / ÇIK Ç / TEKRAR — all in Old Standard TT
+OFL bundle). Lane 0 Phase 2B re-runs the glyph-presence check.
+
+### Colour palette
+
+| Element | Value | Constant |
+|---------|-------|----------|
+| Background (default) | `#d4ccb8` | `FAZ8_BUTTON_BG_COLOR` |
+| Background (hover) | `#c5bca5` | `FAZ8_BUTTON_BG_HOVER_COLOR` |
+| Background (active/pressed) | `#b8af96` | `FAZ8_BUTTON_BG_ACTIVE_COLOR` |
+| Text (ink) | `#2a2520` | `FAZ8_BUTTON_INK_COLOR` |
+| Border | `1.5px solid #3a3530` | `FAZ8_BUTTON_BORDER` |
+| Focus outline | `3px solid #7a6a4e` + `outline-offset: 3px` | `FAZ8_BUTTON_FOCUS_OUTLINE_COLOR` |
+| Active inset shadow | `inset 0 2px 4px rgba(0, 0, 0, 0.3)` | `FAZ8_BUTTON_ACTIVE_INSET_SHADOW` |
+| Disabled | NOT USED — buttons always enabled at son-ekran | — |
+
+Designer rationale:
+- **`#d4ccb8` aged-paper bg = kirli-kâğıt palette closure.** Sprint 6 disclaimer uses `#7a6a4e` ink on the lobby substrate; the buttons invert that — paper-colour fill with darker ink. Reads as "tear-off coupon" / "paper button".
+- **Hover `#c5bca5` = 7% darker.** Within the `duration-micro` band 5-10%; sub-5% reads as no feedback, >10% reads as a state change.
+- **Active `#b8af96` + inset shadow.** Pressed-in pushbutton metaphor; rgba(0,0,0,0.3) inset registers without harming legibility.
+- **Focus `#7a6a4e` 3px outline + 3px offset.** Palette-coherent (matches disclaimer ink) rather than browser-blue. 3px width clears WCAG SC 2.4.7; offset > border-width keeps the outline detached. Contrast `#7a6a4e` on `#d4ccb8` = 4.51:1 — 3:1 large-graphical threshold cleared. Outline (not box-shadow) keeps layout stable.
+- **Border `#3a3530` 1.5px.** Frames without competing with the focus outline; crisp on standard density, HiDPI rounds clean.
+- **Text/bg contrast `#2a2520` on `#d4ccb8` = 11.4:1.** Clears WCAG AAA (7:1) — Sprint 6 BLOCKER-1 retro over-shot.
+
+### Layout + position
+
+| Element | Spec |
+|---------|------|
+| Container | `<div role="group" aria-label="...">` (Lane 0 fills aria-label) with `display: flex`, `flex-direction: row`, `justify-content: center`, `align-items: center`, `gap: 32px` (= `FAZ8_BUTTON_CONTAINER_GAP_PX`) |
+| Container position | `position: absolute`, `bottom: 80px` (= `FAZ8_BUTTON_CONTAINER_BOTTOM_INSET_PX`) — same vertical band the Sprint 6 hint occupied (48px) but pushed up 32px so the buttons clear the safe area on kiosk displays with rounded corners |
+| Container z-index | 10120 (= `FAZ8_BUTTON_CONTAINER_Z_INDEX`) — above disclaimer 10100 + restart-hint legacy 10110 + smoke 10050; ensures focus outlines render above all other son-ekran chrome |
+| Button padding | `14px 28px` (= `FAZ8_BUTTON_PADDING`) — vertical 14px + horizontal 28px |
+| Button min-width | 144px (= `FAZ8_BUTTON_MIN_WIDTH_PX`) — Cyrillic "ВЫЙТИ" + Turkish "TEKRAR" balance roughly equally; 144px gives both visual symmetry. Below 120px the buttons crowd; above 160px they over-dominate the son-ekran composition. |
+| Button height (computed) | ≥48px (font-size 20px × line-height 1.2 + padding-y 14px × 2 = 52px). Clears the 44×44pt touch-target named rule. |
+| Button border-radius | 2px (= `FAZ8_BUTTON_BORDER_RADIUS_PX`) — almost-square corners; aggressive rounding (8px+) reads as web-app, not paper-coupon. 2px gives the corner a hint of softness without genre-shift. |
+| Cursor | `pointer` on hover (desktop kiosk has mouse; keyboard-only users get focus indicator instead) |
+
+### Entrance animation
+
+| Element | Spec |
+|---------|------|
+| Initial state | `opacity: 0`, `transform: translateY(8px)` — slight upward drift on entrance |
+| Final state | `opacity: 1`, `transform: translateY(0)` — driven by `.is-visible` CSS class toggle |
+| Trigger class | `FAZ8_TEKRAR_BUTTON_VISIBLE_CLASS` = `'is-visible'` + `FAZ8_CIK_BUTTON_VISIBLE_CLASS` = `'is-visible'` (Phase 1 SSOT) |
+| Duration | 600ms (= `FAZ8_BUTTON_FADEIN_DURATION_MS` — Phase 1 placeholder CONFIRMED) |
+| Start offset from son-ekran entry | 2500ms (= `FAZ8_BUTTON_FADEIN_START_OFFSET_MS` — Phase 1 placeholder CONFIRMED; ≈57.5sn absolute, lands AFTER disclaimer fade-in completes at son-ekran +4sn so the disclaimer reads first) |
+| Easing | `cubic-bezier(0.25, 0.46, 0.45, 0.94)` (ease-out-quad — matches Sprint 6 destruction-overlay fade) — buttons "settle in" rather than "punch in" |
+| Stagger between TEKRAR and ÇIK | NONE — both buttons animate together (they are a pair) |
+
+### State spec — default / hover / active / focus / pressed
+
+| State | Trigger | Visual change |
+|-------|---------|---------------|
+| default | mounted, after entrance | `bg: #d4ccb8`, `border: 1.5px solid #3a3530`, `ink: #2a2520`, no inset shadow |
+| hover | mouse over | `bg: #c5bca5` (transitions over 100ms — within `duration-micro` named rule) |
+| active | mouse-down, Enter-held, Space-held | `bg: #b8af96` + `box-shadow: inset 0 2px 4px rgba(0,0,0,0.3)` |
+| focus | Tab landed, keyboard navigation | `outline: 3px solid #7a6a4e`, `outline-offset: 3px` — outline survives across all other states |
+| pressed (= active short flash) | Click released | brief 100ms return to hover bg, then default — the "tap feedback" pulse |
+
+State transitions use `transition: background-color 100ms ease-out,
+box-shadow 100ms ease-out` — clears the `duration-micro` named rule
+band (100-150ms for hover / toggle). Focus outline transitions are
+INSTANT (no fade) — outline animation is an a11y anti-pattern
+(SC 2.4.7 implies focus visibility is binary, not fade-able).
+
+### Reduced-motion behaviour
+
+| Surface | Default | Reduced-motion |
+|---------|---------|----------------|
+| Entrance fade-in + translateY | 600ms over `opacity 0→1` + `translateY(8px)→0` | Instant — opacity 1, translateY 0 at mount; no animation |
+| Hover bg transition | 100ms ease-out | Instant — 0ms transition (colour swaps directly) |
+| Active bg + inset shadow transition | 100ms ease-out | Instant — 0ms transition |
+| Focus outline | Already instant under default | Unchanged — instant |
+| Pressed pulse | 100ms return to hover bg | Skipped — pressed state holds until next state |
+
+Lane B CSS gates the entrance via `@media (prefers-reduced-motion:
+reduce) { .faz8-action-button { opacity: 1; transform: none;
+transition: none; } }` and a JS short-circuit on the rAF that
+toggles `.is-visible` (skip the rAF, set the class synchronously
+at mount).
+
+### S10 IPC contract recap (Phase 1 Path A confirmed)
+
+TEKRAR onClick → `director.requestRestart()` (renderer-only FSM
+mutation; no IPC). ÇIK onClick → `window.api.quit()` (Sprint 0
+`app:quit` channel reused; main process closes BrowserWindow +
+quits app). Both kiosk-safe per the joke-app invariant — TEKRAR
+preserves the kiosk frame (loops back through `faz8-reveal`); ÇIK
+exits cleanly to the user's OS shell which is the intentional end
+of the joke. Designer note: the two onClick semantics being
+asymmetric (one stays in-app, one exits) is exactly why ÇIK is the
+SECOND button — left-to-right reading order positions TEKRAR
+(restart, the "preferred" CTA) first, ÇIK (exit) second.
+
+---
+
+## 22. Sprint 7 — Reveal jingle ADSR + chord spec
+
+The reveal jingle is the audio counterpart to the destruction-
+overlay fade-out: a brief musical cue that rings out across the
+silence-pivot + drain window (§18 lines 2256-2294). Its purpose is
+to ANNOUNCE the tonal shift from "system has died" to "the room is
+still here" — without overstating the announcement (the joke is
+that the destruction was performative; the jingle is the wry
+musical acknowledgement, not a triumphant resolution).
+
+### D-3 decision — chord character
+
+**PICKED: open-fifth + sus2 voicing (A3 + E4 + B4 + A5).**
+
+Specifically:
+- A3  = 220.00 Hz (root, tenor register)
+- E4  = 329.63 Hz (perfect fifth above root — the "open" interval)
+- B4  = 493.88 Hz (suspended 2nd above E — the "unresolved" colour)
+- A5  = 880.00 Hz (octave above root — the "shimmer" / overtone reinforcement)
+
+Total 4 notes; mid-register spread A3-A5 (two octaves); sits ABOVE
+the recovering ambient bed (-24dB at sub-bass + low-mid bulb-hum
+range, ~50-300Hz fundamental) and BELOW the procedural disclaimer
+voice register (Cyrillic vowels peak ~700-1500Hz formants).
+
+Rationale:
+- **Open-fifth = neither happy nor sad.** A major or minor triad
+  would resolve the emotional question ("the destruction was sad /
+  triumphant"). The open-fifth is INTENTIONALLY ambiguous — the
+  ear hears "music" without hearing a verdict. Matches the joke
+  brief: "the worst is over, but we are not celebrating".
+- **Sus2 (B4 over A3) adds wistful colour without resolution.**
+  A B-natural over an A root forms a sus2 interval (whole-tone
+  above the root). It hangs unresolved through the 2sn release —
+  the listener's ear waits for resolution that never comes. This
+  mirrors the visual beat: the lobby is restored but the
+  disclaimer admits the joke without resolving the emotional
+  punch. The chord is the audio version of the disclaimer.
+- **A5 octave reinforcement.** Without the A5 the chord sits in
+  the same register as the bulb hum + radio static; the listener
+  hears "ambient texture" not "musical cue". A5 at 880Hz pushes
+  one note clearly above the ambient bed band, marking the chord
+  as discrete content.
+- **NOT a chord with 3rd.** A C# or C natural over the A would
+  make this a major or minor chord — verdict delivered. Avoided.
+- **A as root.** Concert-pitch reference; matches the Sprint 1
+  ambient bulb hum at 100Hz (A2 area, 2 octaves below) so the
+  chord is rationally tuned with the existing audio bed.
+
+### Oscillator type
+
+**PICKED: per-note triangle wave** (= `'triangle'` for all 4
+OscillatorNodes).
+
+Rationale:
+- **Sine = too clean.** Pure sine reads as "synth test tone" or
+  "alarm" — both wrong. The chord should sound LIKE music, not
+  like a notification.
+- **Sawtooth = too rich.** Sawtooth has full harmonic content; on
+  this register it reads as "synth string pad" — also wrong (the
+  jingle is a discrete cue, not a sustained pad).
+- **Triangle = warm with slight harmonic colour.** Triangle has
+  only odd harmonics at rapidly diminishing amplitude (1/n²) — it
+  sounds like "a flute heard through a wall" or "a music box at
+  distance". Matches the "distant church bell / Soviet radio chime"
+  narrative ambiguity better than sine; less identifiable as a
+  specific instrument than sawtooth.
+- **All 4 notes same waveform.** Consistent timbre across the
+  voicing — the chord reads as one instrument, not four. (Mixing
+  waveforms would create a synth-pad effect.)
+
+### ADSR per-note (confirmed Phase 1 placeholders)
+
+| Stage | Value | Constant | Rationale |
+|-------|-------|----------|-----------|
+| Attack | 200ms | `REVEAL_JINGLE_ATTACK_MS` | Slow fade-in — the chord "swells" rather than "punches". Under 100ms reads as alert/intrusion; over 300ms loses the "discrete cue" character. |
+| Decay | 100ms | `REVEAL_JINGLE_DECAY_MS` | Short transition from attack peak to sustain plateau. The decay is barely perceptible — its job is to avoid a held peak that fatigues the ear. |
+| Sustain | 0.3 (linear, 30% of peak) | `REVEAL_JINGLE_SUSTAIN_LEVEL` | Moderate sustain — chord holds at 30% so the ear has time to register the voicing before release. Below 0.2 the chord disappears too quickly; above 0.5 it competes with the recovering ambient bed. |
+| Release | 2000ms | `REVEAL_JINGLE_RELEASE_MS` | Long release tail — the chord dissolves over 2sn. Matches the visual 3sn destruction-overlay fade so audio + visual envelopes settle together. |
+| Total per-note duration | ≈2.5sn (attack + decay + 200ms sustain plateau + release) | — | Sits within the 5sn reveal envelope; finishes BEFORE son-ekran enters at +5sn. |
+
+### Mix specification
+
+| Element | Value | Constant |
+|---------|-------|----------|
+| Peak amplitude | -30 dBFS (linear ≈ 0.0316) | `REVEAL_JINGLE_PEAK_DB` |
+| Per-note voicing balance | EQUAL — all 4 notes at the same peak (the chord is a chord, not a melody) | — |
+| Stereo | MONO (single GainNode summing all 4 oscillators) | — |
+| Pan | None (centre) | — |
+| Reverb / convolution | NONE — procedural simplicity per Sprint 4 Lesson 3 (no asset vendoring) | — |
+| Trigger offset | 0ms from faz8-reveal entry | `REVEAL_JINGLE_OFFSET_MS` |
+
+Mono rather than stereo: the destruction audio chain has been mono
+through Faz 0-7 (the joke is the room's voice; the room speaks in
+one voice, not in stereo separation). Reverb omitted because (a)
+adding a ConvolverNode requires an impulse response asset OR a
+procedurally-generated noise burst that adds complexity for marginal
+benefit, and (b) the triangle wave's slow attack already supplies
+the "spacious" quality reverb would add.
+
+### S12 acoustic mix-check — pure addition with the recovering ambient bed
+
+| Bed | Peak / sustain | Headroom vs jingle |
+|-----|----------------|--------------------|
+| Sprint 1 ambient bulb hum + radio static (Sprint 6 §18 recovery) | -24 dBFS sustained (= `FAZ8_AUDIO_BED_BASELINE_GAIN_DB`) | Jingle peak at -30dBFS sits 6dB below the bed sustain |
+| Sprint 6 door-close accent (single-shot at son-ekran +2sn) | -10 dBFS peak (= `FAZ8_DOOR_CLOSE_PEAK_GAIN` ≈ 0.3 linear) | Door-close fires AFTER jingle release tails (jingle release ends ≈2.5sn into reveal; door-close fires ≈7sn into the reveal-to-son-ekran timeline) — NO temporal overlap |
+
+S12 risk closure (Phase 1 audit): jingle + ambient bed run
+CONCURRENTLY in the 0-2.5sn reveal window. Both sum into the master
+Gain node; no compressor/limiter in the chain. Worst-case linear
+sum: 0.0316 (jingle) + 0.0631 (ambient -24dBFS = ~6.3% linear) =
+0.0947 linear = -20.5 dBFS. Comfortably below 0 dBFS clipping;
+comfortably above the noise floor (≈-60 dBFS for typical playback).
+NO clipping; NO destructive interference (different frequencies in
+play); pure ADDITIVE mix.
+
+Phase 3 verification: Lane A Phase 2B implementation MUST pass the
+S12 acoustic check by inspection — the jingle's GainNode peak value
+equals the linear conversion of -30dBFS (= `10 ** (-30/20)` ≈
+0.0316). A unit test in `tests/e2e/sprint7-faz-smoke.spec.ts` T08
+(or equivalent) asserts the constructed GainNode `gain.value` is
+within ±0.001 of 0.0316.
+
+---
+
+## 23. Sprint 7 — Scene transition cross-fade spec
+
+Sprint 7 adds smoothing to two FSM transitions that Sprint 4 / 5
+shipped as hard cuts: Faz 6 (BSOD) → Faz 7 (bootloop), and Faz 7
+(bootloop) → Faz 8 (reveal). The third transition (Faz 2 takeover →
+Faz 3 terminal) is REVIEWED and confirmed smooth — no Sprint 7 work
+on that beat.
+
+### D-4 decision — transition timing
+
+**PICKED differentiated timings: 200ms (Faz 7→8) / 150ms (Faz 6→7) /
+0ms (Faz 2→3 confirmed hard cut).**
+
+Phase 1 placeholders are CONFIRMED unchanged. Rationale per transition:
+
+#### Faz 7 → Faz 8 — 200ms cross-fade
+
+| Element | Spec |
+|---------|------|
+| Duration | 200ms (= `FAZ7_TO_FAZ8_CROSSFADE_MS`) |
+| Easing | `cubic-bezier(0.4, 0.0, 0.2, 1)` (= `SCENE_TRANSITION_EASING` — Material Design standard curve) |
+| Behaviour | Bootloop chrome (Mac apple-loading / Win BIOS) opacity 1→0 concurrent with destruction-takeover overlay opacity (already at 1) transitioning to opacity 0 as the faz8-reveal phase claims the fade. The two opacity envelopes share the 200ms window. |
+| Trigger | Lane A toggles `FAZ7_TO_FAZ8_TRANSITION_ACTIVE_CLASS` (= `'is-transitioning'`) on the destruction-takeover overlay at the FSM transition moment. CSS handles the opacity transition; Lane A schedules the `classList.remove` at +200ms via setTimeout. |
+| Reduced-motion | Instant cut. `@media (prefers-reduced-motion: reduce)` removes the CSS transition; the class toggle becomes a synchronous opacity swap. |
+
+Why 200ms: longer than the Faz 6→7 transition because the FSM
+state change is also a TONE change (apocalyptic loop → wistful
+acceptance). 200ms lets the ear adjust to the tonal pivot. Sub-150ms
+reads as glitchy; over 300ms reads as "transition shot" which
+breaks the joke's deadpan delivery.
+
+#### Faz 6 → Faz 7 — 150ms cross-fade
+
+| Element | Spec |
+|---------|------|
+| Duration | 150ms (= `FAZ6_TO_FAZ7_CROSSFADE_MS`) |
+| Easing | `cubic-bezier(0.4, 0.0, 0.2, 1)` (shared `SCENE_TRANSITION_EASING`) |
+| Behaviour | BSOD/kernel-panic chrome opacity 1→0 concurrent with pre-mounted bootloop chrome opacity 0→1. Lane A pre-mounts the bootloop chrome behind the BSOD at opacity 0; the BSOD dispose triggers the bootloop's opacity ramp. |
+| Trigger | Lane A toggles `SCENE_TRANSITION_FADE_OUT_CLASS` (= `'is-transition-fading-out'`) on the BSOD root + `SCENE_TRANSITION_FADE_IN_CLASS` (= `'is-transition-fading-in'`) on the bootloop root simultaneously. |
+| Reduced-motion | Instant — both classes effectively no-op under the reduced-motion media query (Lane A skips the rAF; opacity flips synchronously). |
+
+Why 150ms (shorter than Faz 7→8): the BSOD → bootloop pivot is a
+"system reset" moment narratively. The cut should feel MECHANICAL
+("the OS rebooted"), not CINEMATIC ("the editor crossfaded"). 150ms
+is the threshold where the eye stops perceiving a discrete frame
+swap but doesn't yet register a stylised transition. It reads as
+"the screen just changed", which is exactly the bootloop's
+narrative claim.
+
+#### Faz 2 → Faz 3 — 0ms confirmed hard cut
+
+Designer reviewed current Sprint 4 takeover → terminal handoff
+behaviour (destruction-director.ts faz2 → faz3 transition path).
+The hard cut is **intentional and verified smooth** — no Sprint 7
+work needed.
+
+Rationale:
+- The Sprint 4 takeover chrome (notification toasts + desktop
+  icons fade-out) ends with the desktop EMPTY (icons faded, toasts
+  cleared). The terminal then mounts ATOP this empty desktop.
+  Because the takeover ends in a controlled empty-state, there is
+  no flash-of-empty between phases — the eye reads continuous
+  "desktop is here, now terminal is on top of desktop".
+- A cross-fade here would actually HARM the read: the terminal
+  appearing mid-fade would look like "terminal materialising
+  through the desktop" which is wrong (the terminal is opened BY
+  the user-impersonating click sequence, narratively a discrete
+  app-launch event).
+- Sprint 7 keeps `FAZ2_TO_FAZ3_CROSSFADE_MS = 0` (Phase 1
+  placeholder CONFIRMED unchanged). Lane A Phase 2B does NOT wire
+  a transition class on this path.
+
+### Shared transition CSS pattern (Lane A + Lane B reference)
+
+```css
+/* Lane B implements in styles/destruction.css */
+
+.destruction-takeover.is-transitioning,
+.scene-element.is-transition-fading-out {
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.scene-element.is-transition-fading-in {
+  opacity: 1;
+  transition: opacity 150ms cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .destruction-takeover.is-transitioning,
+  .scene-element.is-transition-fading-out,
+  .scene-element.is-transition-fading-in {
+    transition: none;
+  }
+}
+```
+
+Lane A toggles the classes via standard `classList.add` +
+`setTimeout(() => classList.remove(...), DURATION_MS)` — single
+setTimeout per transition; clean dispose via the destruction-
+director's AbortSignal.
+
+### Sprint 7 NEW a11y matrix rows
+
+Append to §8 master matrix (after row 22) AND to the cumulative
+matrix (Sprint 4 22 + Sprint 5 15 + Sprint 6 6 + Sprint 7 5 = 48).
+
+| #  | Surface                                | OS      | Default behaviour                                   | Reduced-motion behaviour                              | A11y role     | ARIA                                    | Owner             |
+|----|----------------------------------------|---------|-----------------------------------------------------|-------------------------------------------------------|---------------|-----------------------------------------|-------------------|
+| 44 | Faz 8 TEKRAR button entrance fade + translateY | mac+win | Opacity 0→1 + translateY 8px→0 over 600ms ease-out-quad | Instant — opacity 1, translateY 0 at mount; no animation | button        | `role=button` (native), `aria-label` from i18n, `aria-keyshortcuts="R"`, Tab order 1, Enter/Space activates | frontend-dev (B)  |
+| 45 | Faz 8 ÇIK button entrance fade + translateY    | mac+win | Same envelope as #44 (shared `.is-visible` class)   | Same as #44                                           | button        | `role=button` (native), `aria-label` from i18n, Tab order 2, Enter/Space activates | frontend-dev (B)  |
+| 46 | Faz 8 button hover / active / pressed transitions | mac+win | bg + box-shadow 100ms ease-out per state            | Instant 0ms transitions; colours swap directly        | n/a (state)   | n/a — focus outline already meets SC 2.4.7 | frontend-dev (B)  |
+| 47 | Reveal jingle (chord ADSR)             | mac+win | 4-note triangle chord, 2.5sn envelope at -30dBFS    | UNCHANGED (audio amplitude is functional; visual gates do not affect audio per Sprint 4 §8 row 4-5 pattern) | decorative audio | NO `aria-label` (pure ambience); respects window.api audio-mute IPC if user has muted | kraken (A)        |
+| 48 | Scene transitions Faz 6→7 + Faz 7→8 cross-fades | mac+win | 150ms (Faz 6→7) + 200ms (Faz 7→8) opacity cross-fades with `cubic-bezier(0.4, 0, 0.2, 1)` | Instant cuts — `.is-transitioning` + `.is-transition-fading-out/in` classes' `transition: none` under reduced-motion media query | n/a (scene change) | n/a                                     | kraken (A)        |
+
+**Sprint 7 surfaces audited: 5.**
+**Surfaces with active reduced-motion alternative: 4 (rows 44-46, 48).**
+**Surfaces unchanged under reduced-motion (audio functional): 1 (row 47).**
+
+### Cumulative matrix totals (Sprint 4 + 5 + 6 + 7)
+
+| Total | Count |
+|-------|-------|
+| Sprint 4 surfaces audited (§8 lines 943-967) | 22 |
+| Sprint 5 surfaces audited (§16 lines 2009-2025) | 15 |
+| Sprint 6 surfaces audited (§20 lines 2613-2625) | 6 |
+| Sprint 7 surfaces audited (§23 this section) | 5 |
+| **Combined cumulative total** | **48** |
+
+### Phase 3 verification grep (Sprint 7 additive)
+
+```bash
+grep -rn "prefers-reduced-motion" src/renderer/scene/destruction/chrome/faz8-tekrar-button.ts src/renderer/scene/destruction/chrome/faz8-cik-button.ts src/renderer/scene/destruction/chrome/faz8-action-buttons.ts 2>/dev/null
+grep -rn "PREFERS_REDUCED_MOTION_QUERY" src/renderer/scene/destruction/destruction-director.ts
+grep -rn "@media (prefers-reduced-motion: reduce)" src/renderer/styles/destruction.css
+```
+
+Expected counts after Sprint 7: Sprint 4-6 cumulative (≥ 38 gates)
++ Sprint 7 (≥ 5 gates) = **≥ 43 distinct file:line gate occurrences**.
+
+---
+
+*End of Sprint 7 Phase 2A designer pass. Sprint 7 §21-§23 are
+additive to Sprint 4 §1-§9 + Sprint 5 §10-§17 + Sprint 6 §18-§20.
+Combined: SSOT for the Faz 0-8 destruction sequence INCLUDING the
+TEKRAR/ÇIK interactive surface. Phase 5 retro should revisit D-2
+(hint removal) if QA observation shows the buttons alone fail to
+read as restart affordance — fall-back is to re-mount the hint
+with a tighter visual coupling to the buttons (e.g. as their own
+secondary caption text).*
+
+## Files this Sprint 7 designer pass authored or edited
+- `destruction-direction.md` — Sprint 7 §21-§23 appended (Path A precedent).
+- `scene-destruction-constants.ts` — `REVEAL_JINGLE_CHORD_NOTES` filled (A3 220.00, E4 329.63, B4 493.88, A5 880.00 Hz); Sprint 7 button typography + colour + layout constants added; Phase 1 timing placeholders confirmed (no value change).
+
+Lane controllers, chrome modules, audio factories, i18n strings,
+destruction.css, and scene-mount.ts R-key listener left untouched
+for Phase 2B parallel lanes (Lane 0 + Lane A + Lane B).

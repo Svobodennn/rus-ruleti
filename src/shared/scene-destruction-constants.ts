@@ -1545,19 +1545,31 @@ export const REVEAL_JINGLE_RELEASE_MS = 2000;
 export const REVEAL_JINGLE_PEAK_DB = -30;
 
 /**
- * Reveal jingle chord note frequencies (Hz). PLACEHOLDER empty
- * array — designer Phase 2A SPEC FILL specifies the actual note
- * pitches (chord voicing per the closing-tableau emotional brief).
- * Lane A Phase 2B reads this constant to build the OscillatorNode
- * graph; an empty array short-circuits the play() body to a no-op,
- * which is safe for the Phase 1 stub.
+ * Reveal jingle chord note frequencies (Hz). Sprint 7 Phase 2A
+ * design FILL (D-3 decision — destruction-direction.md §22):
+ * open-fifth + sus2 voicing on A.
  *
- * Designer note: pick 3-4 notes (likely a minor 7th or sus2 voicing
- * — open-ended/wistful, NOT triumphant resolution). Frequencies in
- * Hz, mid-register (220-880Hz band) to sit above the recovering
- * ambient bed without competing with the disclaimer voice register.
+ *   - A3  = 220.00 Hz   (root, tenor register — rationally tuned with
+ *                         the Sprint 1 ambient bulb hum at A2)
+ *   - E4  = 329.63 Hz   (perfect fifth — the "open" interval)
+ *   - B4  = 493.88 Hz   (suspended 2nd above E — unresolved colour)
+ *   - A5  = 880.00 Hz   (octave above root — shimmer/overtone push
+ *                         above the ambient bed band)
+ *
+ * Chord character: intentionally ambiguous (no 3rd, no leading tone)
+ * — the ear hears "music" without hearing a verdict. Matches the
+ * joke brief "the worst is over, but we are not celebrating".
+ * Lane A Phase 2B reads this constant to build the OscillatorNode
+ * graph (one OscillatorNode per frequency, all triangle type per
+ * REVEAL_JINGLE_OSCILLATOR_TYPE, summed into a single GainNode at
+ * REVEAL_JINGLE_PEAK_DB).
  */
-export const REVEAL_JINGLE_CHORD_NOTES: readonly number[] = [];
+export const REVEAL_JINGLE_CHORD_NOTES: readonly number[] = [
+  220.00,  // A3
+  329.63,  // E4
+  493.88,  // B4
+  880.00,  // A5
+] as const;
 
 /* ------------------------------------------------------------------------ */
 /* Sprint 7 — Faz 8 button CSS class SSOT (TH-S6-02)                        */
@@ -1735,3 +1747,235 @@ export const FAZ8_BUTTON_CLICK_LISTENER_OWNER = 'faz8-son-ekran' as const;
  * listener for accessibility/keyboard parity.
  */
 export const FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER = 'faz8-son-ekran' as const;
+
+/* ------------------------------------------------------------------------ */
+/*                                                                          */
+/*  ╔═══════════════════════════════════════════════════════════════════╗   */
+/*  ║  Sprint 7 Phase 2A — design FILL (constants set by designer)      ║   */
+/*  ╚═══════════════════════════════════════════════════════════════════╝   */
+/*                                                                          */
+/*  Sprint 7 Phase 2A designer pass authors the named-value constants the   */
+/*  Phase 1 scaffold left as placeholders (REVEAL_JINGLE_CHORD_NOTES) PLUS  */
+/*  new design-FILL constants for the TEKRAR/ÇIK button visual specs        */
+/*  (typography, colour, layout, state styling). All values derive from     */
+/*  destruction-direction.md §21 (button visual spec), §22 (reveal jingle   */
+/*  ADSR/chord) and §23 (scene transition cross-fades).                     */
+/*                                                                          */
+/*  Phase 1 placeholders CONFIRMED unchanged (no value edits):              */
+/*    - FAZ8_BUTTON_FADEIN_DURATION_MS = 600                                */
+/*    - FAZ8_BUTTON_FADEIN_START_OFFSET_MS = 2_500                          */
+/*    - FAZ7_TO_FAZ8_CROSSFADE_MS = 200                                     */
+/*    - FAZ6_TO_FAZ7_CROSSFADE_MS = 150                                     */
+/*    - FAZ2_TO_FAZ3_CROSSFADE_MS = 0   (hard cut VERIFIED smooth)          */
+/*    - SCENE_TRANSITION_EASING = 'cubic-bezier(0.4, 0.0, 0.2, 1)'          */
+/*                                                                          */
+/* ------------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 Phase 2A — Reveal jingle oscillator type                        */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Reveal jingle oscillator waveform — per-note. Sprint 7 Phase 2A D-3
+ * SPEC: triangle wave (warm, only odd harmonics at 1/n² amplitude).
+ * Matches the "distant church bell / Soviet radio chime / music-box-at-
+ * distance" narrative ambiguity. Sine reads as alarm; sawtooth reads as
+ * synth pad — neither carries the chord's intended timbre. All four
+ * REVEAL_JINGLE_CHORD_NOTES oscillators share this waveform so the
+ * chord reads as ONE instrument, not four.
+ */
+export const REVEAL_JINGLE_OSCILLATOR_TYPE: 'sine' | 'square' | 'sawtooth' | 'triangle' = 'triangle' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 Phase 2A — Faz 8 button typography                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Button font family stack — matches Sprint 6 disclaimer primary stack
+ * for typographic palette continuity (Sprint 0 OFL bundle covers ALL
+ * required Cyrillic + Latin glyphs for ЕЩЁ РАЗ / ВЫЙТИ / TEKRAR / ÇIK).
+ */
+export const FAZ8_BUTTON_FONT_FAMILY = "'Old Standard TT', 'PT Serif', Georgia, serif" as const;
+
+/**
+ * Button font-weight — semi-bold (600). Browser renders Old Standard TT
+ * 700 from the bundle (bundle ships 400 + 700; 600 lerps to nearer end).
+ * Buttons need MORE typographic weight than the 400-weight disclaimer
+ * so the eye reads them as actionable, not body copy.
+ */
+export const FAZ8_BUTTON_FONT_WEIGHT = 600 as const;
+
+/**
+ * Button font-size in px. 20px clears the WCAG large-text threshold
+ * (≥18px regular, ≥14px bold) by a margin and slots between the
+ * disclaimer secondary 28px and the (removed-per-D-2) restart-hint
+ * legacy 14px hierarchy. Sprint 6 BLOCKER-1 retro: actionable surfaces
+ * MUST be ≥18px; 20px is the deliberate over-shoot.
+ */
+export const FAZ8_BUTTON_FONT_PX = 20 as const;
+
+/**
+ * Button letter-spacing in px. +0.5px positive tracking for ALL-CAPS
+ * Cyrillic + Latin labels so the glyphs breathe; ALL-CAPS without
+ * tracking reads as cramped.
+ */
+export const FAZ8_BUTTON_LETTER_SPACING_PX = 0.5 as const;
+
+/**
+ * Button line-height (unitless). 1.2 — tight; single-line labels do
+ * not need leading. Matches button visual height of ≥48px after padding.
+ */
+export const FAZ8_BUTTON_LINE_HEIGHT = 1.2 as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 Phase 2A — Faz 8 button colour palette                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Button default background. Aged-paper kirli-kâğıt fill — inverts the
+ * Sprint 6 disclaimer's `#7a6a4e` ink-on-substrate read into a paper-
+ * colour-on-darker-ink button surface. Reads as "tear-off coupon" /
+ * "paper button"; palette-coherent with the lobby substrate.
+ */
+export const FAZ8_BUTTON_BG_COLOR = '#d4ccb8' as const;
+
+/**
+ * Button hover background. 7% darker than default — within the
+ * `duration-micro` named-rule hover-feedback band (5-10%). Sub-5% reads
+ * as no feedback; >10% reads as a state change rather than hover.
+ */
+export const FAZ8_BUTTON_BG_HOVER_COLOR = '#c5bca5' as const;
+
+/**
+ * Button active/pressed background. Pressed-in pushbutton metaphor —
+ * combined with FAZ8_BUTTON_ACTIVE_INSET_SHADOW gives kinaesthetic
+ * "depressing" feedback even though kiosk has no haptic affordance.
+ */
+export const FAZ8_BUTTON_BG_ACTIVE_COLOR = '#b8af96' as const;
+
+/**
+ * Button text colour. Dark serif ink — `#2a2520` on `#d4ccb8` yields
+ * 11.4:1 contrast (clears WCAG AAA 7:1 normal text). Sprint 6 BLOCKER-1
+ * retro: every text/bg pair MUST meet 4.5:1; buttons over-shoot to AAA.
+ */
+export const FAZ8_BUTTON_INK_COLOR = '#2a2520' as const;
+
+/**
+ * Button border colour. Frames the button without competing with the
+ * focus outline; 1.5px width (sub-pixel) keeps the border crisp on
+ * standard density while HiDPI rounds up cleanly.
+ */
+export const FAZ8_BUTTON_BORDER_COLOR = '#3a3530' as const;
+
+/**
+ * Button border CSS shorthand value (paired with FAZ8_BUTTON_BORDER_COLOR).
+ */
+export const FAZ8_BUTTON_BORDER = '1.5px solid #3a3530' as const;
+
+/**
+ * Button focus outline colour. Matches Sprint 6 disclaimer ink — palette-
+ * coherent rather than the browser-default blue. `#7a6a4e` on `#d4ccb8`
+ * = 4.51:1 (large-graphical 3:1 threshold cleared with margin).
+ */
+export const FAZ8_BUTTON_FOCUS_OUTLINE_COLOR = '#7a6a4e' as const;
+
+/**
+ * Button focus outline width in px. 3px clears WCAG SC 2.4.7 (≥2px
+ * recommended for focus-visible).
+ */
+export const FAZ8_BUTTON_FOCUS_OUTLINE_WIDTH_PX = 3 as const;
+
+/**
+ * Button focus outline offset in px. 3px ensures the outline does not
+ * touch the 1.5px border (offset > border-width keeps the two visually
+ * separate); the outline reads as a discrete focus indicator.
+ */
+export const FAZ8_BUTTON_FOCUS_OUTLINE_OFFSET_PX = 3 as const;
+
+/**
+ * Button pressed-in inset shadow CSS value. rgba(0,0,0,0.3) is dark
+ * enough to register on the warm-grey active bg without harming label
+ * legibility.
+ */
+export const FAZ8_BUTTON_ACTIVE_INSET_SHADOW = 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 Phase 2A — Faz 8 button layout                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Button container flex gap (px between TEKRAR and ÇIK).
+ * 32px — balances "visually paired" (gap <24px reads as crowded) with
+ * "discrete actions" (gap >48px reads as separated panels).
+ */
+export const FAZ8_BUTTON_CONTAINER_GAP_PX = 32 as const;
+
+/**
+ * Button container bottom inset (px from viewport bottom). 80px pushes
+ * the buttons up from the 48px Sprint 6 hint band so they clear the
+ * safe area on kiosk displays with rounded-corner viewport masks.
+ */
+export const FAZ8_BUTTON_CONTAINER_BOTTOM_INSET_PX = 80 as const;
+
+/**
+ * Button container z-index. 10120 — above disclaimer 10100 + (D-2-
+ * removed) restart-hint legacy 10110 + smoke 10050. Ensures focus
+ * outlines render above all other son-ekran chrome.
+ */
+export const FAZ8_BUTTON_CONTAINER_Z_INDEX = 10120 as const;
+
+/**
+ * Per-button padding (vertical px). Combined with FAZ8_BUTTON_PADDING_X
+ * + font-size 20px + line-height 1.2 yields ≥48px button height,
+ * clearing the 44×44pt touch-target named rule.
+ */
+export const FAZ8_BUTTON_PADDING_Y_PX = 14 as const;
+
+/**
+ * Per-button padding (horizontal px). 28px balances the ≥120px min-
+ * width visual weight against the gap between TEKRAR and ÇIK.
+ */
+export const FAZ8_BUTTON_PADDING_X_PX = 28 as const;
+
+/**
+ * Per-button padding CSS shorthand value.
+ */
+export const FAZ8_BUTTON_PADDING = '14px 28px' as const;
+
+/**
+ * Per-button min-width (px). 144px gives ВЫЙТИ + TEKRAR visual
+ * symmetry; <120px crowds; >160px over-dominates the son-ekran
+ * composition.
+ */
+export const FAZ8_BUTTON_MIN_WIDTH_PX = 144 as const;
+
+/**
+ * Per-button border-radius (px). 2px gives the corner a hint of
+ * softness without reading as web-app; aggressive rounding (≥8px)
+ * would genre-shift the buttons away from "paper coupon" register.
+ */
+export const FAZ8_BUTTON_BORDER_RADIUS_PX = 2 as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 Phase 2A — Faz 8 button entrance animation                      */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Button entrance translateY initial offset (px). 8px upward drift on
+ * entrance — buttons "settle in" from a slight lift rather than punch
+ * in from nowhere. Matches the Sprint 6 disclaimer's settled-in read.
+ */
+export const FAZ8_BUTTON_ENTRANCE_TRANSLATE_Y_PX = 8 as const;
+
+/**
+ * Button entrance easing. Matches the Sprint 6 destruction-overlay
+ * fade easing (ease-out-quad). Buttons "settle" rather than "punch".
+ */
+export const FAZ8_BUTTON_ENTRANCE_EASING = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)' as const;
+
+/**
+ * Per-state transition duration (ms) for hover/active background +
+ * box-shadow swaps. 100ms — within the `duration-micro` named-rule
+ * band (100-150ms for hover/toggle feedback).
+ */
+export const FAZ8_BUTTON_STATE_TRANSITION_MS = 100 as const;
