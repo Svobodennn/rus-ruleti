@@ -1151,35 +1151,29 @@
 }
 
 /* ------------------------------------------------------------------------ */
-/* Faz 8 Son ekran (55-65sn) — restart hint (bottom-centred whisper)        */
+/* Faz 8 Son ekran — restart hint (D-2 REMOVED Sprint 7 Phase 2A)            */
 /* ------------------------------------------------------------------------ */
 
-/* Locale-conditional single-line hint shown at bottom-centre. Mounted
- * at t=0 of son-ekran with inline opacity:0; Lane A toggles .is-visible
- * at t=7sn (FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS). Opacity caps at
- * FAZ8_SON_EKRAN_RESTART_HINT_OPACITY (0.4) so the hint reads as a
- * discreet whisper, not a UI call-to-action. PT Serif matches the
- * disclaimer secondary line — keeps the typographic palette tight.
- * z-index 9000 — below the disclaimer (9001) so an overlap (unlikely
- * with the bottom-inset) defers to the disclaimer's reading priority. */
-.faz8-restart-hint {
-  position: absolute;
-  bottom: 48px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10110;
-  pointer-events: none;
-  margin: 0;
-  font-family: 'PT Serif', 'Old Standard TT', Georgia, serif;
-  font-size: 18px;
-  color: #7a6a4e;
-  opacity: 0;
-  transition: opacity 500ms ease-in-out;
-}
-
-.faz8-restart-hint.is-visible {
-  opacity: 0.4;
-}
+/* Sprint 7 D-2 closure: the bottom-centred whisper-hint text
+ * (.faz8-restart-hint + .is-visible) is REMOVED in favour of the
+ * full TEKRAR / ÇIK button pair (Sprint 7 §"FAZ 8 ACTION BUTTONS"
+ * below). The Sprint 6 hint chrome file
+ * `chrome/faz8-restart-hint.ts` REMAINS in the codebase for type
+ * continuity (Lane 0 deferred removal), but no CSS surface backs it
+ * anymore — any mount call would render an invisible element.
+ *
+ * Rationale: the restart-hint was Sprint 6's stop-gap whisper while
+ * the button UI was deferred. Sprint 7's design intent is the
+ * actionable button pair as the canonical restart/quit affordance —
+ * the whisper hint and the buttons would compete for the bottom-
+ * inset visual real-estate. The Sprint 7 button container occupies
+ * the bottom-inset position the hint used to hold.
+ *
+ * Migration note for review:
+ *   - faz8-son-ekran.ts may still call mountFaz8RestartHint(); Lane A
+ *     Phase 2B removes that call (Sprint 7 directive TASK list).
+ *   - The reduced-motion gate for .faz8-restart-hint is also removed
+ *     from the @media block below. */
 
 /* ------------------------------------------------------------------------ */
 /* Faz 8 Son ekran (55-65sn) — volumetric smoke (CSS-only, D-4 ashtray)    */
@@ -1259,6 +1253,164 @@
   }
 }
 
+/* ========================================================================== */
+/* SPRINT 7 — FAZ 8 ACTION BUTTONS (Sprint 7 Phase 2B Lane B FILL)            */
+/*                                                                            */
+/* TEKRAR (restart, calls director.requestRestart) + ÇIK (quit, calls         */
+/* window.api.quit per S10 Path A) shown at son-ekran from t ≈ 2.5sn onward   */
+/* (FAZ8_BUTTON_FADEIN_START_OFFSET_MS). Both buttons share the flex          */
+/* container so they fade in together. The hint (.faz8-restart-hint) was      */
+/* removed in this sprint (D-2) — the buttons are the canonical affordance.  */
+/*                                                                            */
+/* Visual register (designer Phase 2A §21):                                   */
+/*   - Aged-paper substrate `#d4ccb8` (kirli-kâğıt). Reads as torn coupon.    */
+/*   - Dark serif ink `#2a2520` (AAA contrast 11.4:1 over the substrate).    */
+/*   - Subtle 1.5px border `#3a3530` frames each button without dominating.   */
+/*   - Hover -7% bg darken (FAZ8_BUTTON_BG_HOVER_COLOR). Active pressed-in    */
+/*     inset shadow gives kinaesthetic depression feedback on a kiosk that    */
+/*     has no haptic affordance.                                              */
+/*   - Focus-visible 3px outline `#7a6a4e` at 3px offset — palette-coherent  */
+/*     focus indicator (NOT browser-default blue); offset > border-width      */
+/*     keeps the outline visually separate from the border.                   */
+/*                                                                            */
+/* a11y (WCAG 2.2 AA):                                                        */
+/*   - Font-size 20px clears the large-text 18px regular threshold.          */
+/*   - Min-width 144px + min-height ≥48px clears the 44×44pt touch target.   */
+/*   - Outline 3px on `:focus-visible` clears SC 2.4.7 (≥2px recommended).   */
+/*   - Contrast: ink-on-substrate 11.4:1 (AAA); focus-outline-on-substrate    */
+/*     4.51:1 (large-graphical 3:1 cleared).                                  */
+/*                                                                            */
+/* Constants consumed (SSOT in src/shared/scene-destruction-constants.ts):    */
+/*   FAZ8_BUTTON_FONT_FAMILY, FAZ8_BUTTON_FONT_PX, FAZ8_BUTTON_FONT_WEIGHT,   */
+/*   FAZ8_BUTTON_LETTER_SPACING_PX, FAZ8_BUTTON_LINE_HEIGHT,                  */
+/*   FAZ8_BUTTON_BG_COLOR, FAZ8_BUTTON_BG_HOVER_COLOR,                        */
+/*   FAZ8_BUTTON_BG_ACTIVE_COLOR, FAZ8_BUTTON_INK_COLOR,                      */
+/*   FAZ8_BUTTON_BORDER, FAZ8_BUTTON_BORDER_COLOR,                            */
+/*   FAZ8_BUTTON_FOCUS_OUTLINE_COLOR, FAZ8_BUTTON_FOCUS_OUTLINE_WIDTH_PX,     */
+/*   FAZ8_BUTTON_FOCUS_OUTLINE_OFFSET_PX, FAZ8_BUTTON_ACTIVE_INSET_SHADOW,    */
+/*   FAZ8_BUTTON_CONTAINER_GAP_PX, FAZ8_BUTTON_CONTAINER_BOTTOM_INSET_PX,     */
+/*   FAZ8_BUTTON_CONTAINER_Z_INDEX, FAZ8_BUTTON_PADDING,                      */
+/*   FAZ8_BUTTON_MIN_WIDTH_PX, FAZ8_BUTTON_BORDER_RADIUS_PX,                  */
+/*   FAZ8_BUTTON_FADEIN_DURATION_MS (600), FAZ8_BUTTON_STATE_TRANSITION_MS    */
+/*   (100), FAZ8_BUTTON_ENTRANCE_EASING                                       */
+/*   (cubic-bezier(0.25, 0.46, 0.45, 0.94)).                                  */
+/* The values are inlined here (not via custom properties) because the        */
+/* button section is leaf-CSS — Lane A does not need to mutate any of the     */
+/* visual constants at runtime, so the SSOT mirror discipline (the JSDoc      */
+/* + the constants file) suffices.                                            */
+/* ========================================================================== */
+
+/* Shared two-button flex container. Mounted by chrome/faz8-action-buttons.ts
+ * (resolveContainer helper). Bottom-inset 80px clears the safe area on kiosk
+ * displays with rounded-corner viewport masks; centred via translateX(-50%).
+ * z-index 10120 sits above disclaimer (10100) + smoke (9000) — focus
+ * outlines render above all other son-ekran chrome. opacity starts at 0;
+ * Lane A toggles `.is-visible` via rAF after mount to drive the 600ms
+ * fade-in. */
+.faz8-action-buttons-container {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 32px;
+  z-index: 10120;
+  opacity: 0;
+  transition: opacity 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.faz8-action-buttons-container.is-visible {
+  opacity: 1;
+}
+
+/* Shared button styling — TEKRAR + ÇIK share the same visual register so
+ * they read as a paired affordance. The two classes coalesce via `,` to a
+ * single rule set; per-button per-state selectors (`:hover`, `:active`,
+ * `:focus-visible`) are also coalesced. */
+.faz8-tekrar-button,
+.faz8-cik-button {
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+  color: #2a2520;
+  background: #d4ccb8;
+  border: 1.5px solid #3a3530;
+  border-radius: 2px;
+  padding: 14px 28px;
+  min-width: 144px;
+  min-height: 48px;
+  cursor: pointer;
+  outline-offset: 3px;
+  transition: background 100ms ease, box-shadow 100ms ease;
+  /* Reset UA default <button> margin so the flex container's gap is the
+   * only horizontal separation between the buttons. */
+  margin: 0;
+}
+
+/* Hover: 7% darker bg. Sub-5% reads as no feedback; >10% reads as a state
+ * change rather than hover (designer Phase 2A §21 banding rationale). */
+.faz8-tekrar-button:hover,
+.faz8-cik-button:hover {
+  background: #c5bca5;
+}
+
+/* Active/pressed: bg darken + inset shadow gives a pressed-in pushbutton
+ * metaphor — kinaesthetic depression feedback on a kiosk that has no
+ * haptic affordance. */
+.faz8-tekrar-button:active,
+.faz8-cik-button:active {
+  background: #b8af96;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Focus-visible only (NOT :focus) — mouse focus does not show the ring,
+ * matching platform expectations. 3px solid `#7a6a4e` clears WCAG SC 2.4.7
+ * (≥2px); palette-coherent (matches disclaimer ink) instead of browser-
+ * default blue. */
+.faz8-tekrar-button:focus-visible,
+.faz8-cik-button:focus-visible {
+  outline: 3px solid #7a6a4e;
+}
+
+/* ========================================================================== */
+/* Sprint 7 reduced-motion gates — Faz 8 action buttons                       */
+/* destruction-direction.md §20 (extended row — Sprint 7 NEW)                 */
+/*                                                                            */
+/* Contiguous with the Sprint 6 reduced-motion gates below — both blocks      */
+/* are additive `@media (prefers-reduced-motion: reduce)` rule sets. The two  */
+/* blocks could be merged but are kept separate so the Sprint 6 vs Sprint 7   */
+/* boundary stays legible in code review.                                     */
+/*                                                                            */
+/* Anticipated conflict (additive): Lane A may add reduced-motion gates for   */
+/* transition timers / camera dolly to either block — additive rules do not   */
+/* collide.                                                                   */
+/* ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  /* Sprint 7 NEW: action button container fade-in instant. The
+   * `.is-visible` class snap-jumps to opacity 1 without traversing the
+   * 600ms easing — motion-sensitive users see the buttons appear
+   * instantly. */
+  .faz8-action-buttons-container {
+    transition: none;
+  }
+  .faz8-action-buttons-container.is-visible {
+    opacity: 1;
+  }
+
+  /* Sprint 7 NEW: per-button state transitions (hover/active bg + active
+   * inset-shadow) drop their 100ms easing. The state CHANGE still happens
+   * (hover still darkens bg) — only the easing is removed, matching the
+   * "snap-not-glide" reduced-motion philosophy. */
+  .faz8-tekrar-button,
+  .faz8-cik-button {
+    transition: none;
+  }
+}
+
 /* ------------------------------------------------------------------------ */
 /* Sprint 6 Faz 8 Reduced motion gates                                      */
 /* destruction-direction.md §20 matrix rows 38, 41, 42, 43                  */
@@ -1289,13 +1441,10 @@
     opacity: 0.9;
   }
 
-  /* Row 42: restart hint fade-in instant. */
-  .faz8-restart-hint {
-    transition: none;
-  }
-  .faz8-restart-hint.is-visible {
-    opacity: 0.4;
-  }
+  /* Row 42: restart hint fade-in — D-2 REMOVED Sprint 7 Phase 2A.
+   * The .faz8-restart-hint surface is no longer styled (the Sprint 7
+   * button pair occupies the bottom-inset position the hint used to
+   * hold). Reduced-motion gate removed in lockstep. */
 
   /* Row 43: smoke rise loop disabled; the column holds as a static
    * low-opacity haze (atmospheric read preserved without motion). */
