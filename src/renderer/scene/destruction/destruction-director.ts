@@ -86,6 +86,7 @@ import type {
   DestructionDirectorHandle,
   DestructionState,
   OsVariant,
+  RevealJingleHandle,
 } from './types.js';
 
 /**
@@ -523,30 +524,36 @@ async function runOneFaz8Cycle(
   deps: DestructionDirectorDeps,
   os: OsVariant,
 ): Promise<void> {
+  /**
+   * SPRINT 7 LANE A hook points (Phase 2B Lane A implements):
+   *   - jingle.play() at reveal entry, dispose() at son-ekran exit
+   *     (createRevealJingle() from audio/destruction-audio-faz8.ts)
+   *   - button mount at son-ekran entry, dispose at exit / restart
+   *   - faz7→faz8 cross-fade (FAZ7_TO_FAZ8_CROSSFADE_MS)
+   *   - faz6→faz7 cross-fade (FAZ6_TO_FAZ7_CROSSFADE_MS)
+   * Phase 1 ships a no-op SPRINT7_STUB_REVEAL_JINGLE so the
+   * Faz8RevealRunArgs.jingle REQUIRED field compiles; tekrar/cik button
+   * hosts default to document.body so the TH-S6-03 contract is honoured
+   * even though Lane A has not wired the mount calls yet.
+   */
   const outerSignal = runtime.abortCtrl.signal;
   const container = nonNull(runtime.overlay);
   const destructionAudio = nonNull(runtime.destructionAudio);
-  await startFaz8Reveal({
-    os, signal: outerSignal, container, destructionAudio,
-    camera: deps.camera, lighting: deps.lighting,
-  });
+  await startFaz8Reveal({ os, signal: outerSignal, container, destructionAudio, camera: deps.camera, lighting: deps.lighting, jingle: SPRINT7_STUB_REVEAL_JINGLE });
   if (outerSignal.aborted) return;
   runtime.fsmState = onFaz8RevealComplete(runtime.fsmState, performance.now());
-  // Sprint 6 — fresh son-ekran ctrl so requestRestart() short-circuits
-  // ONLY the son-ekran (outer ESC-hold signal stays intact).
   runtime.sonEkranAbortCtrl = new AbortController();
   const sonEkranSignal = AbortSignal.any([outerSignal, runtime.sonEkranAbortCtrl.signal]);
-  // chromeHost=document.body: chrome must be a sibling of the takeover
-  // overlay, NOT a child — the takeover is opacity:0 by son-ekran entry.
-  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio });
+  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio, tekrarButtonHost: document.body, cikButtonHost: document.body });
   runtime.sonEkranAbortCtrl = null;
   if (outerSignal.aborted) return;
-  // If FSM advanced to faz8-reveal via requestRestart, leave it (loop
-  // iterates). Otherwise the son-ekran completed without restart.
   if (runtime.fsmState.kind === 'faz8-son-ekran') {
     runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
   }
 }
+
+/** SPRINT 7 LANE A no-op stub jingle. Phase 2B replaces with createRevealJingle(). */
+const SPRINT7_STUB_REVEAL_JINGLE: RevealJingleHandle = { kind: 'reveal-jingle', play: (): void => undefined, dispose: (): void => undefined };
 
 /* ------------------------------------------------------------------------ */
 /* Abort + dispose                                                          */

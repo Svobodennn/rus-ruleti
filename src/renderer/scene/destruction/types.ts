@@ -1,3 +1,9 @@
+import type {
+  FAZ8_TEKRAR_BUTTON_CHROME_OWNER,
+  FAZ8_CIK_BUTTON_CHROME_OWNER,
+  REVEAL_JINGLE_AUDIO_OWNER,
+} from '../../../shared/scene-destruction-constants.js';
+
 /**
  * Destruction sequence — canonical type declarations.
  *
@@ -480,4 +486,196 @@ export interface Faz8RestartHintHandle extends ChromeHandle {
 export interface Faz8VolumetricSmokeHandle extends ChromeHandle {
   readonly kind: 'faz8-volumetric-smoke';
   readonly element: HTMLElement;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 chrome handles — Faz 8 TEKRAR / ÇIK action buttons              */
+/*                                                                          */
+/* TH-S5-04 carries forward: each handle's `kind` discriminator allows      */
+/* narrowing without `as` casts. Sprint 7 pre-declares BOTH split kinds     */
+/* (faz8-tekrar-button + faz8-cik-button) up front; designer Phase 2A may   */
+/* later collapse the two into a single 'faz8-action-buttons' handle, in    */
+/* which case Lane A Phase 2B unions the impl behind the combined kind.    */
+/* Phase 1 ships the split surface as the safer default — disposing two    */
+/* small handles is no more expensive than one combined handle, and the    */
+/* TEKRAR/ÇIK semantics differ enough (one calls `requestRestart()` on the */
+/* director; the other calls `window.api.quit()`) that the split keeps     */
+/* the call sites readable.                                                 */
+/*                                                                          */
+/* TH-S6-03 carries forward (Sprint 6 BLOCKER-3 lesson): mount fns         */
+/* REQUIRE an explicit `hostElement: HTMLElement` field (no default,       */
+/* no `?`-optional). The destruction-takeover overlay reaches opacity 0    */
+/* by the time the buttons mount, so children of that overlay would be     */
+/* invisible regardless of their own opacity. Lane A must pass a sibling   */
+/* host (typically the apartment scene root or document.body) — the type   */
+/* surface forces the call site to be explicit about which host.           */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Host kind enumeration for Sprint 7 Faz 8 buttons. Used by Lane A to
+ * declare INTENT at the mount call site (the actual element passed via
+ * `hostElement` must match this intent — Lane A wires the matching
+ * element from the destruction-director deps bag).
+ *
+ *   'document.body'         — Top-level mount (fallback / failsafe).
+ *   'scene-root'            — Mounted on the apartment scene root
+ *                             element (sibling to the destruction-
+ *                             takeover overlay; survives the takeover
+ *                             fade-out).
+ *   'destruction-takeover'  — Mounted INSIDE the destruction-takeover
+ *                             overlay. Reserved for the case where
+ *                             designer Phase 2A keeps the overlay
+ *                             visible behind the son-ekran (currently
+ *                             the overlay fades to opacity 0 at reveal
+ *                             end, so this host kind would render the
+ *                             buttons invisible — Lane A picks one of
+ *                             the other two options).
+ */
+export type Faz8ButtonHostKind =
+  | 'document.body'
+  | 'scene-root'
+  | 'destruction-takeover';
+
+/**
+ * Sprint 7 NEW handle — Faz 8 TEKRAR (restart) button. Clicking /
+ * Enter / Space invokes `requestRestart()` on the destruction-director
+ * (the kiosk-safe renderer-only FSM re-entry; documented in
+ * destruction-director.ts and PLAN §12 S9). Lane B Phase 2B implements
+ * the body; Phase 1 ships the STUB.
+ *
+ * The optional setters allow Lane B to mutate the rendered label /
+ * aria-label at runtime — Sprint 7+ locale-switch support may need
+ * this; Phase 2B implementation can leave them as no-ops if not
+ * required.
+ */
+export interface Faz8TekrarButtonHandle extends ChromeHandle {
+  readonly kind: 'faz8-tekrar-button';
+  readonly element: HTMLButtonElement;
+  /** Replace the rendered button label (e.g. locale switch). */
+  readonly setLabelText: (text: string) => void;
+  /** Replace the aria-label (e.g. locale switch). */
+  readonly setAriaLabel: (text: string) => void;
+}
+
+/**
+ * Sprint 7 NEW handle — Faz 8 ÇIK (quit) button. Clicking / Enter /
+ * Space invokes `window.api.quit()` (S10 Path A: reuses the Sprint 0
+ * `app:request-quit` IPC channel via the preload bridge — no new IPC
+ * channel introduced for Sprint 7). Lane B Phase 2B implements the
+ * body; Phase 1 ships the STUB.
+ *
+ * S10 IPC contract note: TEKRAR is renderer-only (mutates the FSM,
+ * does NOT exit the app — joke-app invariant preserved). ÇIK uses the
+ * existing app:quit channel which closes the BrowserWindow + invokes
+ * app.quit() in main process — kiosk-safe full quit. If S10 Phase 1
+ * decision is Path B (NEW IPC channel) the contract is updated here
+ * AND in the new preload exposure.
+ */
+export interface Faz8CikButtonHandle extends ChromeHandle {
+  readonly kind: 'faz8-cik-button';
+  readonly element: HTMLButtonElement;
+  /** Replace the rendered button label (e.g. locale switch). */
+  readonly setLabelText: (text: string) => void;
+  /** Replace the aria-label (e.g. locale switch). */
+  readonly setAriaLabel: (text: string) => void;
+}
+
+/**
+ * Sprint 7 NEW option bag — Faz 8 TEKRAR button mount.
+ *
+ * TH-S6-03 closure: `hostElement` is REQUIRED (no `?`, no default).
+ * `hostKind` declares INTENT — Lane A passes both fields and the
+ * destination element resolution lives in the call site (not buried
+ * inside the mount fn).
+ *
+ * TH-S6-04 closure: `caller` is type-narrowed to the owner constant.
+ * Only modules importing FAZ8_TEKRAR_BUTTON_CHROME_OWNER can construct
+ * this option bag — the type system rejects mis-construction; a
+ * runtime equality check inside the mount fn is the defence-in-depth
+ * fallback for unsafe `as` casts.
+ */
+export interface Faz8TekrarButtonOptions {
+  /** TH-S6-04 caller decree — must be FAZ8_TEKRAR_BUTTON_CHROME_OWNER. */
+  readonly caller: typeof FAZ8_TEKRAR_BUTTON_CHROME_OWNER;
+  /** Host DOM element the button mounts into. REQUIRED (TH-S6-03). */
+  readonly hostElement: HTMLElement;
+  /** INTENT enumeration for the host element. */
+  readonly hostKind: Faz8ButtonHostKind;
+  /**
+   * Click / Enter / Space handler. Lane A wires this to
+   * destruction-director.requestRestart().
+   */
+  readonly onClick: () => void;
+  /** i18n-resolved aria-label for screen readers. */
+  readonly ariaLabel: string;
+  /** i18n-resolved button copy. */
+  readonly labelText: string;
+  /** Abort signal — dispose triggers on signal fire. */
+  readonly signal: AbortSignal;
+}
+
+/**
+ * Sprint 7 NEW option bag — Faz 8 ÇIK button mount.
+ *
+ * Mirror of Faz8TekrarButtonOptions with the caller type narrowed to
+ * the ÇIK button owner constant. Same TH-S6-03 + TH-S6-04 closure
+ * discipline applies.
+ */
+export interface Faz8CikButtonOptions {
+  /** TH-S6-04 caller decree — must be FAZ8_CIK_BUTTON_CHROME_OWNER. */
+  readonly caller: typeof FAZ8_CIK_BUTTON_CHROME_OWNER;
+  /** Host DOM element the button mounts into. REQUIRED (TH-S6-03). */
+  readonly hostElement: HTMLElement;
+  /** INTENT enumeration for the host element. */
+  readonly hostKind: Faz8ButtonHostKind;
+  /**
+   * Click / Enter / Space handler. Lane A wires this to
+   * window.api.quit() (S10 Path A) or window.api.quitApp() (S10 Path B).
+   */
+  readonly onClick: () => void;
+  /** i18n-resolved aria-label for screen readers. */
+  readonly ariaLabel: string;
+  /** i18n-resolved button copy. */
+  readonly labelText: string;
+  /** Abort signal — dispose triggers on signal fire. */
+  readonly signal: AbortSignal;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 audio handle — Faz 8 reveal jingle                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Sprint 7 NEW audio handle — Faz 8 reveal jingle (ADSR chord synth
+ * that rings out across the reveal envelope). `play()` schedules the
+ * envelope on a fresh OscillatorNode-graph; `dispose()` snaps any
+ * in-flight envelope to silence and disconnects the graph.
+ *
+ * Constructed by faz8-reveal.ts via the createRevealJingle factory in
+ * audio/destruction-audio-faz8.ts (REVEAL_JINGLE_AUDIO_OWNER decree).
+ * Lane A Phase 2B threads play() into the reveal entry hook.
+ */
+export interface RevealJingleHandle {
+  readonly kind: 'reveal-jingle';
+  /** Schedule the jingle envelope. Idempotent second-call within the
+   *  same reveal window is a no-op (the envelope is single-fire per
+   *  reveal entry by design). */
+  readonly play: () => void;
+  /** Stop in-flight envelope + disconnect the node graph. */
+  readonly dispose: () => void;
+}
+
+/**
+ * Sprint 7 NEW option bag — Faz 8 reveal jingle factory.
+ *
+ * TH-S6-04 closure: `caller` is type-narrowed to
+ * REVEAL_JINGLE_AUDIO_OWNER. Only faz8-reveal.ts can construct.
+ */
+export interface RevealJingleOptions {
+  /** TH-S6-04 caller decree — must be REVEAL_JINGLE_AUDIO_OWNER. */
+  readonly caller: typeof REVEAL_JINGLE_AUDIO_OWNER;
+  /** AudioContext from the destruction audio chain. */
+  readonly audioContext: AudioContext;
+  /** Master GainNode tap for envelope routing. */
+  readonly destinationNode: AudioNode;
 }

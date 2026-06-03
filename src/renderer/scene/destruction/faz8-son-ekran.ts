@@ -101,6 +101,23 @@ export interface Faz8SonEkranRunArgs {
    */
   readonly chromeHost: HTMLElement;
   readonly destructionAudio: DestructionAudioHandle;
+  /**
+   * Sprint 7 Phase 1 — TH-S6-03 REQUIRED hostElement for the TEKRAR
+   * button mount. Lane A Phase 2B threads the resolved DOM element
+   * (typically same as `chromeHost` per host-kind 'scene-root', but
+   * the type surface forces the caller to be EXPLICIT so the choice
+   * is auditable at the mount call site). Sprint 6 BLOCKER-3 lesson:
+   * never default the host element inside the mount fn.
+   */
+  readonly tekrarButtonHost: HTMLElement;
+  /**
+   * Sprint 7 Phase 1 — TH-S6-03 REQUIRED hostElement for the ÇIK
+   * button mount. Mirror of `tekrarButtonHost`. If designer Phase 2A
+   * picks the combined-handle option, Lane A may pass the same
+   * element here and route both buttons through a single mount call;
+   * the split surface is the safer default per directive §9 TASK 3.
+   */
+  readonly cikButtonHost: HTMLElement;
 }
 
 /**

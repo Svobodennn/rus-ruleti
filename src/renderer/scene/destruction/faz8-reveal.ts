@@ -70,7 +70,7 @@ import {
   FAZ8_REVEAL_SILENCE_PAUSE_MS,
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../shared/scene-destruction-constants.js';
-import type { OsVariant } from './types.js';
+import type { OsVariant, RevealJingleHandle } from './types.js';
 
 /** CSS class Lane B keyframes engage off for the overlay fade-out. */
 const FAZ8_REVEAL_OVERLAY_CLASS = 'is-fading-out';
@@ -83,6 +83,12 @@ const FAZ8_BULB_BASELINE_FACTOR = 1;
  * (the one with `.destruction-takeover` class set in
  * destruction-director.ts createOverlayElement); reveal owns the
  * opacity 1 → 0 envelope on this element.
+ *
+ * Sprint 7 Phase 1 — `jingle` field added (Lane A Phase 2B threads the
+ * RevealJingleHandle constructed at reveal entry; play() is called at
+ * REVEAL_JINGLE_OFFSET_MS into reveal, dispose() at faz8-son-ekran
+ * exit per FSM teardown). Type imported from types.ts so the SSOT for
+ * the handle interface stays singular.
  */
 export interface Faz8RevealRunArgs {
   readonly os: OsVariant;
@@ -91,6 +97,8 @@ export interface Faz8RevealRunArgs {
   readonly destructionAudio: DestructionAudioHandle;
   readonly camera: PerspectiveCamera;
   readonly lighting: BulbLightHandle;
+  /** Sprint 7 — reveal jingle handle (Lane A Phase 2B threads play()). */
+  readonly jingle: RevealJingleHandle;
 }
 
 /**
