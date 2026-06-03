@@ -13,7 +13,19 @@ module.exports = {
     browser: true,
     es2022: true,
   },
-  ignorePatterns: ['node_modules/', 'out/', 'dist/', '*.cjs', '*.js'],
+  ignorePatterns: [
+    'node_modules/',
+    'out/',
+    'dist/',
+    '*.cjs',
+    '*.js',
+    // Sprint 7 Phase 1 (TH-S6-01): Playwright config + e2e suite live outside
+    // src/ and use Playwright's own conventions (test fixture types, longer
+    // describe blocks). Run lint via `npm run lint` covers src/; the e2e
+    // harness ships its own structural discipline.
+    'playwright.config.ts',
+    'tests/',
+  ],
   rules: {
     'no-console': 'error',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],

@@ -15,9 +15,12 @@
     "build:all": "npm run build && electron-builder --mac --win --config electron-builder.yml",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.preload.json && tsc --noEmit -p tsconfig.renderer.json",
     "lint": "eslint . --ext .ts --max-warnings 0",
-    "start": "electron-vite preview"
+    "start": "electron-vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:update-snapshots": "playwright test --update-snapshots"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/howler": "^2.2.13",
     "@types/node": "^20.14.0",
     "@types/three": "^0.184.1",
@@ -27,6 +30,7 @@
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.2.0",
     "eslint": "^8.57.0",
+    "playwright": "^1.60.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.0"
   },

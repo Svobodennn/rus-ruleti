@@ -8,3 +8,10 @@ dist/
 .vite/
 thoughts/
 .claude/
+
+# Sprint 7 Phase 1 — Playwright (TH-S6-01)
+# Run artefacts are local-only; baseline screenshots under
+# tests/e2e/faz-screenshots/baseline/ ARE committed (committed post-Phase-3
+# as the visual regression contract).
+playwright-report/
+test-results/
