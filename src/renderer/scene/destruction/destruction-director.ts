@@ -554,6 +554,7 @@ async function runOneFaz8Cycle(
   // walk it down symmetric with the Sprint 6 audio handles.
   runtime.revealJingle = createRevealJingle({
     caller: REVEAL_JINGLE_AUDIO_OWNER, audioContext: destructionAudio.context, destinationNode: destructionAudio.destination,
+    signal: outerSignal,
   });
   await startFaz8Reveal({ os, signal: outerSignal, container, destructionAudio, camera: deps.camera, lighting: deps.lighting, jingle: runtime.revealJingle });
   if (outerSignal.aborted) return;

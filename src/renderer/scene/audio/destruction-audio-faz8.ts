@@ -493,11 +493,16 @@ export function createRevealJingle(opts: RevealJingleOptions): RevealJingleHandl
   });
   const state: RevealJingleState = { played: false, disposed: false };
   const branches = new Set<RevealJingleBranch>();
-  return {
+  const handle: RevealJingleHandle = {
     kind: 'reveal-jingle',
     play: (): void => playRevealJingle(state, branches, opts, peakLinear),
     dispose: (): void => disposeRevealJingle(state, branches),
   };
+  // Sprint 7 Phase 4 (MINOR-3): wire abort signal so the jingle graph
+  // self-cleans on parent runner abort — mirrors AmbientRecoveryHandle +
+  // DoorCloseAccentHandle abort wiring pattern in this same file.
+  attachAbortListener(opts.signal, handle);
+  return handle;
 }
 
 /**

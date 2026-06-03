@@ -1576,6 +1576,27 @@ export const REVEAL_JINGLE_CHORD_NOTES: readonly number[] = [
 /* ------------------------------------------------------------------------ */
 
 /**
+ * CSS class for the shared two-button flex container that wraps both
+ * the TEKRAR and ÇIK buttons. Declared here per TH-S6-02 SSOT
+ * discipline — Sprint 7 Phase 4 spark promotion from the local
+ * constants previously declared inside faz8-action-buttons.ts.
+ */
+export const FAZ8_ACTION_BUTTONS_CONTAINER_CLASS = 'faz8-action-buttons-container' as const;
+
+/**
+ * CSS class for the Faz 8 TEKRAR button element. Declared per
+ * TH-S6-02 SSOT — Sprint 7 Phase 4 spark promotion from local
+ * constant in faz8-action-buttons.ts.
+ */
+export const FAZ8_TEKRAR_BUTTON_ELEMENT_CLASS = 'faz8-tekrar-button' as const;
+
+/**
+ * CSS class for the Faz 8 ÇIK button element. Mirrors
+ * FAZ8_TEKRAR_BUTTON_ELEMENT_CLASS — same SSOT promotion.
+ */
+export const FAZ8_CIK_BUTTON_ELEMENT_CLASS = 'faz8-cik-button' as const;
+
+/**
  * CSS class toggled on the Faz 8 TEKRAR button to drive the fade-in
  * end-state (opacity 0 → 1 over FAZ8_BUTTON_FADEIN_DURATION_MS).
  * Lane B CSS owns the transition definition; Lane A toggles the

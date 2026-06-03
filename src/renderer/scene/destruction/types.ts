@@ -106,15 +106,19 @@ export type DestructionPhase =
  *                        overlay fades out, lobby restored, bulb pulse
  *                        normalises, camera dolly-out, audio bed fades in.
  *                        Reference PLAN.md §7 lines 290-303.
- *   faz8-son-ekran     — Sprint 6 variant: 55-65sn closing tableau.
- *                        Revolver-on-table framing held; sigara dumanı
- *                        (optional, designer §6); door-close audio at
- *                        ~7sn into son-ekran; Cyrillic disclaimer "Это
- *                        просто шутка." centred ~3sn into son-ekran +
- *                        TR subtitle "Bu sadece bir şaka."; optional
- *                        restart-hint mounts at ~7sn (Sprint 6 ships
- *                        HINT TEXT only — TEKRAR/ÇIK BUTTON UI is
- *                        deferred to Sprint 7+).
+ *   faz8-son-ekran     — Sprint 6 variant (Sprint 7 D-2 button upgrade):
+ *                        55-65sn closing tableau. Revolver-on-table
+ *                        framing held; sigara dumanı (optional,
+ *                        designer §6); door-close audio at ~7sn into
+ *                        son-ekran; Cyrillic disclaimer "Это просто
+ *                        шутка." centred ~3sn + TR subtitle "Bu sadece
+ *                        bir şaka."; Sprint 7 D-2 replaced the Sprint 6
+ *                        restart-hint TEXT with actual TEKRAR / ÇIK
+ *                        BUTTONS (faz8-action-buttons.ts). The
+ *                        restart-hint chrome type (Faz8RestartHintHandle)
+ *                        remains in types.ts for type continuity; Sprint 8
+ *                        cleanup may remove the hint chrome entirely once
+ *                        the button UI is confirmed stable.
  *   aborted            — terminal state; either user ESC-held or sequence
  *                        completed cleanly. Director can be re-armed only by
  *                        re-mounting (lobby reload) or — for Sprint 6 — by
@@ -678,4 +682,13 @@ export interface RevealJingleOptions {
   readonly audioContext: AudioContext;
   /** Master GainNode tap for envelope routing. */
   readonly destinationNode: AudioNode;
+  /**
+   * Abort signal — dispose triggers when the signal fires. Added in
+   * Sprint 7 Phase 4 (MINOR-3) for symmetry with all other Sprint 6/7
+   * factory option interfaces (TH-S6-02 cleanup family). The factory
+   * wires `attachAbortListener(signal, handle)` so the jingle graph
+   * self-cleans on the parent runner abort without requiring an
+   * explicit dispose() call from the director.
+   */
+  readonly signal: AbortSignal;
 }

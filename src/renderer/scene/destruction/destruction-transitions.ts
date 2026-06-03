@@ -63,6 +63,18 @@ export function scheduleTransitionTimer(opts: {
   readonly delayMs: number;
   readonly signal: AbortSignal;
 }): Promise<void> {
+  // TH-S6-04 runtime caller-equality check — defence-in-depth fallback
+  // for unsafe `as` casts that bypass the type-level narrowing.
+  // Mirrors the pattern used by mountFaz8TekrarButton / mountFaz8CikButton
+  // and createRevealJingle (Sprint 7 Phase 4 parity closure).
+  if (
+    opts.caller !== FAZ7_TO_FAZ8_TRANSITION_TIMER_OWNER &&
+    opts.caller !== FAZ6_TO_FAZ7_TRANSITION_TIMER_OWNER
+  ) {
+    throw new Error(
+      `[scheduleTransitionTimer] caller decree violation: got ${String(opts.caller)}`,
+    );
+  }
   return new Promise<void>((resolve): void => {
     if (opts.signal.aborted) {
       resolve();

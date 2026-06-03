@@ -84,8 +84,11 @@
  */
 
 import {
+  FAZ8_ACTION_BUTTONS_CONTAINER_CLASS,
   FAZ8_CIK_BUTTON_CHROME_OWNER,
+  FAZ8_CIK_BUTTON_ELEMENT_CLASS,
   FAZ8_TEKRAR_BUTTON_CHROME_OWNER,
+  FAZ8_TEKRAR_BUTTON_ELEMENT_CLASS,
 } from '../../../../shared/scene-destruction-constants.js';
 import type {
   Faz8CikButtonHandle,
@@ -95,18 +98,18 @@ import type {
 } from '../types.js';
 
 /**
- * CSS class name for the shared two-button flex container. Hardcoded
- * here rather than imported from scene-destruction-constants.ts
- * because the constant for it has not been declared yet; a future
- * SSOT pass (TH-S6-02 retroactive) may extract this literal.
+ * CSS class name aliases — Sprint 7 Phase 4 SSOT promotion (TH-S6-02).
+ * These three constants are now declared in scene-destruction-constants.ts
+ * and imported above; the local aliases are removed in favour of direct
+ * SSOT references used inline in the helper functions below.
  */
-const ACTION_BUTTONS_CONTAINER_CLASS = 'faz8-action-buttons-container';
+const ACTION_BUTTONS_CONTAINER_CLASS = FAZ8_ACTION_BUTTONS_CONTAINER_CLASS;
 
 /** CSS class for the TEKRAR button element. */
-const TEKRAR_BUTTON_CLASS = 'faz8-tekrar-button';
+const TEKRAR_BUTTON_CLASS = FAZ8_TEKRAR_BUTTON_ELEMENT_CLASS;
 
 /** CSS class for the ÇIK button element. */
-const CIK_BUTTON_CLASS = 'faz8-cik-button';
+const CIK_BUTTON_CLASS = FAZ8_CIK_BUTTON_ELEMENT_CLASS;
 
 /**
  * Resolve (or lazily create) the shared two-button container inside
