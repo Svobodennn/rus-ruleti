@@ -12,6 +12,10 @@
  * Sprint 6 Phase 1 adds Faz 8 reveal + son-ekran lane runners + chrome
  * stubs (disclaimer + restart-hint + optional volumetric-smoke) — Lane
  * A/B pick these up in Phase 2B.
+ *
+ * Sprint 7 Phase 1 adds Faz 8 TEKRAR / ÇIK button chrome stubs + the
+ * RevealJingleHandle factory (in audio/destruction-audio-faz8.ts) —
+ * Lane A / Lane B pick these up in Sprint 7 Phase 2B.
  */
 
 export { mountDestructionDirector } from './destruction-director.js';
@@ -38,6 +42,13 @@ export type {
   Faz8DisclaimerHandle,
   Faz8RestartHintHandle,
   Faz8VolumetricSmokeHandle,
+  Faz8TekrarButtonHandle,
+  Faz8CikButtonHandle,
+  Faz8TekrarButtonOptions,
+  Faz8CikButtonOptions,
+  Faz8ButtonHostKind,
+  RevealJingleHandle,
+  RevealJingleOptions,
 } from './types.js';
 
 /* Sprint 5 Phase 1 — Faz 4-7 lane runners + chrome mounts. */
@@ -60,3 +71,7 @@ export { startFaz8SonEkran } from './faz8-son-ekran.js';
 export { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
 export { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
 export { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
+
+/* Sprint 7 Phase 1 — Faz 8 TEKRAR / ÇIK action button chrome stubs. */
+export { mountFaz8TekrarButton } from './chrome/faz8-tekrar-button.js';
+export { mountFaz8CikButton } from './chrome/faz8-cik-button.js';
