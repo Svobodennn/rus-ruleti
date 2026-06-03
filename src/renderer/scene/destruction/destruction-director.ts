@@ -87,6 +87,10 @@ import { startFaz8Reveal } from './faz8-reveal.js';
 import { startFaz8SonEkran } from './faz8-son-ekran.js';
 import { mountApartmentBleedOverlay } from './apartment-bleed.js';
 import {
+  runFaz6ToFaz7Transition,
+  runFaz7ToFaz8Transition,
+} from './destruction-transitions.js';
+import {
   initialState,
   onBangFired,
   onFaz0Complete,
@@ -197,18 +201,11 @@ export function mountDestructionDirector(
 /** Construct the mutable runtime bag. Default-init only — no side effects. */
 function createRuntime(): DirectorRuntime {
   return {
-    started: false,
-    disposed: false,
-    abortCtrl: new AbortController(),
-    sonEkranAbortCtrl: null,
+    started: false, disposed: false,
+    abortCtrl: new AbortController(), sonEkranAbortCtrl: null,
     fsmState: initialState(),
-    destructionAudio: null,
-    apartmentBleed: null,
-    overlay: null,
-    fallbackTimer: null,
-    observer: null,
-    escDispose: null,
-    eventHandler: null,
+    destructionAudio: null, apartmentBleed: null, overlay: null,
+    fallbackTimer: null, observer: null, escDispose: null, eventHandler: null,
     revealJingle: null,
   };
 }
@@ -488,12 +485,18 @@ async function runFaz4Through7(
   await startFaz6Bsod({ os, container, destructionAudio, signal });
   if (signal.aborted) return;
   runtime.fsmState = onFaz6Complete(runtime.fsmState, performance.now());
+  // Sprint 7 — Faz 6 → Faz 7 cross-fade (150ms, reduced-motion skips).
+  await runFaz6ToFaz7Transition(container, signal);
+  if (signal.aborted) return;
   await startFaz7Bootloop({
     os, container, destructionAudio,
     lobbySnapshotDataUrl: deps.lobbySnapshotGetter(), signal,
   });
   if (signal.aborted) return;
   runtime.fsmState = onFaz7Complete(runtime.fsmState, performance.now());
+  // Sprint 7 — Faz 7 → Faz 8 cross-fade (200ms, reduced-motion skips).
+  await runFaz7ToFaz8Transition(container, signal);
+  if (signal.aborted) return;
   await runFaz8RevealAndSonEkran(runtime, deps, os);
 }
 
