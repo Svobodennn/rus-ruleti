@@ -113,11 +113,28 @@ export interface Faz8RevealRunArgs {
  * Run the Faz 8 reveal envelope. Resolves at FAZ8_REVEAL_DURATION_MS
  * (5sn) or earlier on ESC-hold abort. Body fills the Phase 1 outline
  * — silence pause, concurrent fade/dolly/audio/bulb envelopes, settle.
+ *
+ * Sprint 7 Phase 2B Lane A — reveal jingle integration:
+ *   - opts.jingle.play() is invoked at REVEAL_JINGLE_OFFSET_MS = 0
+ *     into the reveal entry (BEFORE the silence pause sleep). The
+ *     jingle ADSR (attack 200ms, decay 100ms, sustain 2000ms release)
+ *     overlaps the 1sn silence-pause start so the chord swells in
+ *     under the black overlay — the listener perceives the chord
+ *     rising *out of* the silence rather than *into* the recovering
+ *     ambient bed. One-shot per reveal entry; the handle's play() is
+ *     idempotent.
  */
 export async function startFaz8Reveal(opts: Faz8RevealRunArgs): Promise<void> {
   if (opts.signal.aborted) return;
   log.info('faz8-reveal: start', { os: opts.os });
   const reducedMotion = isReducedMotion();
+
+  // 0. Sprint 7 — reveal jingle: ADSR chord swells in under the black
+  // overlay so the listener perceives the chord rising out of the
+  // silence rather than into the recovering ambient bed. play() is
+  // single-fire per handle; the director disposes + re-constructs on
+  // restart so the next cycle starts clean.
+  opts.jingle.play();
 
   // 1. Silence pause — 1sn full black + silence (no envelopes start).
   await sleepWithAbort(FAZ8_REVEAL_SILENCE_PAUSE_MS, opts.signal);

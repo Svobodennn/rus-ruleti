@@ -74,7 +74,12 @@ import type { AudioBedHandle } from '../audio/audio-bed.js';
 import type { BulbLightHandle } from '../lighting.js';
 import { mountDestructionAudio } from '../audio/destruction-audio.js';
 import type { DestructionAudioHandle } from '../audio/destruction-audio.js';
-import { AMBIENT_RECOVERY_AUDIO_OWNER, DOOR_CLOSE_AUDIO_OWNER } from '../../../shared/scene-destruction-constants.js';
+import { createRevealJingle } from '../audio/destruction-audio-faz8.js';
+import {
+  AMBIENT_RECOVERY_AUDIO_OWNER,
+  DOOR_CLOSE_AUDIO_OWNER,
+  REVEAL_JINGLE_AUDIO_OWNER,
+} from '../../../shared/scene-destruction-constants.js';
 import { runFaz0 } from './faz0-bang.js';
 import { runFaz1 } from './faz1-critical-dialog.js';
 import { runFaz2 } from './faz2-takeover.js';
@@ -86,6 +91,10 @@ import { startFaz7Bootloop } from './faz7-bootloop.js';
 import { startFaz8Reveal } from './faz8-reveal.js';
 import { startFaz8SonEkran } from './faz8-son-ekran.js';
 import { mountApartmentBleedOverlay } from './apartment-bleed.js';
+import {
+  runFaz6ToFaz7Transition,
+  runFaz7ToFaz8Transition,
+} from './destruction-transitions.js';
 import {
   initialState,
   onBangFired,
@@ -197,18 +206,11 @@ export function mountDestructionDirector(
 /** Construct the mutable runtime bag. Default-init only — no side effects. */
 function createRuntime(): DirectorRuntime {
   return {
-    started: false,
-    disposed: false,
-    abortCtrl: new AbortController(),
-    sonEkranAbortCtrl: null,
+    started: false, disposed: false,
+    abortCtrl: new AbortController(), sonEkranAbortCtrl: null,
     fsmState: initialState(),
-    destructionAudio: null,
-    apartmentBleed: null,
-    overlay: null,
-    fallbackTimer: null,
-    observer: null,
-    escDispose: null,
-    eventHandler: null,
+    destructionAudio: null, apartmentBleed: null, overlay: null,
+    fallbackTimer: null, observer: null, escDispose: null, eventHandler: null,
     revealJingle: null,
   };
 }
@@ -251,8 +253,7 @@ function attachDetectionPaths(
 
 /** Subscribe to the document CustomEvent. */
 function attachBangFiredListener(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps,
 ): void {
   const handler = (ev: Event): void => {
     const detail = (ev as CustomEvent<BangFiredEventDetail>).detail;
@@ -270,25 +271,20 @@ function attachBangFiredListener(
  * the primary event arrives first, the fallback observer is disconnected.
  */
 function attachMutationObserverFallback(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps,
 ): void {
   runtime.fallbackTimer = setTimeout((): void => {
     if (runtime.started || runtime.disposed) return;
     const overlay = document.querySelector('.bang-overlay');
     if (overlay === null) return;
-    runtime.observer = new MutationObserver(
-      (): void => observeBangOverlay(runtime, overlay, deps),
-    );
+    runtime.observer = new MutationObserver((): void => observeBangOverlay(runtime, overlay, deps));
     runtime.observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
   }, FALLBACK_DETECTION_TIMEOUT_MS);
 }
 
 /** MutationObserver callback — fires the sequence if `is-fired` is present. */
 function observeBangOverlay(
-  runtime: DirectorRuntime,
-  overlay: Element,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, overlay: Element, deps: DestructionDirectorDeps,
 ): void {
   if (runtime.started) return;
   if (overlay.classList.contains(BANG_FIRED_CLASS)) {
@@ -303,10 +299,7 @@ function attachEscapeHoldSubscription(runtime: DirectorRuntime): void {
     runtime.escDispose = (): void => undefined;
     return;
   }
-  runtime.escDispose = window.api.onEscapeHold(
-    (): void => undefined,
-    (): void => abortSequence(runtime, 'esc-hold'),
-  );
+  runtime.escDispose = window.api.onEscapeHold((): void => undefined, (): void => abortSequence(runtime, 'esc-hold'));
 }
 
 /* ------------------------------------------------------------------------ */
@@ -364,16 +357,13 @@ async function resolveOsAndUsername(): Promise<{
  * dispose chain reaches every node.
  */
 async function prepareOverlay(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps,
 ): Promise<void> {
   runtime.overlay = createOverlayElement();
   document.body.appendChild(runtime.overlay);
   runtime.apartmentBleed = mountApartmentBleedOverlay(deps.lobbySnapshotGetter());
   runtime.destructionAudio = mountDestructionAudio({
-    context: deps.audio.context,
-    master: deps.audio.master,
-    insertGlobalFilter: deps.audio.insertGlobalFilter,
+    context: deps.audio.context, master: deps.audio.master, insertGlobalFilter: deps.audio.insertGlobalFilter,
   });
   // Yield a tick so the overlay paints before Faz 0 cues fire (camera shake
   // and bulb darken otherwise compete with the same frame).
@@ -491,12 +481,18 @@ async function runFaz4Through7(
   await startFaz6Bsod({ os, container, destructionAudio, signal });
   if (signal.aborted) return;
   runtime.fsmState = onFaz6Complete(runtime.fsmState, performance.now());
+  // Sprint 7 — Faz 6 → Faz 7 cross-fade (150ms, reduced-motion skips).
+  await runFaz6ToFaz7Transition(container, signal);
+  if (signal.aborted) return;
   await startFaz7Bootloop({
     os, container, destructionAudio,
     lobbySnapshotDataUrl: deps.lobbySnapshotGetter(), signal,
   });
   if (signal.aborted) return;
   runtime.fsmState = onFaz7Complete(runtime.fsmState, performance.now());
+  // Sprint 7 — Faz 7 → Faz 8 cross-fade (200ms, reduced-motion skips).
+  await runFaz7ToFaz8Transition(container, signal);
+  if (signal.aborted) return;
   await runFaz8RevealAndSonEkran(runtime, deps, os);
 }
 
@@ -525,21 +521,15 @@ async function runFaz4Through7(
  * surface is touched.
  */
 async function runFaz8RevealAndSonEkran(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
-  os: OsVariant,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps, os: OsVariant,
 ): Promise<void> {
   const outerSignal = runtime.abortCtrl.signal;
-  // Loop: each iteration is one reveal + son-ekran cycle. Exits when
-  // son-ekran resolves WITHOUT a restart request OR outerSignal aborts.
+  // Loop: one reveal+son-ekran cycle per iteration. Exits when son-ekran
+  // completes without restart OR outerSignal aborts. FSM in 'faz8-reveal'
+  // post-cycle means requestRestart() fired → loop continues.
   while (!outerSignal.aborted) {
     await runOneFaz8Cycle(runtime, deps, os);
     if (outerSignal.aborted) return;
-    // If FSM landed in faz8-reveal after the son-ekran step, that
-    // means requestRestart() fired during son-ekran (the restart
-    // transition pushed us back to faz8-reveal). Loop continues.
-    // If FSM landed in aborted, the son-ekran completed without
-    // restart — exit the loop.
     if (runtime.fsmState.kind !== 'faz8-reveal') return;
   }
 }
@@ -555,36 +545,36 @@ async function runOneFaz8Cycle(
   deps: DestructionDirectorDeps,
   os: OsVariant,
 ): Promise<void> {
-  /**
-   * SPRINT 7 LANE A hook points (Phase 2B Lane A implements):
-   *   - jingle.play() at reveal entry, dispose() at son-ekran exit
-   *     (createRevealJingle() from audio/destruction-audio-faz8.ts)
-   *   - button mount at son-ekran entry, dispose at exit / restart
-   *   - faz7→faz8 cross-fade (FAZ7_TO_FAZ8_CROSSFADE_MS)
-   *   - faz6→faz7 cross-fade (FAZ6_TO_FAZ7_CROSSFADE_MS)
-   * Phase 1 ships a no-op SPRINT7_STUB_REVEAL_JINGLE so the
-   * Faz8RevealRunArgs.jingle REQUIRED field compiles; tekrar/cik button
-   * hosts default to document.body so the TH-S6-03 contract is honoured
-   * even though Lane A has not wired the mount calls yet.
-   */
   const outerSignal = runtime.abortCtrl.signal;
   const container = nonNull(runtime.overlay);
   const destructionAudio = nonNull(runtime.destructionAudio);
-  await startFaz8Reveal({ os, signal: outerSignal, container, destructionAudio, camera: deps.camera, lighting: deps.lighting, jingle: SPRINT7_STUB_REVEAL_JINGLE });
+  // Sprint 7 — construct fresh reveal jingle handle per cycle. The prior
+  // cycle's handle (if any) was disposed in requestRestart() so the new
+  // ADSR graph allocates clean. Stored on runtime so requestRestart can
+  // walk it down symmetric with the Sprint 6 audio handles.
+  runtime.revealJingle = createRevealJingle({
+    caller: REVEAL_JINGLE_AUDIO_OWNER, audioContext: destructionAudio.context, destinationNode: destructionAudio.destination,
+  });
+  await startFaz8Reveal({ os, signal: outerSignal, container, destructionAudio, camera: deps.camera, lighting: deps.lighting, jingle: runtime.revealJingle });
   if (outerSignal.aborted) return;
   runtime.fsmState = onFaz8RevealComplete(runtime.fsmState, performance.now());
   runtime.sonEkranAbortCtrl = new AbortController();
   const sonEkranSignal = AbortSignal.any([outerSignal, runtime.sonEkranAbortCtrl.signal]);
-  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio, tekrarButtonHost: document.body, cikButtonHost: document.body });
+  await startFaz8SonEkran({
+    os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio,
+    tekrarButtonHost: document.body, cikButtonHost: document.body,
+    requestRestart: (): void => requestRestart(runtime), quit: quitAppFromButton,
+  });
   runtime.sonEkranAbortCtrl = null;
   if (outerSignal.aborted) return;
-  if (runtime.fsmState.kind === 'faz8-son-ekran') {
-    runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
-  }
+  if (runtime.fsmState.kind === 'faz8-son-ekran') runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
 }
 
-/** SPRINT 7 LANE A no-op stub jingle. Phase 2B replaces with createRevealJingle(). */
-const SPRINT7_STUB_REVEAL_JINGLE: RevealJingleHandle = { kind: 'reveal-jingle', play: (): void => undefined, dispose: (): void => undefined };
+/** Sprint 7 — ÇIK button handler. S10 Path A: window.api.quit() (Sprint 0 IPC). */
+function quitAppFromButton(): void {
+  log.info('destruction-director: ÇIK → window.api.quit()');
+  if (typeof window !== 'undefined' && window.api !== undefined) window.api.quit();
+}
 
 /* ------------------------------------------------------------------------ */
 /* Abort + dispose                                                          */
@@ -648,9 +638,20 @@ function requestRestart(runtime: DirectorRuntime): void {
   }
   log.info('destruction-director: requestRestart fired');
   // Dispose prior reveal + son-ekran audio handles so the next cycle
-  // re-allocates clean. Chrome handles auto-dispose via abort listeners.
+  // re-allocates clean. Sprint 7 — symmetric jingle dispose (the ADSR
+  // tail must not bleed into the next cycle). Sprint 7 TEKRAR / ÇIK
+  // button chrome handles + the FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER
+  // listener auto-dispose via the sonEkranSignal abort listener
+  // wired inside startFaz8SonEkran (chrome mount fns +
+  // installButtonKeydownListener). Sprint 7 scene transition timers
+  // (Faz 6→7, Faz 7→8) are already-completed by the time the FSM
+  // reaches faz8-son-ekran — nothing to cancel.
+  // KIOSK SAFETY (S9): no window.close / app.quit / IPC exit channel
+  // is touched here — the restart cycle is purely FSM + signal abort.
   runtime.destructionAudio?.getOwnedAudio(AMBIENT_RECOVERY_AUDIO_OWNER)?.dispose();
   runtime.destructionAudio?.getOwnedAudio(DOOR_CLOSE_AUDIO_OWNER)?.dispose();
+  runtime.revealJingle?.dispose();
+  runtime.revealJingle = null;
   runtime.fsmState = onFaz8RestartRequested(runtime.fsmState, performance.now());
   runtime.sonEkranAbortCtrl?.abort();
 }
@@ -669,6 +670,9 @@ function cancelFallback(runtime: DirectorRuntime): void {
 
 /** Dispose every artifact the sequence allocated. Safe to call multiple times. */
 function disposeSequenceArtifacts(runtime: DirectorRuntime): void {
+  // Sprint 7 — reveal jingle disposed BEFORE destructionAudio so the
+  // ADSR tail's osc.stop() lands on a still-live AudioContext.
+  if (runtime.revealJingle !== null) { runtime.revealJingle.dispose(); runtime.revealJingle = null; }
   if (runtime.destructionAudio !== null) {
     runtime.destructionAudio.dispose();
     runtime.destructionAudio = null;
@@ -712,8 +716,6 @@ function disposeDirector(runtime: DirectorRuntime): void {
  * sequence's ordering (prepareOverlay assigns before runFazSequence reads).
  */
 function nonNull<T>(value: T | null): T {
-  if (value === null) {
-    throw new Error('destruction-director: invariant violated — null artifact');
-  }
+  if (value === null) throw new Error('destruction-director: invariant violated — null artifact');
   return value;
 }
