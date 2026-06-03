@@ -55,7 +55,9 @@ import {
   PREFERS_REDUCED_MOTION_QUERY,
   REVEAL_JINGLE_AUDIO_OWNER,
   REVEAL_JINGLE_ATTACK_MS,
+  REVEAL_JINGLE_CHORD_NOTES,
   REVEAL_JINGLE_DECAY_MS,
+  REVEAL_JINGLE_OSCILLATOR_TYPE,
   REVEAL_JINGLE_PEAK_DB,
   REVEAL_JINGLE_RELEASE_MS,
   REVEAL_JINGLE_SUSTAIN_LEVEL,
@@ -419,38 +421,59 @@ function attachAbortListener(
 /* ------------------------------------------------------------------------ */
 
 /**
- * Factory for RevealJingleHandle — Sprint 7 Phase 1 STUB.
+ * Per-oscillator branch tracked inside the jingle handle so dispose()
+ * can stop + disconnect every node deterministically.
+ */
+interface RevealJingleBranch {
+  readonly osc: OscillatorNode;
+  readonly gain: GainNode;
+}
+
+/** Internal mutable state for the reveal-jingle handle (idempotency + dispose flag). */
+interface RevealJingleState {
+  played: boolean;
+  disposed: boolean;
+}
+
+/** Reduced-motion amplitude clamp — mirror DoorCloseAccent (-6dB ≈ 0.5 linear). */
+const REVEAL_JINGLE_REDUCED_MOTION_RATIO = 0.5;
+/** Post-release safety margin (ms) before osc.stop() fires — mirrors door-close. */
+const REVEAL_JINGLE_STOP_GUARD_MS = 50;
+
+/**
+ * Factory for RevealJingleHandle — Sprint 7 Phase 2B Lane A implementation.
  *
  * Constructs the Faz 8 reveal jingle audio handle. The handle plays an
  * ADSR chord synth that rings out across the reveal envelope (a wry
  * musical cue that lands the joke twist — not triumphant resolution,
- * not alert tone). Lane A Phase 2B implements the body — Phase 1 ships
- * a no-op stub so the type surface is honoured and the Faz8Reveal
- * runner can be wired with a non-null handle.
+ * not alert tone).
  *
- * Synth recipe (Lane A Phase 2B SPEC):
- *   - Per chord note in REVEAL_JINGLE_CHORD_NOTES (designer Phase 2A
- *     FILL): create OscillatorNode with sine waveform at the note
- *     frequency.
- *   - Sum oscillators into a shared GainNode envelope.
- *   - ADSR via scheduled gain ramps:
- *       attack  : 0 → linearGain(REVEAL_JINGLE_PEAK_DB)
- *                 over REVEAL_JINGLE_ATTACK_MS
- *       decay   : peak → peak * REVEAL_JINGLE_SUSTAIN_LEVEL
- *                 over REVEAL_JINGLE_DECAY_MS
- *       release : sustain → 0 over REVEAL_JINGLE_RELEASE_MS
- *   - Connect envelope GainNode → opts.destinationNode.
- *   - Reduced-motion: -6dB amplitude clamp (mirror DoorCloseAccent
- *     pattern).
- *   - dispose() snaps gain to 0 + osc.stop() + disconnect graph.
+ * Synth recipe:
+ *   - One OscillatorNode per note in REVEAL_JINGLE_CHORD_NOTES (4 notes:
+ *     A3=220, E4=329.63, B4=493.88, A5=880 Hz) — waveform
+ *     REVEAL_JINGLE_OSCILLATOR_TYPE = 'triangle' (warm, only odd
+ *     harmonics at 1/n² amplitude — reads as "distant church bell /
+ *     music-box-at-distance" rather than alarm or synth pad).
+ *   - Each oscillator gets its OWN GainNode envelope so the per-note
+ *     graph is uniformly disposable (osc → gain → opts.destinationNode).
+ *   - ADSR shared across all four notes — they speak as ONE chord
+ *     instrument:
+ *       attack  : 0 → peak                       over ATTACK_MS  (200ms)
+ *       decay   : peak → peak * SUSTAIN_LEVEL    over DECAY_MS   (100ms)
+ *       sustain : hold until release start
+ *       release : sustain → 0                    over RELEASE_MS (2000ms)
+ *   - Per-note peak = dbToLinear(REVEAL_JINGLE_PEAK_DB) (-30dB ≈ 0.0316
+ *     linear). Reduced-motion clamps to half (-6dB additional).
+ *   - osc.stop() scheduled at t0 + totalEnvelopeMs + STOP_GUARD_MS.
+ *
+ * Played-once flag: play() is idempotent — second call within the same
+ * handle lifetime is a no-op (the jingle is single-fire per reveal
+ * entry by design; if requestRestart() is invoked, the director
+ * disposes the prior handle + constructs a fresh one).
  *
  * TH-S6-04 (universal owner enforcement): runtime caller-equality
  * check is the defence-in-depth fallback for `as`-cast bypass of the
  * type-level narrowing on opts.caller.
- *
- * Phase 1 STUB BODY: returns a handle with play()/dispose() as
- * no-ops (after the runtime caller check). Lane A Phase 2B replaces
- * with the actual synth graph.
  */
 export function createRevealJingle(opts: RevealJingleOptions): RevealJingleHandle {
   if (opts.caller !== REVEAL_JINGLE_AUDIO_OWNER) {
@@ -458,14 +481,149 @@ export function createRevealJingle(opts: RevealJingleOptions): RevealJingleHandl
       `[reveal-jingle] caller decree violation: expected ${REVEAL_JINGLE_AUDIO_OWNER}, got ${String(opts.caller)}`,
     );
   }
-  log.info('destruction-audio-faz8: createRevealJingle (Sprint 7 Phase 1 STUB)', {
-    caller: opts.caller, peakDb: REVEAL_JINGLE_PEAK_DB, attackMs: REVEAL_JINGLE_ATTACK_MS,
-    decayMs: REVEAL_JINGLE_DECAY_MS, sustain: REVEAL_JINGLE_SUSTAIN_LEVEL,
-    releaseMs: REVEAL_JINGLE_RELEASE_MS,
+  const reducedMotion = isReducedMotion();
+  const peakLinear =
+    dbToLinear(REVEAL_JINGLE_PEAK_DB) *
+    (reducedMotion ? REVEAL_JINGLE_REDUCED_MOTION_RATIO : 1);
+  log.info('destruction-audio-faz8: createRevealJingle', {
+    caller: opts.caller,
+    peakDb: REVEAL_JINGLE_PEAK_DB,
+    reducedMotion,
+    notes: REVEAL_JINGLE_CHORD_NOTES.length,
   });
+  const state: RevealJingleState = { played: false, disposed: false };
+  const branches = new Set<RevealJingleBranch>();
   return {
     kind: 'reveal-jingle',
-    play: (): void => { /* Lane A Phase 2B — implement ADSR chord synth */ },
-    dispose: (): void => { /* Lane A Phase 2B — dispose synth graph */ },
+    play: (): void => playRevealJingle(state, branches, opts, peakLinear),
+    dispose: (): void => disposeRevealJingle(state, branches),
   };
+}
+
+/**
+ * Schedule the ADSR chord envelope. Idempotent — second call within
+ * the same handle is a no-op (the jingle is single-fire per handle).
+ * Allocates one oscillator + gain per chord note, wires the shared
+ * ADSR envelope on each gain, and schedules stop() after the release
+ * tail completes. Self-cleans via the `ended` event listener that
+ * removes the branch from the tracking set + disconnects its nodes.
+ */
+function playRevealJingle(
+  state: RevealJingleState,
+  branches: Set<RevealJingleBranch>,
+  opts: RevealJingleOptions,
+  peakLinear: number,
+): void {
+  if (state.disposed || state.played) return;
+  state.played = true;
+  const ctx = opts.audioContext;
+  const now = ctx.currentTime;
+  const attackSec = REVEAL_JINGLE_ATTACK_MS / 1000;
+  const decaySec = REVEAL_JINGLE_DECAY_MS / 1000;
+  const releaseSec = REVEAL_JINGLE_RELEASE_MS / 1000;
+  const sustainGain = peakLinear * REVEAL_JINGLE_SUSTAIN_LEVEL;
+  const totalMs =
+    REVEAL_JINGLE_ATTACK_MS + REVEAL_JINGLE_DECAY_MS + REVEAL_JINGLE_RELEASE_MS;
+  const stopAt = now + (totalMs + REVEAL_JINGLE_STOP_GUARD_MS) / 1000;
+  for (const freq of REVEAL_JINGLE_CHORD_NOTES) {
+    const branch = buildRevealJingleBranch(ctx, opts.destinationNode, freq);
+    branches.add(branch);
+    scheduleRevealJingleEnvelope(branch.gain, now, attackSec, decaySec, releaseSec, peakLinear, sustainGain);
+    startAndScheduleStopRevealJingle(branch, branches, now, stopAt);
+  }
+}
+
+/** Construct + wire a single (osc + gain) branch for one chord note. */
+function buildRevealJingleBranch(
+  ctx: AudioContext,
+  destination: AudioNode,
+  frequencyHz: number,
+): RevealJingleBranch {
+  const osc = ctx.createOscillator();
+  osc.type = REVEAL_JINGLE_OSCILLATOR_TYPE;
+  osc.frequency.value = frequencyHz;
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  osc.connect(gain).connect(destination);
+  return { osc, gain };
+}
+
+/**
+ * Schedule the ADSR envelope on a single note's GainNode. Identical
+ * shape per note so the four oscillators read as one chord instrument.
+ */
+function scheduleRevealJingleEnvelope(
+  gain: GainNode,
+  startTime: number,
+  attackSec: number,
+  decaySec: number,
+  releaseSec: number,
+  peakGain: number,
+  sustainGain: number,
+): void {
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(peakGain, startTime + attackSec);
+  gain.gain.linearRampToValueAtTime(sustainGain, startTime + attackSec + decaySec);
+  gain.gain.linearRampToValueAtTime(0, startTime + attackSec + decaySec + releaseSec);
+}
+
+/**
+ * Start the oscillator and schedule stop() after the envelope
+ * completes. The `ended` event listener removes the branch from the
+ * tracking set + disconnects its nodes so the graph self-cleans even
+ * if dispose() is never called (defence-in-depth against the abort
+ * path).
+ */
+function startAndScheduleStopRevealJingle(
+  branch: RevealJingleBranch,
+  branches: Set<RevealJingleBranch>,
+  startTime: number,
+  stopAt: number,
+): void {
+  branch.osc.addEventListener(
+    'ended',
+    (): void => {
+      branches.delete(branch);
+      try {
+        branch.osc.disconnect();
+        branch.gain.disconnect();
+      } catch {
+        // Already disconnected.
+      }
+    },
+    { once: true },
+  );
+  branch.osc.start(startTime);
+  try {
+    branch.osc.stop(stopAt);
+  } catch {
+    // Already stopped.
+  }
+}
+
+/**
+ * Stop any in-flight branches and disconnect the chord graph.
+ * Idempotent + safe to call before play() (returns immediately if
+ * nothing was scheduled).
+ */
+function disposeRevealJingle(
+  state: RevealJingleState,
+  branches: Set<RevealJingleBranch>,
+): void {
+  if (state.disposed) return;
+  state.disposed = true;
+  for (const branch of branches) {
+    try {
+      branch.osc.stop();
+    } catch {
+      // Already stopped.
+    }
+    try {
+      branch.osc.disconnect();
+      branch.gain.disconnect();
+    } catch {
+      // Already disconnected.
+    }
+  }
+  branches.clear();
 }
