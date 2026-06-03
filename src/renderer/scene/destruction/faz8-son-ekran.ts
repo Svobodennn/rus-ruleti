@@ -54,7 +54,9 @@ import { createDoorCloseAccentHandle } from '../audio/destruction-audio-faz8.js'
 import {
   DOOR_CLOSE_AUDIO_OWNER,
   FAZ8_DISCLAIMER_OWNER,
+  FAZ8_DISCLAIMER_VISIBLE_CLASS,
   FAZ8_RESTART_HINT_OWNER,
+  FAZ8_RESTART_HINT_VISIBLE_CLASS,
   FAZ8_VOLUMETRIC_SMOKE_OWNER,
   FAZ8_VOLUMETRIC_SMOKE_MODE,
   FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
@@ -275,9 +277,11 @@ function mountDisclaimerIfActive(
   handles.disclaimer = handle;
   // Trigger CSS fade-in: one rAF so the browser paints opacity:0
   // (CSS base state) first, then the is-visible class drives 0→0.9.
+  // Sprint 7 Phase 1 TH-S6-02: class name sourced from SSOT constant
+  // FAZ8_DISCLAIMER_VISIBLE_CLASS (= 'is-visible').
   requestAnimationFrame((): void => {
     if (!opts.signal.aborted) {
-      handle.element.classList.add('is-visible');
+      handle.element.classList.add(FAZ8_DISCLAIMER_VISIBLE_CLASS);
     }
   });
 }
@@ -312,9 +316,11 @@ function mountRestartHintIfActive(
   handles.restartHint = handle;
   // Trigger CSS fade-in: one rAF so the browser paints opacity:0
   // (CSS base state) first, then the is-visible class drives 0→0.4.
+  // Sprint 7 Phase 1 TH-S6-02: class name sourced from SSOT constant
+  // FAZ8_RESTART_HINT_VISIBLE_CLASS (= 'is-visible').
   requestAnimationFrame((): void => {
     if (!opts.signal.aborted) {
-      handle.element.classList.add('is-visible');
+      handle.element.classList.add(FAZ8_RESTART_HINT_VISIBLE_CLASS);
     }
   });
 }

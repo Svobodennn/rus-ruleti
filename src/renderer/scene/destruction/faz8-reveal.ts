@@ -67,13 +67,21 @@ import {
   FAZ8_REVEAL_CAMERA_DOLLY_DEGREES,
   FAZ8_REVEAL_DURATION_MS,
   FAZ8_REVEAL_FADE_DURATION_MS,
+  FAZ8_REVEAL_OVERLAY_FADING_OUT_CLASS,
   FAZ8_REVEAL_SILENCE_PAUSE_MS,
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../shared/scene-destruction-constants.js';
 import type { OsVariant, RevealJingleHandle } from './types.js';
 
-/** CSS class Lane B keyframes engage off for the overlay fade-out. */
-const FAZ8_REVEAL_OVERLAY_CLASS = 'is-fading-out';
+/**
+ * CSS class Lane B keyframes engage off for the overlay fade-out.
+ *
+ * Sprint 7 Phase 1 — TH-S6-02 retroactive refactor: this constant now
+ * aliases the SSOT FAZ8_REVEAL_OVERLAY_FADING_OUT_CLASS in
+ * scene-destruction-constants.ts. The local alias is kept so the
+ * existing call sites stay unchanged.
+ */
+const FAZ8_REVEAL_OVERLAY_CLASS = FAZ8_REVEAL_OVERLAY_FADING_OUT_CLASS;
 /** Sprint 1 baseline bulb factor — `1.0` restores BULB_LIGHT.intensity. */
 const FAZ8_BULB_BASELINE_FACTOR = 1;
 
