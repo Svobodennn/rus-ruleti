@@ -1396,3 +1396,342 @@ export const FAZ8_VOLUMETRIC_SMOKE_SOURCE = 'desk-ashtray' as const;
  * low so the disclaimer reads cleanly through it.
  */
 export const FAZ8_VOLUMETRIC_SMOKE_OPACITY_MAX = 0.12;
+
+/* ------------------------------------------------------------------------ */
+/*                                                                          */
+/*  ╔═══════════════════════════════════════════════════════════════════╗   */
+/*  ║  Sprint 7 Phase 1 — NEW timing + CSS class SSOT + owner decrees   ║   */
+/*  ╚═══════════════════════════════════════════════════════════════════╝   */
+/*                                                                          */
+/*  Sprint 7 scope: TEKRAR / ÇIK button UI on the Faz 8 son-ekran +         */
+/*  reveal-jingle audio handle + scene transition cross-fades (Faz 6 →      */
+/*  Faz 7, Faz 7 → Faz 8). Designer Phase 2A finalises VALUES; Phase 1      */
+/*  (this section) commits the NAMES + per-directive placeholder defaults   */
+/*  so Lane A + Lane B can consume from a stable SSOT.                      */
+/*                                                                          */
+/*  Owner decree discipline (TH-S6-04 universal carry-forward):             */
+/*  every Sprint 7 NEW shared resource (audio handle, chrome handle, FSM    */
+/*  transition timer, DOM listener) names its sole owner here. Cross-       */
+/*  module callers MUST import the OWNER constant and pass it as the        */
+/*  `caller` field on the factory option bag; the type system rejects       */
+/*  cross-owner construction (TH-S5-03 closure carried forward).            */
+/*                                                                          */
+/* ------------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — Faz 8 TEKRAR / ÇIK button timing                              */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Faz 8 TEKRAR/ÇIK button fade-in duration (ms). 600ms — long enough
+ * to read as "considered presentation, not a UI alert" but short
+ * enough that the user perceives a clean appearance once the
+ * disclaimer + restart-hint copy has settled. Designer Phase 2A
+ * confirms this value against the closing-tableau pacing.
+ */
+export const FAZ8_BUTTON_FADEIN_DURATION_MS = 600;
+
+/**
+ * Faz 8 TEKRAR/ÇIK button fade-in start offset (ms), measured from
+ * son-ekran entry. 2500ms — buttons appear ~58sn into the destruction
+ * sequence (son-ekran enters at ~55sn). The 2.5sn offset gives the
+ * disclaimer (3sn enter) and restart-hint (7sn enter) breathing room
+ * to land first; the buttons join the composition as a deliberate
+ * call-to-action AFTER the user has read the disclaimer.
+ *
+ * Designer Phase 2A may revise this once the button copy + the
+ * disclaimer/hint cadence are confirmed in playthrough.
+ */
+export const FAZ8_BUTTON_FADEIN_START_OFFSET_MS = 2_500;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — scene transition cross-fades                                  */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Faz 7 → Faz 8 cross-fade duration (ms). 200ms — short. The faz7
+ * bootloop fades to black (or to the apartment-bleed substrate) and
+ * faz8-reveal fades in over a 200ms shared window. Short enough that
+ * the cut reads as a hard cut with a smoothing edge (not a "transition
+ * shot"); long enough that the human eye doesn't perceive a discrete
+ * frame swap (sub-100ms reads as a glitch on 60Hz displays).
+ */
+export const FAZ7_TO_FAZ8_CROSSFADE_MS = 200;
+
+/**
+ * Faz 6 → Faz 7 cross-fade duration (ms). 150ms — slightly shorter
+ * than the Faz 7 → Faz 8 fade. Designer rationale: the Faz 6 (BSOD /
+ * kernel panic) → Faz 7 (bootloop) transition is a "system reset"
+ * moment — the cut should feel mechanical, not cinematic. 150ms reads
+ * as "the OS just rebooted" not "the editor crossfaded".
+ */
+export const FAZ6_TO_FAZ7_CROSSFADE_MS = 150;
+
+/**
+ * Faz 2 → Faz 3 cross-fade duration (ms). 0 PLACEHOLDER — designer
+ * Phase 2A confirms whether faz2 takeover → faz3 terminal benefits
+ * from a cross-fade or whether the current hard cut is intentional.
+ * Set to 0 here so the placeholder lookup compiles; Sprint 7 Phase 2A
+ * designer FILL replaces this with either 0 (confirmed hard cut) or
+ * a non-zero duration matching the other Sprint 7 transition values.
+ */
+export const FAZ2_TO_FAZ3_CROSSFADE_MS = 0;
+
+/**
+ * Shared easing curve for all Sprint 7 scene transitions. Material
+ * Design "standard" curve — the canonical "natural feeling" ease
+ * for opacity/transform transitions in the 100-300ms window. Designer
+ * Phase 2A may pick a more bespoke curve once the cross-fade reads
+ * are tested in playthrough; for Phase 1 this is the SSOT default.
+ */
+export const SCENE_TRANSITION_EASING = 'cubic-bezier(0.4, 0.0, 0.2, 1)' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — Reveal jingle ADSR + amplitude                                */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Reveal jingle scheduling offset (ms) from faz8-reveal entry. 0 —
+ * the jingle plays at the start of the reveal phase. The 1-second
+ * silence pause (FAZ8_REVEAL_SILENCE_PAUSE_MS) and the 3-second
+ * concurrent fade-in/audio-ramp window then unfold while the jingle
+ * rings out across the reveal duration.
+ */
+export const REVEAL_JINGLE_OFFSET_MS = 0;
+
+/**
+ * Reveal jingle attack time (ms). 200ms — slow attack. The chord
+ * needs to "swell in" rather than punch in (the joke twist is the
+ * jingle is a wry musical cue, not an alert). 200ms reads as "we are
+ * coming back to room tone now"; under 100ms would feel like an
+ * intrusion, over 300ms would read as "background music" rather
+ * than a discrete cue.
+ */
+export const REVEAL_JINGLE_ATTACK_MS = 200;
+
+/**
+ * Reveal jingle decay time (ms). 100ms — short decay after the
+ * attack peak settles to the sustain plateau. Designer Phase 2A may
+ * widen this if the chord voicing needs more "settle" time.
+ */
+export const REVEAL_JINGLE_DECAY_MS = 100;
+
+/**
+ * Reveal jingle sustain level (0-1 linear). 0.3 — moderate sustain.
+ * Holds the chord at 30% of peak for the body of the ring-out so
+ * the listener has time to register the harmony before the release
+ * dissolves it. Below 0.2 would clip the sustain to "ambience";
+ * above 0.5 would compete with the recovering ambient bed.
+ */
+export const REVEAL_JINGLE_SUSTAIN_LEVEL = 0.3;
+
+/**
+ * Reveal jingle release time (ms). 2000ms — long release tail. The
+ * chord dissolves over 2sn so the listener perceives a clean
+ * "ring-out" rather than an abrupt cut. Matches the 3sn fade window
+ * of the destruction-overlay fade-out so the audio and visual
+ * envelopes settle together.
+ */
+export const REVEAL_JINGLE_RELEASE_MS = 2000;
+
+/**
+ * Reveal jingle peak amplitude (dBFS). -30dB — well below the
+ * dialogue / disclaimer band. The jingle is a WHISPER — it must
+ * register as "a thing happened in the audio mix" without
+ * overshadowing the silence-of-aftermath read. -30dB sits just
+ * above the noise floor of typical consumer playback while remaining
+ * audibly distinct from the -24dB recovering ambient bed.
+ */
+export const REVEAL_JINGLE_PEAK_DB = -30;
+
+/**
+ * Reveal jingle chord note frequencies (Hz). PLACEHOLDER empty
+ * array — designer Phase 2A SPEC FILL specifies the actual note
+ * pitches (chord voicing per the closing-tableau emotional brief).
+ * Lane A Phase 2B reads this constant to build the OscillatorNode
+ * graph; an empty array short-circuits the play() body to a no-op,
+ * which is safe for the Phase 1 stub.
+ *
+ * Designer note: pick 3-4 notes (likely a minor 7th or sus2 voicing
+ * — open-ended/wistful, NOT triumphant resolution). Frequencies in
+ * Hz, mid-register (220-880Hz band) to sit above the recovering
+ * ambient bed without competing with the disclaimer voice register.
+ */
+export const REVEAL_JINGLE_CHORD_NOTES: readonly number[] = [];
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — Faz 8 button CSS class SSOT (TH-S6-02)                        */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * CSS class toggled on the Faz 8 TEKRAR button to drive the fade-in
+ * end-state (opacity 0 → 1 over FAZ8_BUTTON_FADEIN_DURATION_MS).
+ * Lane B CSS owns the transition definition; Lane A toggles the
+ * class via rAF after mount. SSOT discipline per TH-S6-02: no
+ * inline string literals in mount code — reference this constant.
+ */
+export const FAZ8_TEKRAR_BUTTON_VISIBLE_CLASS = 'is-visible' as const;
+
+/**
+ * CSS class toggled on the Faz 8 ÇIK button to drive the fade-in
+ * end-state. Mirrors FAZ8_TEKRAR_BUTTON_VISIBLE_CLASS — the two
+ * buttons share the same fade envelope by design (they appear as
+ * a pair).
+ */
+export const FAZ8_CIK_BUTTON_VISIBLE_CLASS = 'is-visible' as const;
+
+/**
+ * CSS class toggled on the TEKRAR button when keyboard focus lands
+ * on it (also from `:focus-visible` for mouse-vs-keyboard
+ * disambiguation; Lane B CSS combines this class + `:focus-visible`
+ * for accessibility focus ring).
+ */
+export const FAZ8_TEKRAR_BUTTON_FOCUSED_CLASS = 'is-focused' as const;
+
+/**
+ * CSS class toggled on the ÇIK button when keyboard focus lands
+ * on it. Mirrors FAZ8_TEKRAR_BUTTON_FOCUSED_CLASS.
+ */
+export const FAZ8_CIK_BUTTON_FOCUSED_CLASS = 'is-focused' as const;
+
+/**
+ * CSS class toggled on the destruction-takeover overlay during the
+ * Faz 7 → Faz 8 cross-fade window. Drives the CSS transition that
+ * fades the overlay out over FAZ7_TO_FAZ8_CROSSFADE_MS. Removed
+ * once the cross-fade completes (Lane A handles this via setTimeout
+ * + classList.remove).
+ */
+export const FAZ7_TO_FAZ8_TRANSITION_ACTIVE_CLASS = 'is-transitioning' as const;
+
+/**
+ * CSS class toggled on a scene-transitioning element to drive the
+ * shared fade-OUT half of a cross-fade. Generic SSOT name (not
+ * faz-specific) because Faz 6 → Faz 7 and Faz 7 → Faz 8 reuse the
+ * same class. Lane A toggles + removes; CSS owns the transition
+ * curve via SCENE_TRANSITION_EASING.
+ */
+export const SCENE_TRANSITION_FADE_OUT_CLASS = 'is-transition-fading-out' as const;
+
+/**
+ * CSS class toggled on a scene-transitioning element to drive the
+ * shared fade-IN half of a cross-fade. Mirror of
+ * SCENE_TRANSITION_FADE_OUT_CLASS — same SSOT discipline.
+ */
+export const SCENE_TRANSITION_FADE_IN_CLASS = 'is-transition-fading-in' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — Sprint 6 retroactive CSS class SSOT cleanup (TH-S6-02)        */
+/*                                                                          */
+/* Sprint 6 chrome (faz8-reveal.ts, faz8-son-ekran.ts, chrome/faz8-*.ts)    */
+/* hardcoded the CSS classes inline. TH-S6-02 directs Sprint 7 Phase 1 to   */
+/* declare the SSOT constants here so a future Phase 4 spark / Sprint 8     */
+/* refactor can swap the literals for constant references without touching  */
+/* this file. The constant NAMES live here from Sprint 7; the Sprint 6      */
+/* call sites still use the literals until the retroactive Task 8 (this    */
+/* phase, best-effort) or a follow-up refactor reaches them.                */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Generic `is-visible` class — re-used across the Sprint 6 Faz 8
+ * surfaces (disclaimer, restart-hint, volumetric-smoke) for the
+ * post-rAF fade-in toggle. Multi-site SSOT — Phase 4 spark / Sprint
+ * 8 may swap call sites to reference this constant instead of the
+ * inline literal.
+ */
+export const GENERIC_IS_VISIBLE_CLASS = 'is-visible' as const;
+
+/**
+ * Sprint 6 retroactive — CSS class toggled on the destruction-
+ * takeover overlay during the Faz 8 reveal fade-out (Lane B CSS
+ * keyframes engage off this class). Current call site:
+ * faz8-reveal.ts line 76 (literal `'is-fading-out'`). Phase 4 spark
+ * or Sprint 8 may refactor the call site to reference this constant.
+ */
+export const FAZ8_REVEAL_OVERLAY_FADING_OUT_CLASS = 'is-fading-out' as const;
+
+/**
+ * Sprint 6 retroactive — CSS class toggled on the Faz 8 disclaimer
+ * to drive fade-in. Current call site: faz8-son-ekran.ts line 263.
+ */
+export const FAZ8_DISCLAIMER_VISIBLE_CLASS = 'is-visible' as const;
+
+/**
+ * Sprint 6 retroactive — CSS class toggled on the Faz 8 restart-hint
+ * to drive fade-in. Current call site: faz8-son-ekran.ts line 300.
+ */
+export const FAZ8_RESTART_HINT_VISIBLE_CLASS = 'is-visible' as const;
+
+/**
+ * Sprint 6 retroactive — CSS class toggled on the Faz 8 volumetric-
+ * smoke to drive fade-in. Phase 4 spark / Sprint 8 may unify with
+ * GENERIC_IS_VISIBLE_CLASS.
+ */
+export const FAZ8_VOLUMETRIC_SMOKE_VISIBLE_CLASS = 'is-visible' as const;
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — Owner decrees (TH-S6-04 universal enforcement)                */
+/*                                                                          */
+/* Every NEW Sprint 7 shared resource declares its sole owner here. The     */
+/* discipline is "type-narrowed caller field on the factory option bag":    */
+/* downstream factories declare `caller: typeof OWNER_*` and the compiler   */
+/* rejects construction from any module that does not import the owner      */
+/* constant. Runtime guard (a strict equality check inside the factory) is  */
+/* a defence-in-depth fallback for cases where a caller passes an unsafe    */
+/* `as` cast.                                                               */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Sprint 7 NEW owner — Faz 8 reveal jingle audio handle. The reveal
+ * jingle is constructed at faz8-reveal entry (Lane A Phase 2B) and
+ * disposed at son-ekran exit. Only faz8-reveal.ts holds this
+ * constant so only it can call createRevealJingle().
+ */
+export const REVEAL_JINGLE_AUDIO_OWNER = 'faz8-reveal' as const;
+
+/**
+ * Sprint 7 NEW owner — Faz 8 TEKRAR button chrome. The button
+ * mounts at son-ekran entry (or at FAZ8_BUTTON_FADEIN_START_OFFSET_MS
+ * into son-ekran — designer Phase 2A finalises) and disposes on
+ * son-ekran exit or restart re-entry.
+ */
+export const FAZ8_TEKRAR_BUTTON_CHROME_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Sprint 7 NEW owner — Faz 8 ÇIK button chrome. Mirrors the TEKRAR
+ * button owner; the two buttons share a single mount caller (son-
+ * ekran) so the dispose path is symmetric.
+ */
+export const FAZ8_CIK_BUTTON_CHROME_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Sprint 7 NEW owner — Faz 7 → Faz 8 transition timer. The
+ * destruction-director schedules the cross-fade via a setTimeout
+ * (FAZ7_TO_FAZ8_CROSSFADE_MS) that fires the FSM transition. Only
+ * the director should own this timer; Lane A Phase 2B threads the
+ * caller constant through.
+ */
+export const FAZ7_TO_FAZ8_TRANSITION_TIMER_OWNER = 'destruction-director' as const;
+
+/**
+ * Sprint 7 NEW owner — Faz 6 → Faz 7 transition timer. Mirror of
+ * the Faz 7 → Faz 8 transition timer owner.
+ */
+export const FAZ6_TO_FAZ7_TRANSITION_TIMER_OWNER = 'destruction-director' as const;
+
+/**
+ * Sprint 7 NEW owner — Faz 8 button click listener. The click
+ * handler is wired in the mount fn (chrome/faz8-tekrar-button.ts +
+ * chrome/faz8-cik-button.ts); the owner constant is the runner that
+ * invokes the mount (faz8-son-ekran.ts). Disambiguates from any
+ * future click listener installed on the same buttons by an
+ * unrelated module.
+ */
+export const FAZ8_BUTTON_CLICK_LISTENER_OWNER = 'faz8-son-ekran' as const;
+
+/**
+ * Sprint 7 NEW owner — Faz 8 button keydown listener (Enter / Space
+ * activation; Tab navigation between TEKRAR and ÇIK is the browser's
+ * default Tab order, not a wired listener). Same owner as the click
+ * listener for accessibility/keyboard parity.
+ */
+export const FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER = 'faz8-son-ekran' as const;
