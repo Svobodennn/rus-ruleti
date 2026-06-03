@@ -60,6 +60,14 @@ function isAllowedSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 export function registerIpcHandlers(): void {
   // app:quit — fire-and-forget. ESC-hold timer in renderer triggers this.
+  // Sprint 7 Phase 1 §S10 decision: REUSED by Faz 8 ÇIK button (chrome/
+  // faz8-cik-button.ts). The ÇIK button's onClick handler is wired by Lane A
+  // Phase 2B to call window.api.quit() which fires this same channel. NO new
+  // IPC channel introduced for Sprint 7 because this channel already provides
+  // the exact contract needed: kiosk-safe renderer-triggered app.quit() with
+  // isAllowedSender validation. Path B (new channel) was rejected; reusing
+  // app:quit avoids preload exposure + main handler + security-reviewer
+  // Phase 3 audit overhead.
   ipcMain.on(IPC_CHANNELS.APP_QUIT, (event: IpcMainEvent) => {
     if (!isAllowedSender(event)) {
       logger.warn('app:quit rejected — sender check failed');
