@@ -72,6 +72,11 @@ export { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
 export { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
 export { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
 
-/* Sprint 7 Phase 1 — Faz 8 TEKRAR / ÇIK action button chrome stubs. */
-export { mountFaz8TekrarButton } from './chrome/faz8-tekrar-button.js';
-export { mountFaz8CikButton } from './chrome/faz8-cik-button.js';
+/* Sprint 7 Phase 2B — Faz 8 TEKRAR / ÇIK action button chrome.
+ * D-1 SINGLE FILE: both mount fns export from chrome/faz8-action-buttons.ts
+ * (Phase 1 stubs `faz8-tekrar-button.ts` + `faz8-cik-button.ts` were
+ * superseded by the merger). */
+export {
+  mountFaz8TekrarButton,
+  mountFaz8CikButton,
+} from './chrome/faz8-action-buttons.js';
