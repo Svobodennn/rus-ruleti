@@ -338,11 +338,67 @@ export const STRINGS = {
           secondary: 'Bu sadece bir şaka.',
           'aria-label': 'Сообщение: это просто шутка.',
         },
+        /**
+         * Sprint 7 Phase 2A D-2: Lane 0 (this commit) RETAINS the
+         * `restart.hint` leaves because Sprint 6's `faz8-son-ekran.ts`
+         * still calls `t('destruction.faz8.restart.hint', locale)` at the
+         * `mountFaz8RestartHint()` site (lines ~303-306). Lane B Phase 2B
+         * REMOVES that call in the same dispatch wave that lands the
+         * Sprint 7 TEKRAR/ÇIK buttons. Once Lane B's son-ekran refactor
+         * lands, Phase 4 spark / Sprint 8 deletes this subtree outright
+         * (TODO: scheduled for post-Lane-B sweep — see
+         * destruction-direction.md §21 D-2 + handoff
+         * `phase2b-lane0-i18n.md`).
+         */
         restart: {
           hint: 'Нажмите R для перезапуска',
         },
         'son-ekran': {
           'aria-label': 'Шутка закончена. Револьвер лежит на столе.',
+        },
+        /**
+         * Sprint 7 Phase 2B Lane 0 — Faz 8 TEKRAR / ÇIK action buttons.
+         *
+         * Two button kinds; each kind has TWO leaves:
+         *   - `label`      — the visible button text (ALL-CAPS Cyrillic
+         *                    or Latin; Lane B inserts as textContent —
+         *                    NO `text-transform: uppercase` allowed,
+         *                    Turkish dotted-i / dotless-i collisions).
+         *   - `aria-label` — the screen-reader announcement; Lane B
+         *                    sets `aria-label` attribute on the
+         *                    `<button>` element.
+         *
+         * Locale resolution: BOTH leaves follow runtime UI locale (NOT
+         * presentation-constant like the disclaimer pair). Buttons are
+         * actionable — they speak the user's language. Russian variants
+         * use the formal-imperative register ("ЕЩЁ РАЗ" = "once more";
+         * "ВЫЙТИ" = "exit/quit"). Aria descriptions follow the calm,
+         * declarative SR convention ("Перезапустить шутку с начала." =
+         * "Restart the joke from the start." — full stop, single
+         * sentence, no exclamation; mirrors Sprint 6 disclaimer
+         * `aria-label` register).
+         *
+         * Cyrillic glyph coverage (Old Standard TT OFL bundle, Sprint 0):
+         *   - ЕЩЁ РАЗ → Е, Щ, Ё, Р, А, З (standard Cyrillic 0x0400-0x04FF)
+         *   - ВЫЙТИ   → В, Ы, Й, Т, И      (standard Cyrillic; Й = U+0419)
+         * Both phrases verified rendered by Sprint 4-6 RU strings under
+         * the same OFL bundle (no NEW glyph requirements introduced).
+         *
+         * Designer authority: `destruction-direction.md` §21 Typography
+         * + Colour palette + Layout (Sprint 7 Phase 2A FILL).
+         * Chrome consumer: `chrome/faz8-action-buttons.ts` (Lane B
+         * Phase 2B FILL). Wire site: Lane A `destruction-director.ts`
+         * son-ekran entry path.
+         */
+        button: {
+          tekrar: {
+            label: 'ЕЩЁ РАЗ',
+            'aria-label': 'ЕЩЁ РАЗ. Перезапустить шутку с начала.',
+          },
+          cik: {
+            label: 'ВЫЙТИ',
+            'aria-label': 'ВЫЙТИ. Закрыть приложение.',
+          },
         },
       },
     },
@@ -542,11 +598,50 @@ export const STRINGS = {
           secondary: 'Bu sadece bir şaka.',
           'aria-label': 'Mesaj: bu sadece bir şaka.',
         },
+        /**
+         * Mirror of `STRINGS.ru.destruction.faz8.restart`. See the RU-tree
+         * comment for the Phase 2A D-2 retention rationale. Phase 4 spark /
+         * Sprint 8 deletes BOTH locale subtrees once Lane B's
+         * `faz8-son-ekran.ts` removes the `mountFaz8RestartHint()` call.
+         */
         restart: {
           hint: "Yeniden başlatmak için R'ye basın",
         },
         'son-ekran': {
           'aria-label': 'Şaka bitti. Tabanca masada duruyor.',
+        },
+        /**
+         * Mirror of `STRINGS.ru.destruction.faz8.button`. Turkish phrasing
+         * uses the formal-imperative register that matches the destruction-
+         * direction `restart` family across Sprints 5-6 ("R'ye basın",
+         * "Şimdi Yeniden Başlat") — single short verb on the button face
+         * ("TEKRAR" = "again"; "ÇIK" = "exit"). Aria descriptions follow
+         * the calm declarative SR convention: noun-phrase headline +
+         * single-sentence action ("Şakayı baştan başlat." = "Restart the
+         * joke from the start."; "Uygulamayı kapat." = "Close the
+         * application.") — full stops, no exclamations, no emojis,
+         * mirroring the Sprint 6 disclaimer `aria-label` register.
+         *
+         * Turkish glyph coverage (Sprint 0 Latin Extended-A — Old Standard
+         * TT OFL bundle):
+         *   - TEKRAR → T, E, K, R, A, R           (standard Latin)
+         *   - ÇIK    → Ç (U+00C7), I (dotless),  K (standard Latin)
+         * Turkish dotless-i (I, U+0049) is the lowercase-paired letter
+         * with dotless lowercase ı; the ALL-CAPS form here uses dotless
+         * I deliberately — Lane B MUST NOT apply `text-transform:
+         * uppercase` which would mangle dotless-i → dotted İ for
+         * uppercase ı (Sprint 6 lesson; preserved in strings.ts source
+         * case verbatim).
+         */
+        button: {
+          tekrar: {
+            label: 'TEKRAR',
+            'aria-label': 'TEKRAR. Şakayı baştan başlat.',
+          },
+          cik: {
+            label: 'ÇIK',
+            'aria-label': 'ÇIK. Uygulamayı kapat.',
+          },
         },
       },
     },
