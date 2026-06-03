@@ -815,6 +815,7 @@ manifest → security-reviewer audit → new commit).
 | **Crash visibility sıfır (S5)** | ÇÖZÜLDÜ | — | **electron-log + crashReporter** |
 | Soviet imagery kültürel hassasiyet | Düşük | Orta | Hammer & sickle / Lenin yok. Genel "Eastern Bloc" estetik |
 | **R-key restart kiosk'tan çıkış (S9)** | ÇÖZÜLDÜ | — | **Renderer-only FSM mutation + signal abort. R-key handler gated on `getState().kind === 'faz8-son-ekran'`; `requestRestart()` does NOT call `app.quit` / `BrowserWindow.close` / `process.exit` / any IPC exit channel. 3× KIOSK SAFETY doc-block comments + grep audit confirmed in Sprint 6 security audit.** |
+| **TEKRAR/ÇIK button kiosk safety (S10)** | ÇÖZÜLDÜ | — | **Path A (Sprint 7 Phase 1 decision): ÇIK reuses the Sprint 0 `app:quit` IPC channel via `window.api.quit()`. TEKRAR is renderer-only — wires to `director.requestRestart()` (Sprint 6 S9 closure surface). ZERO new IPC channels in Sprint 7. 8× KIOSK SAFETY/S10 JSDoc trail + grep audit (zero `window.api.quit` calls reachable from TEKRAR; zero `app.quit`/`BrowserWindow.close`/`process.exit` calls in `faz8-action-buttons.ts`). `isAllowedSender` validation unchanged on `app:quit` handler. Defensive caller-equality (TH-S6-04) on both button mount fns + RevealJingle factory.** |
 
 ---
 
@@ -2126,4 +2127,170 @@ No new leak vectors. The Faz 8 scaffolds follow Sprint 4-5 dispose-discipline es
 `npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (same 4 prod deps as Sprint 2/3/4/5; no new prod deps).
 
 The joke-app narrative invariant is preserved: `os.userInfo().username` (Sprint 4) remains the ONLY system-touching call in the entire codebase. Faz 0-8 chrome is 100% DOM + Canvas2D + Web Audio synth + CSS — pure theater.
+
+---
+
+## Sprint 7 Security Audit
+
+> **Reviewer:** `security-reviewer` agent (Phase 3)
+> **Audit date:** 2026-06-03
+> **Sprint 7 range:** `ce3fe6d..dc34d83` (HEAD) — 18 commits. Diff baseline: `ce3fe6d` (Sprint 6 close + plan freeze).
+> **Sprint 7 scope:** Faz 8 TEKRAR/ÇIK action buttons + reveal jingle (RevealJingleHandle ADSR chord synth) + scene transitions (Faz 6→7, 7→8 cross-fades) + Playwright smoke harness scaffold (TH-S6-01).
+> **S10 decision (Phase 1):** **Path A** — ÇIK reuses the Sprint 0 `app:quit` IPC channel via the preload bridge. **ZERO** new IPC channels introduced.
+> **Handoff:** `.claude/cache/handoffs/sprint7/phase3-security.md`
+
+### Scope
+
+Eight-item review per Phase 3 directive §14b:
+
+1. S10 closure (4-vector evidence pattern — code trace + grep + JSDoc + risk register)
+2. IPC channel audit (5 channels unchanged; ÇIK reuses `app:quit`)
+3. CSP audit (unchanged from Sprint 6)
+4. LEGAL.md audit (Playwright dev-only; no append needed)
+5. Defensive code (caller-equality TH-S6-04 + idempotency guards on Sprint 7 NEW factories)
+6. `npm audit --omit=dev` (0 production vulnerabilities)
+7. Preload bridge byte-identical
+8. electron-builder.yml `files:` config excludes node_modules → Playwright NOT bundled
+
+### 1. S10 Closure (4-Vector Pattern) — PASS
+
+**Vector 1 — Code trace.** TEKRAR onClick chain: `button click` → `opts.onClick` (set at `faz8-son-ekran.ts:389` to `opts.requestRestart`) → `director.requestRestart()` (`destruction-director.ts:566`) → `requestRestart(runtime)` (`destruction-director.ts:631-657`): FSM-gated, renderer-only — disposes the prior reveal-jingle handle (Sprint 7 NEW symmetric audio teardown at line 653), mutates `runtime.fsmState` via pure transition, calls `runtime.sonEkranAbortCtrl?.abort()`. **ZERO `app.quit` / `BrowserWindow.close` / `process.exit` / `ipcRenderer.send` / `window.api.quit` calls** in `requestRestart()` or any code reachable from TEKRAR's `opts.onClick`. ÇIK onClick chain: → `opts.quit` → `quitAppFromButton()` (`destruction-director.ts:573-577`) → `window.api.quit()` → `ipcRenderer.send(IPC_CHANNELS.APP_QUIT)` (preload `index.ts:142-144`) — the EXISTING Sprint 0 channel with `isAllowedSender` validation preserved.
+
+**Vector 2 — Grep audit.** `grep -n "window.close\|app.quit\|process.exit" src/renderer/scene/destruction/chrome/faz8-action-buttons.ts` returns 3 hits, ALL in doc-block comments (lines 275, 278, 283 of the `mountFaz8CikButton` JSDoc) — **ZERO code-level calls** in the file. The ÇIK exit call is delegated via `opts.onClick` to the caller. `grep -rn "window\.api\.quit" src/renderer/scene/destruction/` finds 2 code-level calls (`destruction-director.ts:575-576` inside `quitAppFromButton`) — both wired ONLY to the ÇIK `opts.quit` field; ZERO `window.api.quit()` calls reachable from TEKRAR. `grep -n "isAllowedSender\|APP_QUIT" src/main/ipc.ts` confirms sender validation on ALL 5 channels (Sprint 0 baseline preserved) — the `app:quit` handler at line 71-78 rejects unauthorized senders.
+
+**Vector 3 — JSDoc KIOSK SAFETY trail.** 8 references documenting S9 (TEKRAR/restart kiosk safety carry-forward from Sprint 6) + S10 (ÇIK Path A closure):
+
+- `types.ts:243-250` — `DestructionDirectorHandle.requestRestart` interface KIOSK SAFETY (S9 risk) block
+- `destruction-director.ts:30-31, 519-520, 605-610, 649-650` — module docstring + loop body + requestRestart docstring + inline KIOSK SAFETY (S9 closure) comments
+- `faz8-action-buttons.ts:220-221` — TEKRAR mount fn references "destruction-director.requestRestart() — the kiosk-safe renderer-only FSM re-entry"
+- `faz8-action-buttons.ts:273-279` — ÇIK mount fn S10 Path A closure block: "S10 IPC contract (Sprint 7 Phase 1 decision — PATH A CHOSEN): ... NO new IPC channel introduced for Sprint 7"
+- `ipc.ts:64-70` — `app:quit` handler S10 closure block: "Sprint 7 Phase 1 §S10 decision: REUSED by Faz 8 ÇIK button ... Path B (new channel) was rejected"
+
+**Vector 4 — Risk Register.** §12 entry appended in this audit:
+
+| Risk | Olasılık | Etki | Önlem |
+|------|----------|------|-------|
+| **TEKRAR/ÇIK button kiosk safety (S10)** | ÇÖZÜLDÜ | — | **Path A (Sprint 7 Phase 1 decision): ÇIK reuses the Sprint 0 `app:quit` IPC channel via `window.api.quit()`. TEKRAR is renderer-only — wires to `director.requestRestart()` (Sprint 6 S9 closure surface). ZERO new IPC channels in Sprint 7. 8× KIOSK SAFETY/S10 JSDoc trail + grep audit (zero `window.api.quit` calls reachable from TEKRAR; zero `app.quit`/`BrowserWindow.close`/`process.exit` calls in `faz8-action-buttons.ts`). `isAllowedSender` validation unchanged on `app:quit` handler. Defensive caller-equality (TH-S6-04) on both button mount fns + RevealJingle factory.** |
+
+**S10 status: CLOSED.**
+
+### 2. IPC Channel Audit — PASS
+
+`grep -rEn "ipcMain\.(handle|on)\b" src/main/` returns 5 handlers exactly:
+
+```
+src/main/ipc.ts:71:  ipcMain.on(IPC_CHANNELS.APP_QUIT, ...)
+src/main/ipc.ts:81:  ipcMain.handle(IPC_CHANNELS.OS_GET, ...)
+src/main/ipc.ts:90:  ipcMain.handle(... IPC_CHANNELS.KIOSK_TOGGLE ...)
+src/main/ipc.ts:104:  ipcMain.handle(IPC_CHANNELS.OS_GET_USERNAME, getUsernameHandler)
+src/main/ipc.ts:111:  ipcMain.on(IPC_CHANNELS.FRAME_STATS, ...)
+```
+
+`git diff ce3fe6d..HEAD -- src/shared/ipc-channels.ts` returns **zero diff**. The 5-channel allow-list (`APP_QUIT`, `OS_GET`, `KIOSK_TOGGLE`, `FRAME_STATS`, `OS_GET_USERNAME`) is unchanged. Sprint 7 Path A reuses `APP_QUIT` — no new channels.
+
+### 3. CSP Audit — PASS (Byte-identical to Sprint 6)
+
+`git diff ce3fe6d..HEAD -- src/renderer/index.html src/main/window-manager.ts src/main/index.ts electron.vite.config.ts` returns **zero diff**. CSP unchanged:
+
+```text
+default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;
+font-src 'self'; script-src 'self'; media-src 'self';
+```
+
+`session.defaultSession.setPermissionRequestHandler` still hard-denies every WebAPI permission. `BrowserWindow.webPreferences` still `sandbox:true, contextIsolation:true, nodeIntegration:false, webSecurity:true`. Sprint 7's scene-transition cross-fades use CSS `transition` + `opacity` in `destruction.css` — no inline `style=` HTML attributes added.
+
+### 4. LEGAL.md — No Append Needed
+
+`git diff ce3fe6d..HEAD -- LEGAL.md` returns **zero diff**. Sprint 7 introduces NO new fonts, NO new image assets, NO new third-party JS libraries in production. The reveal jingle is procedural Web Audio (4-osc triangle-wave ADSR chord) — same recipe class as Sprint 6 procedural audio (no asset). TEKRAR/ÇIK button typography reuses already-licensed PT Serif + Old Standard TT + system fonts. **Playwright (Sprint 7 NEW dev dep) is excluded from electron-builder dist** — see §8 below.
+
+### 5. Defensive Code Patterns — PASS
+
+Sprint 7 NEW factories — all defensive patterns verified:
+
+| Factory | Caller-Equality (TH-S6-04) | Idempotency Guard |
+|---------|----------------------------|-------------------|
+| `mountFaz8TekrarButton` | `faz8-action-buttons.ts:237-241` — throws on caller mismatch | `mountButtonInternal:176-178` — `disposed` flag |
+| `mountFaz8CikButton` | `faz8-action-buttons.ts:293-297` — throws on caller mismatch | `mountButtonInternal:176-178` — `disposed` flag |
+| `createRevealJingle` | `destruction-audio-faz8.ts:479-483` — throws on caller mismatch | `playRevealJingle:517-518` (`state.played`); `disposeRevealJingle:613-614` (`state.disposed`) |
+
+Sprint 7 button click handlers use native `<button>` element — platform debounces multi-click. Both `opts.onClick` targets are themselves idempotent: TEKRAR → `requestRestart()` is FSM-gated (second click cannot reach `'faz8-son-ekran'` after first triggers abort); ÇIK → `window.api.quit()` → `app.quit()` which Electron documents as safe to call multiple times. Keydown listener (`faz8-son-ekran.ts:453-464`) gates on `document.activeElement` + calls `ev.preventDefault()` to avoid native button double-fire.
+
+RevealJingle `play()` is single-fire per handle (the per-cycle handle is fresh from `runOneFaz8Cycle:555` and disposed in `requestRestart:653` on restart). `osc.stop()` + `osc.disconnect()` are wrapped in try/catch for double-stop / double-disconnect defence (`destruction-audio-faz8.ts:587-592, 597-601`). Signal-already-aborted path triggers immediate dispose in all factories (`faz8-action-buttons.ts:194-198`; jingle via `attachAbortListener:411-417`).
+
+### 6. `npm audit --omit=dev` — PASS
+
+```
+$ npm audit --omit=dev
+found 0 vulnerabilities
+```
+
+Production dep list unchanged from Sprint 5/6: `electron-log`, `howler`, `postprocessing`, `three`. Sprint 7 added ZERO new production dependencies.
+
+Full audit (dev included) reports **10 vulnerabilities (3 moderate, 7 high)** — all in toolchain packages: `electron`, `electron-builder`, `app-builder-lib`, `dmg-builder`, `electron-builder-squirrel-windows`, `electron-vite`, `esbuild`, `vite`, `tar`, `tmp`. Same advisory class as Sprint 5/6 audits — toolchain-only, no production exposure. Sprint 7's Playwright `^1.60.0` + `@playwright/test ^1.60.0` additions contribute no new advisories. Electron 41.x upgrade evaluation deferred to Sprint 9 (carry-forward).
+
+### 7. Preload Bridge — PASS (Byte-identical)
+
+`git diff ce3fe6d..HEAD -- src/preload/` returns **zero diff**. `window.api` shape unchanged. The `quit()` method (`preload/index.ts:142-144`) is the SAME Sprint 0 API now consumed by ÇIK via Path A — no new bridge methods added.
+
+### 8. electron-builder.yml — Playwright NOT Bundled (PASS)
+
+`electron-builder.yml:36-48` `files:` allow-list:
+
+```yaml
+files:
+  - out/**/*           # electron-vite build output (main/preload/renderer bundles)
+  - package.json
+  - LICENSE*
+  - LEGAL*
+  - README*
+  - '!**/*.map'
+  - '!**/*.ts'
+  - '!**/*.tsx'
+  - '!**/__tests__/**'
+  - '!**/__specs__/**'
+  - '!**/*.test.*'
+  - '!**/*.spec.*'
+```
+
+**`node_modules/**` is NEVER copied into the dist.** Playwright (`node_modules/playwright*`) lives in `devDependencies` (`package.json:23, 33`); electron-builder additionally auto-prunes devDependencies before packing. The `!**/*.spec.*` exclusion covers any Playwright spec files that might land under the build output. The smoke harness scaffold (TH-S6-01) lives outside `out/`.
+
+**Playwright dev-only advisories cannot reach end users via the packaged DMG/NSIS.**
+
+### Carry-Forward Status (from Sprint 6)
+
+- C1 (SF Pro / Helvetica Neue bundle) — STILL CLOSED
+- C2 (Cmd+Q kiosk) — STILL CLOSED
+- S2 (hardcoded username) — STILL CLOSED
+- S6 (wallpaper telif) — STILL CLOSED
+- S7 (QR URL stability) — OPEN ADVISORY (Sprint 9 compliance-expert re-check)
+- S8 (real QR as MS IP) — MITIGATED
+- **S9 (R-key kiosk safety)** — STILL CLOSED (Sprint 7 TEKRAR is the same FSM surface)
+- **S10 (TEKRAR/ÇIK button kiosk safety)** — **NEWLY CLOSED** (this audit)
+- TH-S4-01 (bleed double-fire) — UNCHANGED (Phase 4 spark fix still pending)
+- TH-S4-02 (bang.ogg asset) — STILL ADVISORY
+- TH-S4-03 (Segoe UI Variable bundle) — STILL ADVISORY (Sprint 8 Win polish)
+- TH-S1-01 / TH-S1-02 — STILL OPEN (Sprint 7 listed; deferred to Sprint 9)
+
+### Section Summary
+
+| Section | Result |
+|---------|--------|
+| 1. S10 Closure (4-Vector Pattern) | PASS |
+| 2. IPC Channel Audit (5 channels unchanged) | PASS |
+| 3. CSP Audit (byte-identical) | PASS |
+| 4. LEGAL.md (no append needed) | PASS |
+| 5. Defensive Code (caller-equality + idempotency) | PASS |
+| 6. npm audit --omit=dev (0 prod vulns) | PASS |
+| 7. Preload Bridge (byte-identical) | PASS |
+| 8. electron-builder.yml (Playwright NOT bundled) | PASS |
+
+**8/8 PASS.**
+
+### Final Verdict
+
+**PASS — Sprint 7 Faz 8 TEKRAR/ÇIK + reveal jingle + scene transitions ship clean.** CSP byte-identical to Sprint 6, preload byte-identical to Sprint 6, IPC channels byte-identical to Sprint 0 baseline (5 channels). ZERO new IPC channels (S10 Path A reuses `app:quit`), ZERO new preload APIs, ZERO new production dependencies, ZERO new CSP directives, ZERO new bundled fonts/assets/third-party libs. One new risk added: **S10 (TEKRAR/ÇIK kiosk safety) — CLOSED** by renderer-only FSM mutation for TEKRAR + Sprint 0 `app:quit` channel reuse for ÇIK (Phase 1 Path A decision).
+
+`npm audit --omit=dev` reports **0 vulnerabilities** in the production dependency tree (same 4 prod deps as Sprint 2/3/4/5/6; no new prod deps). The two Sprint 7 devDependencies adds (`playwright`, `@playwright/test`) are excluded from `electron-builder.yml` `files:` and pruned at pack time — no production exposure.
+
+The joke-app narrative invariant is preserved: `os.userInfo().username` (Sprint 4) remains the ONLY system-touching call in the entire codebase. Faz 0-8 chrome is 100% DOM + Canvas2D + Web Audio synth + CSS — pure theater. Sprint 7's reveal jingle is procedural Web Audio (4-oscillator triangle-wave ADSR chord at `destruction-audio-faz8.ts:478-501`); no `.ogg`/`.wav` bundled.
 
