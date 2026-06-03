@@ -270,16 +270,13 @@ function attachBangFiredListener(
  * the primary event arrives first, the fallback observer is disconnected.
  */
 function attachMutationObserverFallback(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps,
 ): void {
   runtime.fallbackTimer = setTimeout((): void => {
     if (runtime.started || runtime.disposed) return;
     const overlay = document.querySelector('.bang-overlay');
     if (overlay === null) return;
-    runtime.observer = new MutationObserver(
-      (): void => observeBangOverlay(runtime, overlay, deps),
-    );
+    runtime.observer = new MutationObserver((): void => observeBangOverlay(runtime, overlay, deps));
     runtime.observer.observe(overlay, { attributes: true, attributeFilter: ['class'] });
   }, FALLBACK_DETECTION_TIMEOUT_MS);
 }
@@ -525,21 +522,15 @@ async function runFaz4Through7(
  * surface is touched.
  */
 async function runFaz8RevealAndSonEkran(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
-  os: OsVariant,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps, os: OsVariant,
 ): Promise<void> {
   const outerSignal = runtime.abortCtrl.signal;
-  // Loop: each iteration is one reveal + son-ekran cycle. Exits when
-  // son-ekran resolves WITHOUT a restart request OR outerSignal aborts.
+  // Loop: one reveal+son-ekran cycle per iteration. Exits when son-ekran
+  // completes without restart OR outerSignal aborts. FSM in 'faz8-reveal'
+  // post-cycle means requestRestart() fired → loop continues.
   while (!outerSignal.aborted) {
     await runOneFaz8Cycle(runtime, deps, os);
     if (outerSignal.aborted) return;
-    // If FSM landed in faz8-reveal after the son-ekran step, that
-    // means requestRestart() fired during son-ekran (the restart
-    // transition pushed us back to faz8-reveal). Loop continues.
-    // If FSM landed in aborted, the son-ekran completed without
-    // restart — exit the loop.
     if (runtime.fsmState.kind !== 'faz8-reveal') return;
   }
 }
@@ -555,18 +546,6 @@ async function runOneFaz8Cycle(
   deps: DestructionDirectorDeps,
   os: OsVariant,
 ): Promise<void> {
-  /**
-   * SPRINT 7 LANE A hook points (Phase 2B Lane A implements):
-   *   - jingle.play() at reveal entry, dispose() at son-ekran exit
-   *     (createRevealJingle() from audio/destruction-audio-faz8.ts)
-   *   - button mount at son-ekran entry, dispose at exit / restart
-   *   - faz7→faz8 cross-fade (FAZ7_TO_FAZ8_CROSSFADE_MS)
-   *   - faz6→faz7 cross-fade (FAZ6_TO_FAZ7_CROSSFADE_MS)
-   * Phase 1 ships a no-op SPRINT7_STUB_REVEAL_JINGLE so the
-   * Faz8RevealRunArgs.jingle REQUIRED field compiles; tekrar/cik button
-   * hosts default to document.body so the TH-S6-03 contract is honoured
-   * even though Lane A has not wired the mount calls yet.
-   */
   const outerSignal = runtime.abortCtrl.signal;
   const container = nonNull(runtime.overlay);
   const destructionAudio = nonNull(runtime.destructionAudio);
@@ -575,16 +554,24 @@ async function runOneFaz8Cycle(
   runtime.fsmState = onFaz8RevealComplete(runtime.fsmState, performance.now());
   runtime.sonEkranAbortCtrl = new AbortController();
   const sonEkranSignal = AbortSignal.any([outerSignal, runtime.sonEkranAbortCtrl.signal]);
-  await startFaz8SonEkran({ os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio, tekrarButtonHost: document.body, cikButtonHost: document.body });
+  await startFaz8SonEkran({
+    os, signal: sonEkranSignal, container, chromeHost: document.body, destructionAudio,
+    tekrarButtonHost: document.body, cikButtonHost: document.body,
+    requestRestart: (): void => requestRestart(runtime), quit: quitAppFromButton,
+  });
   runtime.sonEkranAbortCtrl = null;
   if (outerSignal.aborted) return;
-  if (runtime.fsmState.kind === 'faz8-son-ekran') {
-    runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
-  }
+  if (runtime.fsmState.kind === 'faz8-son-ekran') runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
 }
 
 /** SPRINT 7 LANE A no-op stub jingle. Phase 2B replaces with createRevealJingle(). */
 const SPRINT7_STUB_REVEAL_JINGLE: RevealJingleHandle = { kind: 'reveal-jingle', play: (): void => undefined, dispose: (): void => undefined };
+
+/** Sprint 7 — ÇIK button handler. S10 Path A: window.api.quit() (Sprint 0 IPC). */
+function quitAppFromButton(): void {
+  log.info('destruction-director: ÇIK → window.api.quit()');
+  if (typeof window !== 'undefined' && window.api !== undefined) window.api.quit();
+}
 
 /* ------------------------------------------------------------------------ */
 /* Abort + dispose                                                          */

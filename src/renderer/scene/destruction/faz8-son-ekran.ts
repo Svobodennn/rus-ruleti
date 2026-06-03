@@ -16,29 +16,46 @@
  *   - FAZ8_DISCLAIMER_OWNER (Faz8DisclaimerHandle — Cyrillic primary +
  *     Turkish subtitle; fades in at FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS
  *     = 3sn)
- *   - FAZ8_RESTART_HINT_OWNER (Faz8RestartHintHandle — R-key hint
- *     text; fades in at FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS = 7sn;
- *     Sprint 6 scope: HINT TEXT only — Sprint 7+ adds buttons)
+ *   - FAZ8_TEKRAR_BUTTON_CHROME_OWNER (Sprint 7 — Faz8TekrarButton
+ *     mount, fade-in at FAZ8_BUTTON_FADEIN_START_OFFSET_MS = 2.5sn;
+ *     click/Enter/Space → opts.requestRestart() = director.requestRestart)
+ *   - FAZ8_CIK_BUTTON_CHROME_OWNER (Sprint 7 — Faz8CikButton mount,
+ *     fade-in at same offset; click/Enter/Space → opts.quit() =
+ *     window.api.quit())
+ *   - FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER (Sprint 7 — Enter/Space
+ *     activation gated on activeElement === tekrar/cik button)
  *   - FAZ8_VOLUMETRIC_SMOKE_OWNER (Faz8VolumetricSmokeHandle — Phase
  *     2A may DROP; only mounted when handle constructed)
+ *
+ * Sprint 7 D-2 — restart-hint REMOVED. The Sprint 6 .faz8-restart-hint
+ * chrome (R-key hint text) is no longer mounted; the TEKRAR button is
+ * its visual + functional successor (button label communicates the
+ * action affordance directly — hint text becomes redundant). The
+ * restart-hint chrome file + CSS stay for type continuity until a
+ * future spark / Sprint 8 cleanup; this runner no longer references
+ * mountFaz8RestartHint.
  *
  * Body sequence:
  *   1. Construct + register DoorCloseAccentHandle (audio).
  *   2. Schedule door-close trigger at 2sn via setTimeout (abort-aware).
- *   3. Schedule disclaimer fade-in at 3sn (mount via Lane B fn,
+ *   3. Schedule TEKRAR + ÇIK button mount at 2.5sn (Sprint 7).
+ *   4. Schedule disclaimer fade-in at 3sn (mount via Lane B fn,
  *      override text via i18n-resolved STRINGS values).
- *   4. Schedule restart-hint fade-in at 7sn (mount via Lane B fn).
  *   5. Hold for total 10sn or abort.
  *
  * R key handling: scoped to son-ekran via the existing scene-mount.ts
  * keydown listener which gates on `getState().kind === 'faz8-son-ekran'`.
- * This runner does NOT install/remove a new listener — the binding is
- * window-level and FSM-gated by the director.
+ * This runner does NOT install/remove a new R-key listener — the
+ * binding is window-level and FSM-gated by the director. The Sprint 7
+ * Enter/Space keydown listener is button-scoped (gates on
+ * `document.activeElement === tekrar/cik button.element`) and lives
+ * here (FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER).
  *
  * Reduced-motion gate (designer Phase 2A §16):
  *   - Disclaimer fade-in: Lane B chrome handles via prefers-reduced-
  *     motion @media @keyframes; this runner only toggles the class.
- *   - Restart-hint fade-in: Lane B chrome handles via the same gate.
+ *   - Button fade-in: Lane B CSS @media (prefers-reduced-motion: reduce)
+ *     drops the transition; .is-visible class snap-jumps to opacity 1.
  *   - Door-close audio amplitude -6dB: gated inside
  *     createDoorCloseAccentHandle (Lane A audio factory).
  *   - Volumetric smoke OPTIONAL drop (Phase 2A); if shipped, the smoke
@@ -53,24 +70,30 @@ import type {
 import { createDoorCloseAccentHandle } from '../audio/destruction-audio-faz8.js';
 import {
   DOOR_CLOSE_AUDIO_OWNER,
+  FAZ8_BUTTON_FADEIN_START_OFFSET_MS,
+  FAZ8_CIK_BUTTON_CHROME_OWNER,
+  FAZ8_CIK_BUTTON_FOCUSED_CLASS,
+  FAZ8_CIK_BUTTON_VISIBLE_CLASS,
   FAZ8_DISCLAIMER_OWNER,
   FAZ8_DISCLAIMER_VISIBLE_CLASS,
-  FAZ8_RESTART_HINT_OWNER,
-  FAZ8_RESTART_HINT_VISIBLE_CLASS,
+  FAZ8_TEKRAR_BUTTON_CHROME_OWNER,
+  FAZ8_TEKRAR_BUTTON_FOCUSED_CLASS,
+  FAZ8_TEKRAR_BUTTON_VISIBLE_CLASS,
   FAZ8_VOLUMETRIC_SMOKE_OWNER,
   FAZ8_VOLUMETRIC_SMOKE_MODE,
   FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
   FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS,
   FAZ8_SON_EKRAN_DURATION_MS,
-  FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS,
 } from '../../../shared/scene-destruction-constants.js';
+import { mountFaz8CikButton } from './chrome/faz8-cik-button.js';
 import { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
-import { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
+import { mountFaz8TekrarButton } from './chrome/faz8-tekrar-button.js';
 import { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
 import { t, resolveUserLocale } from '../../i18n/strings.js';
 import type {
+  Faz8CikButtonHandle,
   Faz8DisclaimerHandle,
-  Faz8RestartHintHandle,
+  Faz8TekrarButtonHandle,
   Faz8VolumetricSmokeHandle,
   OsVariant,
 } from './types.js';
@@ -96,9 +119,9 @@ export interface Faz8SonEkranRunArgs {
   readonly signal: AbortSignal;
   readonly container: HTMLElement;
   /**
-   * Host element for Faz 8 son-ekran chrome (disclaimer, restart-hint,
-   * volumetric smoke). Must NOT be the destruction-takeover overlay or
-   * a descendant of it — that overlay is at opacity:0 by son-ekran
+   * Host element for Faz 8 son-ekran chrome (disclaimer, volumetric
+   * smoke). Must NOT be the destruction-takeover overlay or a
+   * descendant of it — that overlay is at opacity:0 by son-ekran
    * entry and would hide all child chrome. Typically document.body.
    */
   readonly chromeHost: HTMLElement;
@@ -106,20 +129,30 @@ export interface Faz8SonEkranRunArgs {
   /**
    * Sprint 7 Phase 1 — TH-S6-03 REQUIRED hostElement for the TEKRAR
    * button mount. Lane A Phase 2B threads the resolved DOM element
-   * (typically same as `chromeHost` per host-kind 'scene-root', but
-   * the type surface forces the caller to be EXPLICIT so the choice
-   * is auditable at the mount call site). Sprint 6 BLOCKER-3 lesson:
-   * never default the host element inside the mount fn.
+   * (typically document.body per Sprint 6 BLOCKER-3 retro — the
+   * destruction-takeover overlay is at opacity:0 by son-ekran entry
+   * and would hide all child chrome). The type surface forces the
+   * caller to be EXPLICIT so the choice is auditable at the mount
+   * call site; never default the host element inside the mount fn.
    */
   readonly tekrarButtonHost: HTMLElement;
   /**
    * Sprint 7 Phase 1 — TH-S6-03 REQUIRED hostElement for the ÇIK
-   * button mount. Mirror of `tekrarButtonHost`. If designer Phase 2A
-   * picks the combined-handle option, Lane A may pass the same
-   * element here and route both buttons through a single mount call;
-   * the split surface is the safer default per directive §9 TASK 3.
+   * button mount. Mirror of `tekrarButtonHost`.
    */
   readonly cikButtonHost: HTMLElement;
+  /**
+   * Sprint 7 — TEKRAR button click / Enter / Space handler. Wired by
+   * the destruction-director to `requestRestart()` (the Sprint 6 R-key
+   * canonical path; renderer-only FSM re-entry, KIOSK-SAFE).
+   */
+  readonly requestRestart: () => void;
+  /**
+   * Sprint 7 — ÇIK button click / Enter / Space handler. Wired by the
+   * destruction-director to `window.api.quit()` (S10 Path A — reuses
+   * the Sprint 0 `app:quit` IPC channel via the preload bridge).
+   */
+  readonly quit: () => void;
 }
 
 /**
@@ -143,8 +176,10 @@ export async function startFaz8SonEkran(
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const handles: Faz8SonEkranHandles = {
     disclaimer: null,
-    restartHint: null,
+    tekrarButton: null,
+    cikButton: null,
     volumetricSmoke: null,
+    detachKeydown: null,
   };
   const onAbort = (): void => {
     for (const id of timers) clearTimeout(id);
@@ -156,19 +191,30 @@ export async function startFaz8SonEkran(
   scheduleSonEkranCues(opts, doorClose, handles, timers);
   await waitForSonEkranEnd(opts.signal, timers);
   opts.signal.removeEventListener('abort', onAbort);
-  // Explicit chrome dispose on natural exit — abort-path dispose is wired
-  // via the chrome mount fns' AbortSignal listeners, but on the 10sn
-  // natural completion the signal never fires, so we walk the bag here.
+  // Explicit chrome dispose on natural exit — abort-path dispose is
+  // wired via the chrome mount fns' AbortSignal listeners, but on the
+  // 10sn natural completion the signal never fires, so we walk the bag
+  // here. The Sprint 7 buttons also detach their owned keydown listener
+  // before element removal so handlers do not target a stale element.
+  handles.detachKeydown?.();
+  handles.tekrarButton?.dispose();
+  handles.cikButton?.dispose();
   handles.disclaimer?.dispose();
-  handles.restartHint?.dispose();
   handles.volumetricSmoke?.dispose();
 }
 
-/** Mutable handle bag — populated as Lane B mount fns are invoked. */
+/**
+ * Mutable handle bag — populated as Lane B mount fns are invoked.
+ * Sprint 7 — restartHint REMOVED (D-2: TEKRAR button replaces the hint
+ * text); tekrarButton + cikButton + detachKeydown added.
+ */
 interface Faz8SonEkranHandles {
   disclaimer: Faz8DisclaimerHandle | null;
-  restartHint: Faz8RestartHintHandle | null;
+  tekrarButton: Faz8TekrarButtonHandle | null;
+  cikButton: Faz8CikButtonHandle | null;
   volumetricSmoke: Faz8VolumetricSmokeHandle | null;
+  /** Document-level Enter/Space listener disposer (button-scoped activation). */
+  detachKeydown: (() => void) | null;
 }
 
 /**
@@ -229,10 +275,13 @@ function scheduleSonEkranCues(
       FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
     ),
   );
+  // Sprint 7 — TEKRAR + ÇIK buttons fade in at 2.5sn (after disclaimer
+  // settles + door-close has fired; before son-ekran natural-completes
+  // at 10sn). The Sprint 6 restart-hint mount is REMOVED (D-2).
   timers.add(
     setTimeout(
-      (): void => mountRestartHintIfActive(opts, handles),
-      FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS,
+      (): void => mountActionButtonsIfActive(opts, handles),
+      FAZ8_BUTTON_FADEIN_START_OFFSET_MS,
     ),
   );
 }
@@ -287,41 +336,170 @@ function mountDisclaimerIfActive(
 }
 
 /**
- * Mount the Faz 8 restart-hint chrome at the 7sn mark with i18n-
- * resolved hint text. The TR variant is the user's primary locale
- * gloss; the RU variant is the diegetic immersion line. Lane B
- * stacks both via the FAZ8_RESTART_HINT_SEPARATOR (middle-dot).
+ * Sprint 7 — Mount the Faz 8 TEKRAR + ÇIK action buttons at the 2.5sn
+ * mark via Lane B chrome mount fns. The two buttons replace the
+ * Sprint 6 restart-hint text (D-2: TEKRAR's label communicates the
+ * affordance directly; ÇIK adds the deliberate quit path).
  *
- * BLOCKER-001 fix: rAF toggles `.is-visible` after mount.
- * BLOCKER-003 fix: uses opts.chromeHost, not opts.container.
+ * Mount sequence:
+ *   1. Mount TEKRAR button (FAZ8_TEKRAR_BUTTON_CHROME_OWNER) into
+ *      opts.tekrarButtonHost (typically document.body — sibling of
+ *      the destruction-takeover overlay which is at opacity:0).
+ *      Click/Enter/Space → opts.requestRestart() = director's
+ *      requestRestart() (Sprint 6 R-key canonical path; KIOSK-SAFE).
+ *   2. Mount ÇIK button (FAZ8_CIK_BUTTON_CHROME_OWNER) into
+ *      opts.cikButtonHost. Click/Enter/Space → opts.quit() =
+ *      window.api.quit() (S10 Path A — reuses Sprint 0 app:quit IPC).
+ *   3. Set tabIndex=0 on both buttons; initial focus = TEKRAR (the
+ *      primary affordance — restart over quit).
+ *   4. Install document-level keydown listener (FAZ8_BUTTON_KEYDOWN_
+ *      LISTENER_OWNER): Enter/Space triggers the focused button's
+ *      onClick (gated on activeElement). The native <button>
+ *      already activates on Enter/Space when focused; this listener
+ *      is the explicit owner-decreed binding so the activation
+ *      surface is unambiguous + survives any future focus-management
+ *      refactor.
+ *   5. Double-rAF visibility toggle (Sprint 6 BLOCKER-1 retro): the
+ *      mount fns return elements at opacity:0 (CSS base); one rAF
+ *      lets the browser paint the opacity:0 frame, the second rAF
+ *      adds the .is-visible class so the CSS transition has a
+ *      definite starting point.
+ *
+ * Dispose: handle on natural completion via startFaz8SonEkran's
+ * explicit walk; on abort, the chrome's own signal listeners dispose.
+ * The keydown listener disposer is stored on handles.detachKeydown
+ * and called on both paths.
  */
-function mountRestartHintIfActive(
+function mountActionButtonsIfActive(
   opts: Faz8SonEkranRunArgs,
   handles: Faz8SonEkranHandles,
 ): void {
   if (opts.signal.aborted) return;
-  const hintRu = t('destruction.faz8.restart.hint', 'ru');
-  const hintTr = t('destruction.faz8.restart.hint', 'tr');
   const locale = resolveUserLocale();
-  const ariaLabel = t('destruction.faz8.restart.hint', locale);
-  const handle = mountFaz8RestartHint({
-    caller: FAZ8_RESTART_HINT_OWNER,
-    hintRu,
-    hintTr,
-    ariaLabel,
+  const tekrarLabel = t('destruction.faz8.button.tekrar.label', locale);
+  const tekrarAria = t('destruction.faz8.button.tekrar.aria-label', locale);
+  const cikLabel = t('destruction.faz8.button.cik.label', locale);
+  const cikAria = t('destruction.faz8.button.cik.aria-label', locale);
+  const tekrarButton = mountFaz8TekrarButton({
+    caller: FAZ8_TEKRAR_BUTTON_CHROME_OWNER,
+    hostElement: opts.tekrarButtonHost,
+    hostKind: 'document.body',
+    onClick: opts.requestRestart,
+    ariaLabel: tekrarAria,
+    labelText: tekrarLabel,
     signal: opts.signal,
-    hostElement: opts.chromeHost,
   });
-  handle.setHintText(hintRu, hintTr);
-  handles.restartHint = handle;
-  // Trigger CSS fade-in: one rAF so the browser paints opacity:0
-  // (CSS base state) first, then the is-visible class drives 0→0.4.
-  // Sprint 7 Phase 1 TH-S6-02: class name sourced from SSOT constant
-  // FAZ8_RESTART_HINT_VISIBLE_CLASS (= 'is-visible').
-  requestAnimationFrame((): void => {
-    if (!opts.signal.aborted) {
-      handle.element.classList.add(FAZ8_RESTART_HINT_VISIBLE_CLASS);
+  const cikButton = mountFaz8CikButton({
+    caller: FAZ8_CIK_BUTTON_CHROME_OWNER,
+    hostElement: opts.cikButtonHost,
+    hostKind: 'document.body',
+    onClick: opts.quit,
+    ariaLabel: cikAria,
+    labelText: cikLabel,
+    signal: opts.signal,
+  });
+  handles.tekrarButton = tekrarButton;
+  handles.cikButton = cikButton;
+  configureButtonTabOrderAndFocus(tekrarButton, cikButton);
+  handles.detachKeydown = installButtonKeydownListener(opts, tekrarButton, cikButton);
+  triggerButtonVisibility(opts, tekrarButton, cikButton);
+}
+
+/**
+ * Set tabIndex=0 + focus styling class hooks on both buttons. Initial
+ * focus lands on TEKRAR (primary affordance). The activeElement set
+ * here drives the keydown listener gate so the Enter/Space owner
+ * binding is deterministic from the first frame.
+ */
+function configureButtonTabOrderAndFocus(
+  tekrarButton: Faz8TekrarButtonHandle,
+  cikButton: Faz8CikButtonHandle,
+): void {
+  tekrarButton.element.tabIndex = 0;
+  cikButton.element.tabIndex = 0;
+  // Defensive focus call — Lane B mount fn may already focus, but the
+  // explicit call here documents the owner intent and idempotently
+  // settles the initial activeElement before the keydown listener
+  // installs. Wrapped in a try/catch since focus() on a not-yet-paint
+  // element in jsdom test envs throws.
+  try {
+    tekrarButton.element.focus();
+  } catch {
+    // Test env or not-yet-painted — focus settles on first paint.
+  }
+}
+
+/**
+ * Install the document-level Enter/Space keydown listener owned by
+ * FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER. The listener gates on
+ * `document.activeElement === tekrar/cik button.element` so it ONLY
+ * fires when one of the buttons has keyboard focus. Returns a
+ * disposer the caller invokes on dispose / abort.
+ *
+ * The native <button> element already activates on Enter/Space when
+ * focused; this listener is the explicit owner-decreed binding so
+ * the activation path is unambiguous + auditable. It also drives
+ * focus-class toggles (FAZ8_TEKRAR_BUTTON_FOCUSED_CLASS /
+ * FAZ8_CIK_BUTTON_FOCUSED_CLASS) so the keyboard-focus ring is
+ * symmetric with mouse-focus.
+ */
+function installButtonKeydownListener(
+  opts: Faz8SonEkranRunArgs,
+  tekrarButton: Faz8TekrarButtonHandle,
+  cikButton: Faz8CikButtonHandle,
+): () => void {
+  const onKey = (ev: KeyboardEvent): void => {
+    if (opts.signal.aborted) return;
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const active = document.activeElement;
+    if (active === tekrarButton.element) {
+      ev.preventDefault();
+      opts.requestRestart();
+    } else if (active === cikButton.element) {
+      ev.preventDefault();
+      opts.quit();
     }
+  };
+  const onFocusIn = (): void => {
+    const active = document.activeElement;
+    tekrarButton.element.classList.toggle(
+      FAZ8_TEKRAR_BUTTON_FOCUSED_CLASS,
+      active === tekrarButton.element,
+    );
+    cikButton.element.classList.toggle(
+      FAZ8_CIK_BUTTON_FOCUSED_CLASS,
+      active === cikButton.element,
+    );
+  };
+  document.addEventListener('keydown', onKey);
+  document.addEventListener('focusin', onFocusIn);
+  // Sync initial focus state class (TEKRAR has initial focus).
+  onFocusIn();
+  return (): void => {
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('focusin', onFocusIn);
+  };
+}
+
+/**
+ * Double-rAF visibility toggle (Sprint 6 BLOCKER-1 retro). The chrome
+ * mount fns return elements at opacity:0 (CSS base state). The first
+ * rAF lets the browser commit the opacity:0 frame so the CSS
+ * transition has a definite starting point; the second rAF adds the
+ * .is-visible class which drives the CSS transition 0 → 1.
+ */
+function triggerButtonVisibility(
+  opts: Faz8SonEkranRunArgs,
+  tekrarButton: Faz8TekrarButtonHandle,
+  cikButton: Faz8CikButtonHandle,
+): void {
+  requestAnimationFrame((): void => {
+    if (opts.signal.aborted) return;
+    requestAnimationFrame((): void => {
+      if (opts.signal.aborted) return;
+      tekrarButton.element.classList.add(FAZ8_TEKRAR_BUTTON_VISIBLE_CLASS);
+      cikButton.element.classList.add(FAZ8_CIK_BUTTON_VISIBLE_CLASS);
+    });
   });
 }
 
