@@ -31,6 +31,27 @@
  *     IPC exit channel — the joke app is a single-window kiosk; quitting
  *     would dump the user back to their OS shell which kills the bit.
  *
+ * Sprint 7 Phase 1 — FSM extension scaffold (Lane A Phase 2B implements):
+ *   - DirectorRuntime carries a `revealJingle: RevealJingleHandle | null`
+ *     field (constructed at faz8-reveal entry via createRevealJingle(),
+ *     disposed at son-ekran exit). Phase 1 leaves it null + uses the
+ *     SPRINT7_STUB_REVEAL_JINGLE no-op so the type contract compiles.
+ *   - Five Lane A hook points commented inside runOneFaz8Cycle:
+ *       (a) jingle.play() at reveal entry — replace SPRINT7_STUB_REVEAL_JINGLE
+ *           with createRevealJingle() from audio/destruction-audio-faz8.ts;
+ *           call jingle.play() at REVEAL_JINGLE_OFFSET_MS into reveal.
+ *       (b) button mount at son-ekran entry — replace document.body
+ *           default tekrar/cik hosts with the apartment-scene-root sibling
+ *           per Faz8ButtonHostKind 'scene-root'.
+ *       (c) button dispose at son-ekran exit / restart — call
+ *           handle.dispose() before the loop iterates or returns.
+ *       (d) faz7→faz8 cross-fade — schedule a transition timer owned
+ *           by FAZ7_TO_FAZ8_TRANSITION_TIMER_OWNER + toggle the
+ *           SCENE_TRANSITION_FADE_OUT_CLASS on the faz7 chrome.
+ *       (e) faz6→faz7 cross-fade — schedule a transition timer owned
+ *           by FAZ6_TO_FAZ7_TRANSITION_TIMER_OWNER + toggle the
+ *           same CSS class on the faz6 chrome.
+ *
  * ESC-hold escape:
  *   - Subscribes to `window.api.onEscapeHold(onProgress, onComplete)`. On
  *     completion the director calls `abort('esc-hold')` which short-
@@ -139,6 +160,15 @@ interface DirectorRuntime {
   observer: MutationObserver | null;
   escDispose: (() => void) | null;
   eventHandler: ((ev: Event) => void) | null;
+  /**
+   * Sprint 7 — Faz 8 reveal jingle handle. Constructed at reveal
+   * entry via createRevealJingle() (Lane A Phase 2B); Phase 1 leaves
+   * this null and uses the SPRINT7_STUB_REVEAL_JINGLE no-op via the
+   * Faz8RevealRunArgs.jingle field directly. Lane A wires the real
+   * handle here so dispose() can be threaded into disposeSequence
+   * Artifacts() — the jingle ADSR tail must not bleed past teardown.
+   */
+  revealJingle: RevealJingleHandle | null;
 }
 
 /** Time before the MutationObserver fallback engages if no bang-fired event arrived. */
@@ -179,6 +209,7 @@ function createRuntime(): DirectorRuntime {
     observer: null,
     escDispose: null,
     eventHandler: null,
+    revealJingle: null,
   };
 }
 
