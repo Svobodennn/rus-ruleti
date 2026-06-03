@@ -53,11 +53,21 @@ import {
   FAZ8_DOOR_CLOSE_RELEASE_MS,
   FAZ8_DOOR_CLOSE_SUSTAIN_RATIO,
   PREFERS_REDUCED_MOTION_QUERY,
+  REVEAL_JINGLE_AUDIO_OWNER,
+  REVEAL_JINGLE_ATTACK_MS,
+  REVEAL_JINGLE_DECAY_MS,
+  REVEAL_JINGLE_PEAK_DB,
+  REVEAL_JINGLE_RELEASE_MS,
+  REVEAL_JINGLE_SUSTAIN_LEVEL,
 } from '../../../shared/scene-destruction-constants.js';
 import type {
   AmbientRecoveryHandle,
   DoorCloseAccentHandle,
 } from './destruction-audio.js';
+import type {
+  RevealJingleHandle,
+  RevealJingleOptions,
+} from '../destruction/types.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -402,4 +412,60 @@ function attachAbortListener(
     return;
   }
   signal.addEventListener('abort', (): void => handle.dispose(), { once: true });
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sprint 7 — Reveal jingle handle factory (Faz 8 reveal)                   */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Factory for RevealJingleHandle — Sprint 7 Phase 1 STUB.
+ *
+ * Constructs the Faz 8 reveal jingle audio handle. The handle plays an
+ * ADSR chord synth that rings out across the reveal envelope (a wry
+ * musical cue that lands the joke twist — not triumphant resolution,
+ * not alert tone). Lane A Phase 2B implements the body — Phase 1 ships
+ * a no-op stub so the type surface is honoured and the Faz8Reveal
+ * runner can be wired with a non-null handle.
+ *
+ * Synth recipe (Lane A Phase 2B SPEC):
+ *   - Per chord note in REVEAL_JINGLE_CHORD_NOTES (designer Phase 2A
+ *     FILL): create OscillatorNode with sine waveform at the note
+ *     frequency.
+ *   - Sum oscillators into a shared GainNode envelope.
+ *   - ADSR via scheduled gain ramps:
+ *       attack  : 0 → linearGain(REVEAL_JINGLE_PEAK_DB)
+ *                 over REVEAL_JINGLE_ATTACK_MS
+ *       decay   : peak → peak * REVEAL_JINGLE_SUSTAIN_LEVEL
+ *                 over REVEAL_JINGLE_DECAY_MS
+ *       release : sustain → 0 over REVEAL_JINGLE_RELEASE_MS
+ *   - Connect envelope GainNode → opts.destinationNode.
+ *   - Reduced-motion: -6dB amplitude clamp (mirror DoorCloseAccent
+ *     pattern).
+ *   - dispose() snaps gain to 0 + osc.stop() + disconnect graph.
+ *
+ * TH-S6-04 (universal owner enforcement): runtime caller-equality
+ * check is the defence-in-depth fallback for `as`-cast bypass of the
+ * type-level narrowing on opts.caller.
+ *
+ * Phase 1 STUB BODY: returns a handle with play()/dispose() as
+ * no-ops (after the runtime caller check). Lane A Phase 2B replaces
+ * with the actual synth graph.
+ */
+export function createRevealJingle(opts: RevealJingleOptions): RevealJingleHandle {
+  if (opts.caller !== REVEAL_JINGLE_AUDIO_OWNER) {
+    throw new Error(
+      `[reveal-jingle] caller decree violation: expected ${REVEAL_JINGLE_AUDIO_OWNER}, got ${String(opts.caller)}`,
+    );
+  }
+  log.info('destruction-audio-faz8: createRevealJingle (Sprint 7 Phase 1 STUB)', {
+    caller: opts.caller, peakDb: REVEAL_JINGLE_PEAK_DB, attackMs: REVEAL_JINGLE_ATTACK_MS,
+    decayMs: REVEAL_JINGLE_DECAY_MS, sustain: REVEAL_JINGLE_SUSTAIN_LEVEL,
+    releaseMs: REVEAL_JINGLE_RELEASE_MS,
+  });
+  return {
+    kind: 'reveal-jingle',
+    play: (): void => { /* Lane A Phase 2B — implement ADSR chord synth */ },
+    dispose: (): void => { /* Lane A Phase 2B — dispose synth graph */ },
+  };
 }
