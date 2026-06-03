@@ -74,7 +74,12 @@ import type { AudioBedHandle } from '../audio/audio-bed.js';
 import type { BulbLightHandle } from '../lighting.js';
 import { mountDestructionAudio } from '../audio/destruction-audio.js';
 import type { DestructionAudioHandle } from '../audio/destruction-audio.js';
-import { AMBIENT_RECOVERY_AUDIO_OWNER, DOOR_CLOSE_AUDIO_OWNER } from '../../../shared/scene-destruction-constants.js';
+import { createRevealJingle } from '../audio/destruction-audio-faz8.js';
+import {
+  AMBIENT_RECOVERY_AUDIO_OWNER,
+  DOOR_CLOSE_AUDIO_OWNER,
+  REVEAL_JINGLE_AUDIO_OWNER,
+} from '../../../shared/scene-destruction-constants.js';
 import { runFaz0 } from './faz0-bang.js';
 import { runFaz1 } from './faz1-critical-dialog.js';
 import { runFaz2 } from './faz2-takeover.js';
@@ -248,8 +253,7 @@ function attachDetectionPaths(
 
 /** Subscribe to the document CustomEvent. */
 function attachBangFiredListener(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps,
 ): void {
   const handler = (ev: Event): void => {
     const detail = (ev as CustomEvent<BangFiredEventDetail>).detail;
@@ -280,9 +284,7 @@ function attachMutationObserverFallback(
 
 /** MutationObserver callback — fires the sequence if `is-fired` is present. */
 function observeBangOverlay(
-  runtime: DirectorRuntime,
-  overlay: Element,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, overlay: Element, deps: DestructionDirectorDeps,
 ): void {
   if (runtime.started) return;
   if (overlay.classList.contains(BANG_FIRED_CLASS)) {
@@ -297,10 +299,7 @@ function attachEscapeHoldSubscription(runtime: DirectorRuntime): void {
     runtime.escDispose = (): void => undefined;
     return;
   }
-  runtime.escDispose = window.api.onEscapeHold(
-    (): void => undefined,
-    (): void => abortSequence(runtime, 'esc-hold'),
-  );
+  runtime.escDispose = window.api.onEscapeHold((): void => undefined, (): void => abortSequence(runtime, 'esc-hold'));
 }
 
 /* ------------------------------------------------------------------------ */
@@ -358,16 +357,13 @@ async function resolveOsAndUsername(): Promise<{
  * dispose chain reaches every node.
  */
 async function prepareOverlay(
-  runtime: DirectorRuntime,
-  deps: DestructionDirectorDeps,
+  runtime: DirectorRuntime, deps: DestructionDirectorDeps,
 ): Promise<void> {
   runtime.overlay = createOverlayElement();
   document.body.appendChild(runtime.overlay);
   runtime.apartmentBleed = mountApartmentBleedOverlay(deps.lobbySnapshotGetter());
   runtime.destructionAudio = mountDestructionAudio({
-    context: deps.audio.context,
-    master: deps.audio.master,
-    insertGlobalFilter: deps.audio.insertGlobalFilter,
+    context: deps.audio.context, master: deps.audio.master, insertGlobalFilter: deps.audio.insertGlobalFilter,
   });
   // Yield a tick so the overlay paints before Faz 0 cues fire (camera shake
   // and bulb darken otherwise compete with the same frame).
@@ -552,7 +548,14 @@ async function runOneFaz8Cycle(
   const outerSignal = runtime.abortCtrl.signal;
   const container = nonNull(runtime.overlay);
   const destructionAudio = nonNull(runtime.destructionAudio);
-  await startFaz8Reveal({ os, signal: outerSignal, container, destructionAudio, camera: deps.camera, lighting: deps.lighting, jingle: SPRINT7_STUB_REVEAL_JINGLE });
+  // Sprint 7 — construct fresh reveal jingle handle per cycle. The prior
+  // cycle's handle (if any) was disposed in requestRestart() so the new
+  // ADSR graph allocates clean. Stored on runtime so requestRestart can
+  // walk it down symmetric with the Sprint 6 audio handles.
+  runtime.revealJingle = createRevealJingle({
+    caller: REVEAL_JINGLE_AUDIO_OWNER, audioContext: destructionAudio.context, destinationNode: destructionAudio.destination,
+  });
+  await startFaz8Reveal({ os, signal: outerSignal, container, destructionAudio, camera: deps.camera, lighting: deps.lighting, jingle: runtime.revealJingle });
   if (outerSignal.aborted) return;
   runtime.fsmState = onFaz8RevealComplete(runtime.fsmState, performance.now());
   runtime.sonEkranAbortCtrl = new AbortController();
@@ -566,9 +569,6 @@ async function runOneFaz8Cycle(
   if (outerSignal.aborted) return;
   if (runtime.fsmState.kind === 'faz8-son-ekran') runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
 }
-
-/** SPRINT 7 LANE A no-op stub jingle. Phase 2B replaces with createRevealJingle(). */
-const SPRINT7_STUB_REVEAL_JINGLE: RevealJingleHandle = { kind: 'reveal-jingle', play: (): void => undefined, dispose: (): void => undefined };
 
 /** Sprint 7 — ÇIK button handler. S10 Path A: window.api.quit() (Sprint 0 IPC). */
 function quitAppFromButton(): void {
@@ -638,9 +638,20 @@ function requestRestart(runtime: DirectorRuntime): void {
   }
   log.info('destruction-director: requestRestart fired');
   // Dispose prior reveal + son-ekran audio handles so the next cycle
-  // re-allocates clean. Chrome handles auto-dispose via abort listeners.
+  // re-allocates clean. Sprint 7 — symmetric jingle dispose (the ADSR
+  // tail must not bleed into the next cycle). Sprint 7 TEKRAR / ÇIK
+  // button chrome handles + the FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER
+  // listener auto-dispose via the sonEkranSignal abort listener
+  // wired inside startFaz8SonEkran (chrome mount fns +
+  // installButtonKeydownListener). Sprint 7 scene transition timers
+  // (Faz 6→7, Faz 7→8) are already-completed by the time the FSM
+  // reaches faz8-son-ekran — nothing to cancel.
+  // KIOSK SAFETY (S9): no window.close / app.quit / IPC exit channel
+  // is touched here — the restart cycle is purely FSM + signal abort.
   runtime.destructionAudio?.getOwnedAudio(AMBIENT_RECOVERY_AUDIO_OWNER)?.dispose();
   runtime.destructionAudio?.getOwnedAudio(DOOR_CLOSE_AUDIO_OWNER)?.dispose();
+  runtime.revealJingle?.dispose();
+  runtime.revealJingle = null;
   runtime.fsmState = onFaz8RestartRequested(runtime.fsmState, performance.now());
   runtime.sonEkranAbortCtrl?.abort();
 }
@@ -659,6 +670,9 @@ function cancelFallback(runtime: DirectorRuntime): void {
 
 /** Dispose every artifact the sequence allocated. Safe to call multiple times. */
 function disposeSequenceArtifacts(runtime: DirectorRuntime): void {
+  // Sprint 7 — reveal jingle disposed BEFORE destructionAudio so the
+  // ADSR tail's osc.stop() lands on a still-live AudioContext.
+  if (runtime.revealJingle !== null) { runtime.revealJingle.dispose(); runtime.revealJingle = null; }
   if (runtime.destructionAudio !== null) {
     runtime.destructionAudio.dispose();
     runtime.destructionAudio = null;
@@ -702,8 +716,6 @@ function disposeDirector(runtime: DirectorRuntime): void {
  * sequence's ordering (prepareOverlay assigns before runFazSequence reads).
  */
 function nonNull<T>(value: T | null): T {
-  if (value === null) {
-    throw new Error('destruction-director: invariant violated — null artifact');
-  }
+  if (value === null) throw new Error('destruction-director: invariant violated — null artifact');
   return value;
 }
