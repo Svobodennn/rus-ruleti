@@ -1454,3 +1454,65 @@
     transform: translate(-50%, -80px) scale(1.1);
   }
 }
+
+/* ========================================================================== */
+/* SPRINT 7 — SCENE TRANSITION CROSS-FADE CLASSES                             */
+/*                                                                            */
+/* Generic fade-in / fade-out classes for Faz 6 → Faz 7 → Faz 8 cross-fades. */
+/* Lane A (destruction-director / faz-runner) toggles `.is-transition-fading- */
+/* out` on the outgoing surface and `.is-transition-fading-in` on the incoming*/
+/* surface during the cross-fade window, then removes the classes after the   */
+/* transition completes.                                                      */
+/*                                                                            */
+/* Durations are baked-in defaults aligned to SSOT (scene-destruction-        */
+/* constants.ts):                                                             */
+/*   - fade-out 200ms (FAZ7_TO_FAZ8_CROSSFADE_MS — longer fade-out reads as   */
+/*     "the prior scene yielding", not a hard cut).                           */
+/*   - fade-in 150ms (FAZ6_TO_FAZ7_CROSSFADE_MS — slightly shorter so the     */
+/*     incoming surface settles before the outgoing fully clears, eliminating */
+/*     the perceived "blank frame" between scenes).                           */
+/* Lane A MAY override the duration per-transition by writing inline custom   */
+/* properties (`--scene-transition-fade-out-ms`, `--scene-transition-fade-    */
+/* in-ms`) on the element before toggling the class; the CSS reads via       */
+/* `var(...)` with the baked-in defaults as fallbacks.                        */
+/*                                                                            */
+/* Easing is SCENE_TRANSITION_EASING (cubic-bezier(0.4, 0.0, 0.2, 1)) —      */
+/* Material Design "standard" curve, the canonical natural-feeling ease for   */
+/* opacity transitions in the 100-300ms window.                               */
+/*                                                                            */
+/* Constants consumed (SSOT in src/shared/scene-destruction-constants.ts):    */
+/*   SCENE_TRANSITION_FADE_OUT_CLASS  = 'is-transition-fading-out'           */
+/*   SCENE_TRANSITION_FADE_IN_CLASS   = 'is-transition-fading-in'            */
+/*   SCENE_TRANSITION_EASING          = 'cubic-bezier(0.4, 0.0, 0.2, 1)'     */
+/*   FAZ7_TO_FAZ8_CROSSFADE_MS        = 200                                  */
+/*   FAZ6_TO_FAZ7_CROSSFADE_MS        = 150                                  */
+/* ========================================================================== */
+
+.is-transition-fading-out {
+  opacity: 0;
+  transition: opacity var(--scene-transition-fade-out-ms, 200ms)
+              cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+.is-transition-fading-in {
+  opacity: 1;
+  transition: opacity var(--scene-transition-fade-in-ms, 150ms)
+              cubic-bezier(0.4, 0.0, 0.2, 1);
+}
+
+/* Sprint 7 reduced-motion gate — scene transitions.
+ *
+ * Snap to end-state instantly: fading-out drops to opacity 0, fading-in
+ * jumps to opacity 1. Motion-sensitive users see a hard cut between
+ * scenes — the cross-fade as a visual envelope is the gated motion.
+ *
+ * Kept separate from the Sprint 6 + Sprint 7 button gate blocks above so
+ * the boundary stays legible in code review; all three additive blocks
+ * coexist (a single combined block would also work but lose the named-
+ * section semantic). */
+@media (prefers-reduced-motion: reduce) {
+  .is-transition-fading-out,
+  .is-transition-fading-in {
+    transition: none;
+  }
+}
