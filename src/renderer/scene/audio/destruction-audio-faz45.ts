@@ -99,10 +99,24 @@ function fillPinkNoise(data: Float32Array): void {
 /* HDD-grind handle — Faz 4 file-wipe ambient brown-noise band-pass         */
 /* ------------------------------------------------------------------------ */
 
-/** HDD-grind peak linear gain when reduced-motion is NOT set. */
-const HDD_GRIND_PEAK_GAIN = 0.6;
-/** HDD-grind reduced-motion ceiling — designer §15 (rumble downgrades). */
-const HDD_GRIND_REDUCED_MOTION_MAX = 0.3;
+/**
+ * HDD-grind peak linear gain.
+ *
+ * Sprint 8 §24 tune: -22 dBFS ≈ 0.08 linear (18dB drop from Sprint 5's
+ * -4dB / 0.6 placeholder). Atmospheric source ("disk wipe in
+ * progress" texture) — should sit below perceptual foreground but
+ * above felt-presence floor. -22 dBFS holds the felt-texture without
+ * masking discrete cues (BSOD beep, dialog).
+ */
+const HDD_GRIND_PEAK_GAIN = 0.08;
+/**
+ * HDD-grind reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.08 × 0.5 = 0.04 linear ≈ -28 dBFS — atmospheric
+ * texture survives but loses ≈30% perceived loudness.
+ */
+const HDD_GRIND_REDUCED_MOTION_MAX = 0.04;
 /** HDD-grind brown-noise buffer length (sec). Long enough to loop seamlessly. */
 const HDD_GRIND_BUFFER_LENGTH_SEC = 4;
 /** HDD-grind band-pass filter centre frequency (Hz). Mid-band disk read. */
@@ -250,10 +264,25 @@ function buildHDDGrindNodes(context: AudioContext, destination: GainNode): HDDGr
 /* Fan-overdrive handle — Faz 4-6 pink-noise high-pass sustained             */
 /* ------------------------------------------------------------------------ */
 
-/** Fan-overdrive peak linear gain when reduced-motion is NOT set. */
-const FAN_OVERDRIVE_PEAK_GAIN = 0.8;
-/** Fan-overdrive reduced-motion ceiling. */
-const FAN_OVERDRIVE_REDUCED_MOTION_MAX = 0.5;
+/**
+ * Fan-overdrive peak linear gain.
+ *
+ * Sprint 8 §24 tune: -25 dBFS ≈ 0.056 linear (23dB drop from Sprint 5's
+ * -2dB / 0.8 placeholder). Atmospheric source (cooling fan ramped
+ * past design RPM) — the 4-sn ramp simulates progressive degradation,
+ * but the target peak must sit below the foreground so the BSOD beep
+ * and the dialog still read cleanly above it. ≈0.06 chosen as the
+ * 2-decimal-place rounding of 0.056 (saves a constant edit if the
+ * 1dB tolerance permits — §24 spec says ±1dB).
+ */
+const FAN_OVERDRIVE_PEAK_GAIN = 0.06;
+/**
+ * Fan-overdrive reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.06 × 0.5 = 0.03 linear ≈ -30 dBFS.
+ */
+const FAN_OVERDRIVE_REDUCED_MOTION_MAX = 0.03;
 /** Fan-overdrive pink-noise buffer length (sec). Long for smooth loop. */
 const FAN_OVERDRIVE_BUFFER_LENGTH_SEC = 4;
 /** Fan-overdrive high-pass filter cutoff (Hz). 1.5kHz = "thin air wind". */
@@ -383,10 +412,24 @@ function buildFanOverdriveNodes(context: AudioContext, destination: GainNode): F
 /* Electrical-buzz handle — Faz 5 disk-format 60Hz mains-hum ambient        */
 /* ------------------------------------------------------------------------ */
 
-/** Electrical-buzz fundamental peak gain (linear) — designer §15 Faz 5. */
-const ELECTRICAL_BUZZ_PEAK_GAIN = 1.0;
-/** Electrical-buzz reduced-motion ceiling — designer §15 (-6dB). */
-const ELECTRICAL_BUZZ_REDUCED_MOTION_MAX = 0.5;
+/**
+ * Electrical-buzz fundamental peak gain (linear).
+ *
+ * Sprint 8 §24 tune: -20 dBFS ≈ 0.1 linear (20dB drop from Sprint 5's
+ * 0dB / 1.0 placeholder — strongly divergent; 1.0 peak made the buzz
+ * a discrete foreground cue rather than the "felt-not-heard rumble"
+ * the designer §15 intent specifies). At 0.1 linear the 60Hz
+ * fundamental sits below perceptual foreground but provides the
+ * "mains hum under everything" texture across Faz 5.
+ */
+const ELECTRICAL_BUZZ_PEAK_GAIN = 0.1;
+/**
+ * Electrical-buzz reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.1 × 0.5 = 0.05 linear ≈ -26 dBFS.
+ */
+const ELECTRICAL_BUZZ_REDUCED_MOTION_MAX = 0.05;
 /** Harmonic amplitude relative to fundamental — -12dB ≈ 0.25 linear. */
 const ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO = 0.25;
 /** Attack / release ramps (sec). */

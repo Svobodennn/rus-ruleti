@@ -80,8 +80,18 @@ const WIN_CHORD_HZ_LOW = 400;
 const WIN_CHORD_STAGGER_MS = 100;
 /** Path to optional bang.ogg asset (may be absent during dev). */
 const BANG_OGG_PATH = 'assets/audio/bang.ogg';
-/** Procedural fallback bang burst gain (-3dB ~ 0.708 linear). */
-const BANG_FALLBACK_GAIN = 0.708;
+/**
+ * Procedural fallback bang burst peak gain.
+ *
+ * Sprint 8 §24 tune: -15 dBFS ≈ 0.178 linear (12dB drop from Sprint 4's
+ * -3 dB / 0.708 placeholder). Reasoning: bang is a functional cue but
+ * the -3dB peak was over-hot against the -24dB ambient baseline; -15
+ * dBFS still reads as percussive trigger-punctuation while leaving
+ * 10dB of clipping headroom above the bed. The ADSR envelope shape
+ * (50ms attack via highpass + 200ms linearRampToValueAtTime to 0)
+ * stays the same — only the peak amplitude moves.
+ */
+const BANG_FALLBACK_GAIN = 0.18;
 /** Procedural fallback bang burst total length (50ms attack + 200ms decay). */
 const BANG_FALLBACK_LENGTH_SEC = 0.25;
 /** High-pass cutoff for the procedural fallback so it reads "gunshot" not "wind". */

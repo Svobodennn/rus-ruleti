@@ -122,6 +122,22 @@ export const SFX_COCK_ENVELOPE_MS = 80;
 /** Empty-click gain-to-zero envelope duration (ms). */
 export const SFX_EMPTY_CLICK_ENVELOPE_MS = 60;
 
+/**
+ * Empty-click peak linear gain.
+ *
+ * Sprint 8 §24 NEW peak constant (Phase 1 only encoded the envelope
+ * duration; peak amplitude was an in-module literal `EMPTY_CLICK_GAIN
+ * = 0.5` in revolver-sfx.ts, which read ≈ -6 dBFS — over-hot against
+ * the -24 dBFS ambient baseline). Target: -18 dBFS ≈ 0.126 linear.
+ *
+ * The click is FUNCTIONAL — it IS the empty-chamber affordance — so
+ * the amplitude tune balances "audible affordance" vs "doesn't
+ * dominate the room". -18 dBFS sits in the soft-cue floor (audible in
+ * quiet listening, doesn't dominate ambient bed). Reduced-motion:
+ * UNCHANGED (functional cue per §24 D-2).
+ */
+export const SFX_EMPTY_CLICK_PEAK_GAIN = 0.13;
+
 /** Bang noise-burst gain-to-zero envelope duration (ms). */
 export const SFX_BANG_ENVELOPE_MS = 200;
 

@@ -33,6 +33,7 @@ import {
   SFX_CHAIR_CREAK_ENVELOPE_MS,
   SFX_COCK_ENVELOPE_MS,
   SFX_EMPTY_CLICK_ENVELOPE_MS,
+  SFX_EMPTY_CLICK_PEAK_GAIN,
   SFX_HEARTBEAT_ENVELOPE_MS,
   SFX_SWEAT_DRIP_ENVELOPE_MS,
 } from '../../../shared/scene-audio-constants';
@@ -142,7 +143,15 @@ function playCockBurst(
 /* ------------------------------------------------------------------------ */
 
 const EMPTY_CLICK_FREQ_HZ = 1200;
-const EMPTY_CLICK_GAIN = 0.5;
+/**
+ * Empty-click peak linear gain.
+ *
+ * Sprint 8 §24 alias for SFX_EMPTY_CLICK_PEAK_GAIN — keeps the call site
+ * symmetric with the other revolver-sfx module-level constants while
+ * the SSOT for the design value lives in scene-audio-constants.ts (so
+ * tests + designer §24 alignment can reference a single import).
+ */
+const EMPTY_CLICK_GAIN = SFX_EMPTY_CLICK_PEAK_GAIN;
 
 /** Empty-click sound — short percussive sine burst at 1.2kHz. */
 export function createEmptyClickSound(
