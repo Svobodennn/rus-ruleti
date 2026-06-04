@@ -24,15 +24,20 @@
  * the closure so subsequent setVolume/setGain calls cannot exceed the cap.
  */
 
-import {
-  FAZ5_ELECTRICAL_BUZZ_HZ,
-  PREFERS_REDUCED_MOTION_QUERY,
-} from '../../../shared/scene-destruction-constants.js';
+import { PREFERS_REDUCED_MOTION_QUERY } from '../../../shared/scene-destruction-constants.js';
 import type {
   ElectricalBuzzHandle,
   FanOverdriveHandle,
   HDDGrindHandle,
 } from './destruction-audio';
+import {
+  buildElectricalBuzzNodes,
+  type ElectricalBuzzNodes,
+} from './destruction-audio-faz45-buzz.js';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -99,10 +104,24 @@ function fillPinkNoise(data: Float32Array): void {
 /* HDD-grind handle — Faz 4 file-wipe ambient brown-noise band-pass         */
 /* ------------------------------------------------------------------------ */
 
-/** HDD-grind peak linear gain when reduced-motion is NOT set. */
-const HDD_GRIND_PEAK_GAIN = 0.6;
-/** HDD-grind reduced-motion ceiling — designer §15 (rumble downgrades). */
-const HDD_GRIND_REDUCED_MOTION_MAX = 0.3;
+/**
+ * HDD-grind peak linear gain.
+ *
+ * Sprint 8 §24 tune: -22 dBFS ≈ 0.08 linear (18dB drop from Sprint 5's
+ * -4dB / 0.6 placeholder). Atmospheric source ("disk wipe in
+ * progress" texture) — should sit below perceptual foreground but
+ * above felt-presence floor. -22 dBFS holds the felt-texture without
+ * masking discrete cues (BSOD beep, dialog).
+ */
+const HDD_GRIND_PEAK_GAIN = 0.08;
+/**
+ * HDD-grind reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.08 × 0.5 = 0.04 linear ≈ -28 dBFS — atmospheric
+ * texture survives but loses ≈30% perceived loudness.
+ */
+const HDD_GRIND_REDUCED_MOTION_MAX = 0.04;
 /** HDD-grind brown-noise buffer length (sec). Long enough to loop seamlessly. */
 const HDD_GRIND_BUFFER_LENGTH_SEC = 4;
 /** HDD-grind band-pass filter centre frequency (Hz). Mid-band disk read. */
@@ -168,6 +187,8 @@ function startHDDGrind(
   const now = context.currentTime;
   nodes.source.start(now);
   nodes.lfo.start(now);
+  // Sprint 8 M2 — voice-counter increment per audio source (source + lfo = 2).
+  try { incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
   nodes.carrierGain.gain.setValueAtTime(0, now);
   nodes.carrierGain.gain.linearRampToValueAtTime(peakGain, now + HDD_GRIND_ATTACK_SEC);
 }
@@ -204,6 +225,9 @@ function stopHDDGrind(state: HDDGrindState, nodes: HDDGrindNodes, context: Audio
 
 function disposeHDDGrind(state: HDDGrindState, nodes: HDDGrindNodes): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose. Only
+  // decrement if start() ran (otherwise the increment never fired).
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     nodes.source.disconnect();
@@ -213,6 +237,9 @@ function disposeHDDGrind(state: HDDGrindState, nodes: HDDGrindNodes): void {
     nodes.lfoGain.disconnect();
   } catch {
     // Already disconnected — safe.
+  }
+  if (wasStarted) {
+    try { decrementVoiceCount(); decrementVoiceCount(); } catch { /* defensive */ }
   }
 }
 
@@ -250,10 +277,25 @@ function buildHDDGrindNodes(context: AudioContext, destination: GainNode): HDDGr
 /* Fan-overdrive handle — Faz 4-6 pink-noise high-pass sustained             */
 /* ------------------------------------------------------------------------ */
 
-/** Fan-overdrive peak linear gain when reduced-motion is NOT set. */
-const FAN_OVERDRIVE_PEAK_GAIN = 0.8;
-/** Fan-overdrive reduced-motion ceiling. */
-const FAN_OVERDRIVE_REDUCED_MOTION_MAX = 0.5;
+/**
+ * Fan-overdrive peak linear gain.
+ *
+ * Sprint 8 §24 tune: -25 dBFS ≈ 0.056 linear (23dB drop from Sprint 5's
+ * -2dB / 0.8 placeholder). Atmospheric source (cooling fan ramped
+ * past design RPM) — the 4-sn ramp simulates progressive degradation,
+ * but the target peak must sit below the foreground so the BSOD beep
+ * and the dialog still read cleanly above it. ≈0.06 chosen as the
+ * 2-decimal-place rounding of 0.056 (saves a constant edit if the
+ * 1dB tolerance permits — §24 spec says ±1dB).
+ */
+const FAN_OVERDRIVE_PEAK_GAIN = 0.06;
+/**
+ * Fan-overdrive reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.06 × 0.5 = 0.03 linear ≈ -30 dBFS.
+ */
+const FAN_OVERDRIVE_REDUCED_MOTION_MAX = 0.03;
 /** Fan-overdrive pink-noise buffer length (sec). Long for smooth loop. */
 const FAN_OVERDRIVE_BUFFER_LENGTH_SEC = 4;
 /** Fan-overdrive high-pass filter cutoff (Hz). 1.5kHz = "thin air wind". */
@@ -310,6 +352,8 @@ function startFanOverdrive(
   state.started = true;
   const now = context.currentTime;
   nodes.source.start(now);
+  // Sprint 8 M2 — voice-counter increment per audio source (1 BufferSource).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   nodes.gain.gain.setValueAtTime(0, now);
   nodes.gain.gain.linearRampToValueAtTime(peakGain, now + FAN_OVERDRIVE_RAMP_SEC);
 }
@@ -349,6 +393,8 @@ function stopFanOverdrive(
 
 function disposeFanOverdrive(state: FanOverdriveState, nodes: FanOverdriveNodes): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose.
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     nodes.source.disconnect();
@@ -356,6 +402,9 @@ function disposeFanOverdrive(state: FanOverdriveState, nodes: FanOverdriveNodes)
     nodes.gain.disconnect();
   } catch {
     // Already disconnected.
+  }
+  if (wasStarted) {
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   }
 }
 
@@ -383,12 +432,24 @@ function buildFanOverdriveNodes(context: AudioContext, destination: GainNode): F
 /* Electrical-buzz handle — Faz 5 disk-format 60Hz mains-hum ambient        */
 /* ------------------------------------------------------------------------ */
 
-/** Electrical-buzz fundamental peak gain (linear) — designer §15 Faz 5. */
-const ELECTRICAL_BUZZ_PEAK_GAIN = 1.0;
-/** Electrical-buzz reduced-motion ceiling — designer §15 (-6dB). */
-const ELECTRICAL_BUZZ_REDUCED_MOTION_MAX = 0.5;
-/** Harmonic amplitude relative to fundamental — -12dB ≈ 0.25 linear. */
-const ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO = 0.25;
+/**
+ * Electrical-buzz fundamental peak gain (linear).
+ *
+ * Sprint 8 §24 tune: -20 dBFS ≈ 0.1 linear (20dB drop from Sprint 5's
+ * 0dB / 1.0 placeholder — strongly divergent; 1.0 peak made the buzz
+ * a discrete foreground cue rather than the "felt-not-heard rumble"
+ * the designer §15 intent specifies). At 0.1 linear the 60Hz
+ * fundamental sits below perceptual foreground but provides the
+ * "mains hum under everything" texture across Faz 5.
+ */
+const ELECTRICAL_BUZZ_PEAK_GAIN = 0.1;
+/**
+ * Electrical-buzz reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.1 × 0.5 = 0.05 linear ≈ -26 dBFS.
+ */
+const ELECTRICAL_BUZZ_REDUCED_MOTION_MAX = 0.05;
 /** Attack / release ramps (sec). */
 const ELECTRICAL_BUZZ_ATTACK_SEC = 0.3;
 const ELECTRICAL_BUZZ_RELEASE_SEC = 0.4;
@@ -442,6 +503,9 @@ function startElectricalBuzz(
   nodes.fundamental.start(now);
   nodes.harmonic2x.start(now);
   nodes.harmonic3x.start(now);
+  // Sprint 8 M2 — voice-counter increment per audio source
+  // (fundamental + harmonic2x + harmonic3x = 3 oscillators).
+  try { incrementVoiceCount(); incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
   nodes.masterGain.gain.setValueAtTime(0, now);
   nodes.masterGain.gain.linearRampToValueAtTime(peakGain, now + ELECTRICAL_BUZZ_ATTACK_SEC);
 }
@@ -483,6 +547,8 @@ function stopElectricalBuzz(
 
 function disposeElectricalBuzz(state: ElectricalBuzzState, nodes: ElectricalBuzzNodes): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose.
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     nodes.fundamental.disconnect();
@@ -495,54 +561,12 @@ function disposeElectricalBuzz(state: ElectricalBuzzState, nodes: ElectricalBuzz
   } catch {
     // Already disconnected.
   }
+  if (wasStarted) {
+    try {
+      decrementVoiceCount();
+      decrementVoiceCount();
+      decrementVoiceCount();
+    } catch { /* defensive */ }
+  }
 }
 
-interface ElectricalBuzzNodes {
-  fundamental: OscillatorNode;
-  harmonic2x: OscillatorNode;
-  harmonic3x: OscillatorNode;
-  fundamentalGain: GainNode;
-  harmonic2xGain: GainNode;
-  harmonic3xGain: GainNode;
-  masterGain: GainNode;
-}
-
-function buildElectricalBuzzNodes(
-  context: AudioContext,
-  destination: GainNode,
-): ElectricalBuzzNodes {
-  const masterGain = context.createGain();
-  masterGain.gain.value = 0;
-  masterGain.connect(destination);
-  const fundamental = buildBuzzOsc(context, FAZ5_ELECTRICAL_BUZZ_HZ, 1.0, masterGain);
-  const harmonic2x = buildBuzzOsc(
-    context, FAZ5_ELECTRICAL_BUZZ_HZ * 2, ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO, masterGain,
-  );
-  const harmonic3x = buildBuzzOsc(
-    context, FAZ5_ELECTRICAL_BUZZ_HZ * 3, ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO, masterGain,
-  );
-  return {
-    fundamental: fundamental.osc,
-    harmonic2x: harmonic2x.osc,
-    harmonic3x: harmonic3x.osc,
-    fundamentalGain: fundamental.gain,
-    harmonic2xGain: harmonic2x.gain,
-    harmonic3xGain: harmonic3x.gain,
-    masterGain,
-  };
-}
-
-function buildBuzzOsc(
-  context: AudioContext,
-  hz: number,
-  gainValue: number,
-  master: GainNode,
-): { osc: OscillatorNode; gain: GainNode } {
-  const osc = context.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.value = hz;
-  const gain = context.createGain();
-  gain.gain.value = gainValue;
-  osc.connect(gain).connect(master);
-  return { osc, gain };
-}

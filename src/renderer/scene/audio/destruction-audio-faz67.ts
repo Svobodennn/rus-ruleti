@@ -29,6 +29,10 @@ import {
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../shared/scene-destruction-constants.js';
 import type { BSODBeepHandle, ElectricalTickHandle } from './destruction-audio.js';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -46,10 +50,27 @@ function isReducedMotion(): boolean {
 /* BSOD-beep handle — Faz 6 single-fire square-wave beep                    */
 /* ------------------------------------------------------------------------ */
 
-/** BSOD beep peak gain when reduced-motion is NOT set. Linear 0-1. */
-const BSOD_BEEP_PEAK_GAIN = 1.0;
-/** BSOD beep peak gain when reduced-motion IS set. 30% per Lane B spec. */
-const BSOD_BEEP_REDUCED_MOTION_GAIN = 0.3;
+/**
+ * BSOD beep peak linear gain.
+ *
+ * Sprint 8 §24 tune: -12 dBFS ≈ 0.25 linear (12dB drop from Sprint 6's
+ * 0dB / 1.0 placeholder). Functional cue — the BSOD beep IS the
+ * system-failure percussive punctuation, so the amplitude is held
+ * loud enough to register over the ambient bed (-12 dBFS sits in the
+ * critical-cue band). The 1.0 placeholder peak was over-hot and
+ * masked the surrounding texture during the 200ms envelope.
+ */
+const BSOD_BEEP_PEAK_GAIN = 0.25;
+/**
+ * BSOD beep peak gain when reduced-motion IS set.
+ *
+ * Sprint 8 §24 row 9: UNCHANGED — the BSOD beep is a FUNCTIONAL cue
+ * (system-failure punctuation), and §24 D-2 mapping keeps functional
+ * cues at full amplitude under prefers-reduced-motion. The Sprint 6
+ * 0.3 placeholder was an over-attenuation that contradicted the
+ * functional-cue mapping; Sprint 8 normalises to the full peak.
+ */
+const BSOD_BEEP_REDUCED_MOTION_GAIN = 0.25;
 
 /**
  * Factory for BSODBeepHandle — square wave 800Hz, 200ms, ADSR
@@ -118,10 +139,14 @@ function fireBSODBeep(
   gain.gain.setValueAtTime(sustainLevel, releaseStart);
   gain.gain.linearRampToValueAtTime(0, releaseEnd);
   osc.start(now);
+  // Sprint 8 M2 — voice-counter increment per BSOD beep oscillator (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   osc.stop(releaseEnd + 0.01);
   osc.addEventListener('ended', (): void => {
     osc.disconnect();
     gain.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
 }
 
@@ -129,10 +154,24 @@ function fireBSODBeep(
 /* Electrical-tick handle — Faz 7 0.5Hz low-pass-filtered click loop        */
 /* ------------------------------------------------------------------------ */
 
-/** Electrical-tick per-click peak gain (designer §15 Faz 7). */
-const ELECTRICAL_TICK_PEAK_GAIN = 0.4;
-/** Electrical-tick reduced-motion ceiling (designer §15 — gate to 0.2). */
-const ELECTRICAL_TICK_REDUCED_MOTION_GAIN = 0.2;
+/**
+ * Electrical-tick per-click peak gain.
+ *
+ * Sprint 8 §24 tune: -26 dBFS ≈ 0.05 linear (18dB drop from Sprint 6's
+ * -8dB / 0.4 placeholder). Atmospheric source (dead-system 0.5Hz
+ * twitch) — should read as "even the click is gone" rather than as a
+ * discrete cue. At 0.05 linear the tick sits below perceptual
+ * foreground; the user perceives "intermittent low-band twitch" without
+ * the burst dominating the bootloop ambient hum.
+ */
+const ELECTRICAL_TICK_PEAK_GAIN = 0.05;
+/**
+ * Electrical-tick reduced-motion ceiling.
+ *
+ * Sprint 8 §24 D-2: atmospheric source, -6dB additional attenuation
+ * (0.5 × peak). 0.05 × 0.5 = 0.025 linear ≈ -32 dBFS.
+ */
+const ELECTRICAL_TICK_REDUCED_MOTION_GAIN = 0.025;
 /** Electrical-tick burst length (~30ms white noise impulse). */
 const ELECTRICAL_TICK_BURST_LENGTH_SEC = 0.03;
 /** Electrical-tick low-pass cutoff Hz — damps to a "twitch", not a "pop". */
@@ -228,10 +267,14 @@ function fireElectricalTick(
   gain.gain.setValueAtTime(peakGain, now);
   gain.gain.linearRampToValueAtTime(0, now + ELECTRICAL_TICK_BURST_LENGTH_SEC);
   src.start(now);
+  // Sprint 8 M2 — voice-counter increment per electrical-tick burst (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.stop(now + ELECTRICAL_TICK_BURST_LENGTH_SEC + 0.01);
   src.addEventListener('ended', (): void => {
     src.disconnect();
     lp.disconnect();
     gain.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
 }
