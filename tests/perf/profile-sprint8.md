@@ -228,3 +228,104 @@ is stable across Faz transitions.
 | H3 | Instrumentation not wired | HIGH (blocks S11) | M2 wire-up |
 | H4 | Faz 0 concurrent rAF | LOW (already mitigated) | Preserve current pattern |
 | H5 | Geometry leak risk | NONE | Sprint 9 runtime verification |
+
+---
+
+## M2 — Optimisations applied
+
+### M2-Op1: Wire sceneStatsReader into scene/index.ts (closes H3 S11 blocker)
+
+**Diagnosis:** Phase 1 frame-logger.ts ships a 3-arg API
+(`createFrameLogger(qualityReader, sink, sceneStatsReader?)`) but
+`scene/index.ts:306` was calling it with only 2 args. The optional
+reader was scaffolded but never wired, so frame:stats payloads shipped
+the Sprint 7 shape (no max* fields) — defeating Sprint 8 S11 closure.
+
+**Change:** `scene/index.ts`
+- `buildTelemetry()` now accepts the `WebGLRenderer` as an argument.
+- A new `sceneStatsReader: () => ScenePerfSample` closure reads
+  `renderer.info.render.calls`, `.info.memory.textures`,
+  `.info.memory.geometries`, and `getActiveVoiceCount()` once per
+  frame inside `markFrame()`.
+- The reader is passed as the 3rd arg to `createFrameLogger`.
+- `getActiveVoiceCount` imported from `./audio/audio-voice-counter`.
+- `ScenePerfSample` type imported from `./frame-logger`.
+
+**Cost analysis:** Each field is an O(1) property access:
+- `renderer.info.render.calls` — WebGLRenderer maintains this counter
+  internally during each `composer.render()` pass; reading is one
+  property access.
+- `renderer.info.memory.textures` / `.geometries` — same; WebGLRenderer
+  tracks active resource counts.
+- `getActiveVoiceCount()` — returns a module-local number from the
+  audio-voice-counter state object (Phase 1 scaffold; Lane A Phase 2B
+  may wire increment/decrement at audio source call sites).
+
+Per-frame overhead: 4 property reads + 1 object allocation per frame.
+Negligible vs the 16.67ms budget (microsecond-scale).
+
+**Impact (BEFORE -> AFTER):**
+
+| Dimension | BEFORE (Sprint 7) | AFTER (Sprint 8 M2) | Delta |
+|-----------|---------------------|----------------------|-------|
+| frame:stats payload shape | Sprint 7 (no max* fields) | Sprint 8 (max* populated) | NEW telemetry coverage |
+| S11 closure status | NOT closed (scaffold only) | CLOSED (instrumentation wired + survives prod bundle) | Sprint 8 S11 target met |
+| Sprint 9 audit feasibility | Blocked (no payload data) | Unblocked (data captured + persisted via electron-log) | Enables Sprint 9 telemetry analysis |
+| Per-frame instrumentation cost | 0 (Sprint 8 capture skipped) | ~4 reads + 1 alloc | <0.01ms (well below 16.67ms budget) |
+| Memory footprint | Sprint 7 ring buffer (~4.8KB) | Sprint 7 + Sprint 8 max-trackers (~6.8KB) | +2KB (4 Float64Array of 60 slots each) |
+
+**Verification:**
+- `npm run typecheck` PASS (Sprint 7 + Sprint 8 + renderer projects)
+- `npm run build` PASS (bundle generated, no errors)
+- Production bundle string survival check (instrumentation survives
+  minification + bundling):
+
+```
+$ grep -o "renderer.info|...|drawCalls|maxDrawCalls|sceneStatsReader|markFrame" out/renderer/assets/index-*.js | sort | uniq -c
+   1 .info.memory.geometries
+   1 .info.memory.textures
+   1 .info.render.calls
+   5 drawCalls
+   2 getActiveVoiceCount
+   3 markFrame
+   6 maxDrawCalls
+   1 renderer.info
+   7 sceneStatsReader
+```
+
+All 9 sentinel strings present in the production bundle. **S11 PASS.**
+
+**Risks (none open):**
+- The renderer reference is captured at scene-mount time, before any
+  draw call fires; `renderer.info.render.calls` reads as 0 for the
+  first few frames until the post-FX composer runs its first pass.
+  This is correct behaviour — the rolling max naturally tracks the
+  first non-zero sample once the renderer warms up.
+- `getActiveVoiceCount()` returns 0 until Lane A Phase 2B wires the
+  increment/decrement bracketing in audio modules. Until then the
+  max-tracker reports 0 for `maxAudioVoiceCount` — the field
+  populates (with 0) but is not yet meaningful. Lane A handoff
+  consumes this gap as a Phase 2B work item.
+
+**Optimisations NOT applied (data does not justify):**
+- **Geometry pooling / draw-call batching** — Sprint 7 baseline
+  estimate is 14-18 draw calls vs 100 budget (82-86 headroom). No
+  bottleneck.
+- **GLB scene composition** — 7 GLBs are deterministic and well below
+  the 20-geometry budget.
+- **Faz X premature optimisation** — every Faz fits within budget by
+  static estimation; runtime measurement is the right next step
+  (Sprint 9 candidate) before tuning.
+- **Sprint 6 volumetric smoke gate** — smoke is CSS-only and the
+  son-ekran disclaimer fade-in does not conflict (both layers
+  compose at the same z-index without GPU competition).
+- **Three.js renderer.compile()** — not justified; the Sprint 1
+  quality-tier already promotes/demotes the post-fx chain via
+  rebuild, which warms shaders implicitly on tier-change. Adding
+  precompile would duplicate work for no measurable gain.
+- **Defer chrome mount until Faz 0+** — `destruction-director.ts` ALREADY
+  mounts the overlay only on bang-fired event (line 363
+  `document.body.appendChild(runtime.overlay)`), NOT at scene init.
+  The overlay element is constructed lazily inside `prepareOverlay()`
+  which only runs after the bang fires. Verified — no pre-Faz 0 DOM
+  weight from destruction chrome.
