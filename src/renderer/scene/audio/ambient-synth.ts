@@ -47,6 +47,10 @@ import {
   WIND_LOWPASS_HZ,
   WIND_LOWPASS_Q,
 } from '../../../shared/scene-audio-constants';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /** What audio-bed.ts gets back from each factory. */
 export interface SynthLayerHandle {
@@ -167,9 +171,12 @@ export const createBulbHum: SynthLayerFactory = (ctx, destination, gain) => {
       g.oscFundamental.start();
       g.oscHarmonic.start();
       g.lfo.start();
+      // Sprint 8 Phase 4 — voice-counter: 3 oscillators (fundamental + harmonic + lfo).
+      try { incrementVoiceCount(); incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
       // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
     },
     stop: (): void => {
+      const wasStarted = started;
       try {
         g.oscFundamental.stop();
         g.oscHarmonic.stop();
@@ -184,6 +191,10 @@ export const createBulbHum: SynthLayerFactory = (ctx, destination, gain) => {
       g.lfoDepth.disconnect();
       g.lowpass.disconnect();
       g.masterGain.disconnect();
+      // Sprint 8 Phase 4 — voice-counter decrement on explicit dispose.
+      if (wasStarted) {
+        try { decrementVoiceCount(); decrementVoiceCount(); decrementVoiceCount(); } catch { /* defensive */ }
+      }
     },
     fadeTo: (target: number, durationMs: number): void => {
       rampGain(g.masterGain.gain, target, durationMs, ctx);
@@ -235,9 +246,12 @@ export const createWind: SynthLayerFactory = (ctx, destination, _gain) => {
       started = true;
       noise.start();
       lfo.start();
+      // Sprint 8 Phase 4 — voice-counter: 2 sources (noise BufferSource + lfo oscillator).
+      try { incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
       // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
     },
     stop: (): void => {
+      const wasStarted = started;
       try {
         noise.stop();
         lfo.stop();
@@ -249,6 +263,10 @@ export const createWind: SynthLayerFactory = (ctx, destination, _gain) => {
       lfo.disconnect();
       lfoDepth.disconnect();
       masterGain.disconnect();
+      // Sprint 8 Phase 4 — voice-counter decrement on explicit dispose.
+      if (wasStarted) {
+        try { decrementVoiceCount(); decrementVoiceCount(); } catch { /* defensive */ }
+      }
     },
     fadeTo: (target: number, durationMs: number): void => {
       rampGain(masterGain.gain, target, durationMs, ctx);
@@ -300,9 +318,12 @@ export const createRadioStatic: SynthLayerFactory = (ctx, destination, gain) => 
       started = true;
       noise.start();
       lfo.start();
+      // Sprint 8 Phase 4 — voice-counter: 2 sources (noise BufferSource + lfo oscillator).
+      try { incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
       // Gain remains at 0 — caller drives fade-in via fadeTo() once mounted.
     },
     stop: (): void => {
+      const wasStarted = started;
       try {
         noise.stop();
         lfo.stop();
@@ -314,6 +335,10 @@ export const createRadioStatic: SynthLayerFactory = (ctx, destination, gain) => 
       lfo.disconnect();
       lfoDepth.disconnect();
       masterGain.disconnect();
+      // Sprint 8 Phase 4 — voice-counter decrement on explicit dispose.
+      if (wasStarted) {
+        try { decrementVoiceCount(); decrementVoiceCount(); } catch { /* defensive */ }
+      }
     },
     fadeTo: (target: number, durationMs: number): void => {
       rampGain(masterGain.gain, target, durationMs, ctx);
