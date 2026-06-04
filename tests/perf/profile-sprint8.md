@@ -329,3 +329,118 @@ All 9 sentinel strings present in the production bundle. **S11 PASS.**
   The overlay element is constructed lazily inside `prepareOverlay()`
   which only runs after the bang fires. Verified — no pre-Faz 0 DOM
   weight from destruction chrome.
+
+---
+
+## M3 — Perf budget constants ratification
+
+Phase 1 placeholder constants in
+`src/shared/scene-destruction-constants.ts` (commit `33e3f8c`) are
+ratified as-is based on M1 static estimates + M2 instrumentation
+wiring. No tuning applied — static estimates fit each budget with
+appropriate headroom, and the data does not justify constant edits
+without runtime telemetry calibration (Sprint 9 candidate).
+
+### Per-constant ratification
+
+| Constant | Phase 1 value | Sprint 7 baseline (M1 static) | Headroom | Action |
+|----------|---------------|--------------------------------|----------|--------|
+| `MAX_VOICE_COUNT_AT_PEAK` | 16 | ~12 (Faz 7-to-8 cross peak) | 4 voices | **RATIFY** |
+| `MAX_DRAW_CALLS_PER_FRAME` | 100 | 14-18 | 82-86 calls | **RATIFY** (Sprint 9 may tighten to 40 with runtime data) |
+| `MAX_TEXTURE_MEMORY_MB` | 50 | 40-48 (4 MiB heuristic) | 2-10 MB | **RATIFY** (Sprint 9 calibrate heuristic — 4 MiB likely overstates real textures) |
+| `MAX_GEOMETRY_COUNT` | 20 | 9-13 | 7-11 geometries | **RATIFY** |
+| `FRAME_BUDGET_MS` | 16.67 | n/a (mathematical 1000/60) | n/a | **RATIFY** (60fps target is the PLAN §1 contract) |
+| `PERF_STATS_FLUSH_INTERVAL_MS` | 5000 | n/a (sampling cadence) | n/a | **RATIFY** (matches FRAME_LOG_FLUSH_INTERVAL_MS by contract) |
+
+### Rationale — why no tuning
+
+1. **Static estimates are conservative.** They fit each budget with
+   appropriate headroom, but they are NOT measurements. The Phase 1
+   constants were set as "Sprint 9+ enforcement candidates" — they
+   are design contracts, not runtime-enforced limits. Tightening them
+   now without measurement risks setting a budget the actual runtime
+   cannot meet (false positive Sprint 9 enforcement warnings).
+
+2. **M2 enables future calibration.** With the sceneStatsReader wired,
+   Sprint 9 packaged-build telemetry can convert STATIC estimates to
+   MEASURED values. At that point a data-driven tuning pass becomes
+   appropriate.
+
+3. **MAX_TEXTURE_MEMORY_MB heuristic bias is documented, not edited.**
+   The 4 MiB per-texture estimate in `BYTES_PER_TEXTURE_ESTIMATE`
+   (frame-logger.ts) over-counts real GLB textures (which are often
+   512² or KTX2-compressed). Sprint 9 should calibrate by comparing
+   `maxTextureMemoryEstimateMB` from frame:stats with Chrome DevTools
+   GPU memory snapshots — then either (a) lower the heuristic byte
+   estimate OR (b) raise the budget. The Phase 1 + Phase 2A JSDoc on
+   both `MAX_TEXTURE_MEMORY_MB` and `BYTES_PER_TEXTURE_ESTIMATE`
+   already calls out this calibration debt.
+
+4. **MAX_DRAW_CALLS_PER_FRAME is generous on purpose.** The Phase 1
+   methodology comment in scene-destruction-constants.ts §"Sprint 8
+   performance budgets" explicitly sets 100 as "the headroom ceiling
+   above worst-observed Sprint 7 baseline" — meaning a 5-6x safety
+   factor over the 14-18 baseline. Tightening to 40 would still leave
+   2x headroom but loses the explicit "headroom ceiling" design intent.
+   RATIFY as-is until Sprint 9 telemetry confirms the tighter band
+   is achievable across all post-fx tier transitions.
+
+### S11 closure status
+
+| Item | Status |
+|------|--------|
+| Phase 1 frame-logger.ts perf-capture surface | DELIVERED (commit `33e3f8c`) |
+| Phase 2B M2 sceneStatsReader wired into scene/index.ts | DELIVERED (commit `c2b3934`) |
+| frame:stats payload extended with max* fields | DELIVERED (additive contract preserved) |
+| Production bundle preserves instrumentation strings | PASS (M2 sentinel check) |
+| Sprint 9 telemetry feasibility | UNBLOCKED |
+
+**Overall S11:** **CLOSED.**
+
+### IPC channel additions
+
+`git diff main..HEAD -- src/shared/ipc-channels.ts` returns **0 lines**
+in this Phase 2B Lane B branch. The Sprint 8 frame:stats payload
+extension (Phase 1) is additive (optional fields), and Lane B Phase 2B
+adds NO new channels.
+
+### Files modified in Lane B Phase 2B
+
+| File | Change | Lines |
+|------|--------|-------|
+| `src/renderer/scene/index.ts` | Wire sceneStatsReader (M2) | +16 / -2 |
+| `tests/perf/profile-sprint8.md` | M1 baseline + M2 results + M3 ratification | +325 / 0 |
+
+NO file deletions. NO file renames. TH-S7-02 file-structure-change
+signal: **NONE.**
+
+### Open questions for Phase 3
+
+1. **Audio voice counter wiring (Lane A territory).** Phase 2B Lane A
+   (kraken-audio) audits cross-Faz dispose contracts AND may wire
+   `incrementVoiceCount` / `decrementVoiceCount` at audio source
+   creation/dispose sites. Until done, the M2 reader returns 0 for
+   `audioVoiceCount`. Cross-phase coordination required.
+
+2. **Sprint 9 runtime calibration sprint.** With M2 instrumentation
+   live, Sprint 9 should:
+   - Run packaged build through full Faz 0-8 sequence with frame:stats
+     persisted to `~/Library/Logs/Rus Ruleti/main.log`.
+   - Convert M1 STATIC estimates to MEASURED values.
+   - Tune `MAX_TEXTURE_MEMORY_MB` (or `BYTES_PER_TEXTURE_ESTIMATE`
+     heuristic) against Chrome DevTools GPU memory readings.
+   - Optionally tighten `MAX_DRAW_CALLS_PER_FRAME` to 40 if measurement
+     confirms steady-state 14-18 with 2-3x post-fx tier-transition
+     spike.
+
+3. **frame:stats main-process audit handler.** Sprint 9 candidate:
+   the main/ipc.ts frame:stats handler currently logs payloads to
+   electron-log; a Sprint 9 retro item should add per-budget threshold
+   detection (3-consecutive-flush-over-budget → warn) per the §25
+   design contract.
+
+---
+
+*End of Lane B Phase 2B profile. M1 + M2 + M3 milestones complete.
+Phase 1 placeholder constants ratified. S11 closed. Sprint 9 follow-up
+candidates queued.*
