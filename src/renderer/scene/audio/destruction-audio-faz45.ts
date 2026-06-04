@@ -24,15 +24,16 @@
  * the closure so subsequent setVolume/setGain calls cannot exceed the cap.
  */
 
-import {
-  FAZ5_ELECTRICAL_BUZZ_HZ,
-  PREFERS_REDUCED_MOTION_QUERY,
-} from '../../../shared/scene-destruction-constants.js';
+import { PREFERS_REDUCED_MOTION_QUERY } from '../../../shared/scene-destruction-constants.js';
 import type {
   ElectricalBuzzHandle,
   FanOverdriveHandle,
   HDDGrindHandle,
 } from './destruction-audio';
+import {
+  buildElectricalBuzzNodes,
+  type ElectricalBuzzNodes,
+} from './destruction-audio-faz45-buzz.js';
 import {
   decrementVoiceCount,
   incrementVoiceCount,
@@ -449,8 +450,6 @@ const ELECTRICAL_BUZZ_PEAK_GAIN = 0.1;
  * (0.5 × peak). 0.1 × 0.5 = 0.05 linear ≈ -26 dBFS.
  */
 const ELECTRICAL_BUZZ_REDUCED_MOTION_MAX = 0.05;
-/** Harmonic amplitude relative to fundamental — -12dB ≈ 0.25 linear. */
-const ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO = 0.25;
 /** Attack / release ramps (sec). */
 const ELECTRICAL_BUZZ_ATTACK_SEC = 0.3;
 const ELECTRICAL_BUZZ_RELEASE_SEC = 0.4;
@@ -571,52 +570,3 @@ function disposeElectricalBuzz(state: ElectricalBuzzState, nodes: ElectricalBuzz
   }
 }
 
-interface ElectricalBuzzNodes {
-  fundamental: OscillatorNode;
-  harmonic2x: OscillatorNode;
-  harmonic3x: OscillatorNode;
-  fundamentalGain: GainNode;
-  harmonic2xGain: GainNode;
-  harmonic3xGain: GainNode;
-  masterGain: GainNode;
-}
-
-function buildElectricalBuzzNodes(
-  context: AudioContext,
-  destination: GainNode,
-): ElectricalBuzzNodes {
-  const masterGain = context.createGain();
-  masterGain.gain.value = 0;
-  masterGain.connect(destination);
-  const fundamental = buildBuzzOsc(context, FAZ5_ELECTRICAL_BUZZ_HZ, 1.0, masterGain);
-  const harmonic2x = buildBuzzOsc(
-    context, FAZ5_ELECTRICAL_BUZZ_HZ * 2, ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO, masterGain,
-  );
-  const harmonic3x = buildBuzzOsc(
-    context, FAZ5_ELECTRICAL_BUZZ_HZ * 3, ELECTRICAL_BUZZ_HARMONIC_GAIN_RATIO, masterGain,
-  );
-  return {
-    fundamental: fundamental.osc,
-    harmonic2x: harmonic2x.osc,
-    harmonic3x: harmonic3x.osc,
-    fundamentalGain: fundamental.gain,
-    harmonic2xGain: harmonic2x.gain,
-    harmonic3xGain: harmonic3x.gain,
-    masterGain,
-  };
-}
-
-function buildBuzzOsc(
-  context: AudioContext,
-  hz: number,
-  gainValue: number,
-  master: GainNode,
-): { osc: OscillatorNode; gain: GainNode } {
-  const osc = context.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.value = hz;
-  const gain = context.createGain();
-  gain.gain.value = gainValue;
-  osc.connect(gain).connect(master);
-  return { osc, gain };
-}
