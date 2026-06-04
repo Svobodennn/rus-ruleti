@@ -3276,3 +3276,288 @@ secondary caption text).*
 Lane controllers, chrome modules, audio factories, i18n strings,
 destruction.css, and scene-mount.ts R-key listener left untouched
 for Phase 2B parallel lanes (Lane 0 + Lane A + Lane B).
+
+---
+
+## §24 — Sprint 8 sound mix table (canonical audio balance spec)
+
+Sprint 8 is an audit sprint: NO new visual surfaces, NO new a11y matrix
+rows, NO new motion language. Its design contribution is one thing —
+the canonical audio balance spec across every procedural source shipped
+in Sprint 1 + Sprint 4-7. The table below is the SSOT for target peak
+dB, ADSR envelope shape, dispose contract, cross-Faz handoff
+behaviour, and reduced-motion attenuation. Phase 2B Lane A
+(`kraken-audio`) reads this table and tunes the audio gain coefficients
+in `scene-destruction-constants.ts` + the per-faz audio modules
+(`destruction-audio.ts`, `destruction-audio-faz45.ts`,
+`destruction-audio-faz67.ts`, `destruction-audio-faz8.ts`) to match.
+The matching is verified against `tests/sound-audit-checklist.md`
+(Phase 1 audit instrument — Lane A fills its "measured:" column from
+runtime amplitude inspection). The reveal jingle row recapitulates
+the Sprint 7 §22 D-3 decisions and is the precedent for every
+amplitude / reduced-motion choice in this section.
+
+### Sound mix table — canonical spec (13 sources × 5 dimensions)
+
+| #  | Sprint | Source | Target peak dB | Envelope (ADSR ms) | Dispose contract | Cross-Faz handoff | Reduced-motion |
+|----|--------|--------|----------------|--------------------|--------------------|---------------------|------------------|
+| 1  | S4 | Bang one-shot (Faz 0) | **-15 dBFS** (linear ≈0.178) | 50A / 0D / 200S / 0R — short percussive | Howler `unload()` on dispose; fallback `osc.stop(now + 0.26)` + `ended`-event self-clean (no overlap into Faz 1) | **Full release before Faz 1 onset** (D-1a). 250ms total envelope completes ~750ms before Faz 1 dialog mounts — no acoustic ringing into the dialog | UNCHANGED (functional cue — bang punctuates the trigger; silencing breaks the narrative spine) |
+| 2  | S4 | Empty click one-shot (pre-BANG) | **-18 dBFS** (linear ≈0.126) | 5A / 0D / 0S / 55R — single transient (60ms env total) | Per-fire allocation; `ended`-event self-clean disconnects osc + gain | One-shot at idle→firing(empty) — no cross-Faz overlap | UNCHANGED (functional cue — the click IS the empty-chamber affordance; cannot be attenuated without breaking the gameplay feedback) |
+| 3  | S4 | Ambient bed — 4 layers (bulb-hum 100Hz + harmonic 200Hz + LFO, wind low-pass, radio-static bandpass, water-drip impulse) | **-26 dBFS** sustained composite (bulb-hum 0.15 linear ≈ -16dB per layer summed against wind 0.08 + radio 0.04 + water 0) | No per-cycle envelope (continuous bed); `AUDIO_FADE_IN_MS=4000` ramp on scene entry, `AUDIO_FADE_OUT_MS=1500` on dispose | `AudioBed.setLayerVolume(layer, 0)` per-layer + `context.close()` on `AudioBed.dispose()` (synchronous release tail unnecessary — gain ramp suffices) | **SURVIVES Faz 0-7** (the room speaks throughout); Faz 0 BANG applies `applyLowPass` muffle; Faz 8 `fadeInAmbient` ramps back to -24dB baseline over 3000ms | **-6dB atmospheric attenuation** (each layer's `setLayerVolume` × 0.5) — bed felt cue, attenuation reduces sensory load without removing presence |
+| 4  | S4 | Tinnitus 4kHz (Faz 0 onset → restart) | **-12 dBFS** (`TINNITUS_AMPLITUDE_DB`) — verified Phase 1 placeholder matches design | 100A / 0D / 1.0S / 0R — linear fade-in to sustain; no release (cut on stop) | Explicit `osc.stop()` + `osc.disconnect()` + `gain.disconnect()` on `tinnitus.stop()` (synchronous — no release tail) | **SURVIVES Faz 0-7**; bridges Faz 5→6 disposal of electrical-buzz (D-1b); cut only on full sequence dispose OR ESC abort | **-18 dBFS** (`TINNITUS_AMPLITUDE_REDUCED_MOTION_DB`) — explicit a11y-gated amplitude, 6dB below full per Sprint 4 §7 |
+| 5  | S4 | Native chord stub (Faz 1 entry) | **-10 dBFS** per layer (`CHORD_PEAK_GAIN ≈ 0.316`) — verified Phase 1 placeholder matches design | 50A / 200D / 100S / 400R — short percussive chord (750ms total) | Per-layer `osc.stop(now + totalSec)` + `ended` event self-clean (release tail completes within Faz 1 window) | One-shot at Faz 1 entry; full release within Faz 1 window — no Faz 2 overlap | UNCHANGED (audio amplitude unchanged per Sprint 4 §8 rows 4-5 — visual gates do not affect audio for procedural musical cues) |
+| 6  | S5 | HDD-grind (Faz 4 file-wipe) | **-22 dBFS** (linear ≈0.08); current placeholder `HDD_GRIND_PEAK_GAIN=0.6` ≈ -4dB — DIVERGENT, see delta table | 200A ramp-in / sustain via 2Hz LFO carrier punches / 200R fade-out on dispose | Explicit `disposeHDDGrind` disconnects source + bandpass + carrierGain + lfo + lfoGain (synchronous) | **SURVIVES Faz 4 → Faz 5**; disposed at Faz 6 entry via owner pool teardown (NOT carried into BSOD — see D-1c) | **-6dB atmospheric attenuation** (`HDD_GRIND_REDUCED_MOTION_MAX=0.3` ≈ -10dB — currently 6dB clamp from full; matches design) |
+| 7  | S5 | Fan-overdrive (Faz 4-6) | **-25 dBFS** ramp peak; current placeholder `FAN_OVERDRIVE_PEAK_GAIN=0.8` ≈ -2dB — DIVERGENT, see delta table | 4000A linear ramp 0→peak / sustained / 400R on stop | Explicit `disposeFanOverdrive` disconnects source + highpass + gain; explicit `.stop()` called at Faz 6 end before Faz 7 entry (D-1d) | **SURVIVES Faz 4 → Faz 5 → Faz 6**; release tail completes during Faz 7 entry — brown-noise fading to zero, no acoustic collision with electrical-tick onset | **-6dB atmospheric attenuation** (`FAN_OVERDRIVE_REDUCED_MOTION_MAX=0.5` ≈ -6dB from full — matches design) |
+| 8  | S5 | Electrical-buzz 60Hz (Faz 5 disk-format) | **-20 dBFS**; current placeholder `ELECTRICAL_BUZZ_PEAK_GAIN=1.0` ≈ 0dB — STRONGLY DIVERGENT, see delta table | 50A ramp-in / sustain via 60Hz fundamental + 120Hz + 180Hz harmonics low-pass-rolled / 100R on dispose | Explicit `disposeElectricalBuzz` disconnects fundamental + harmonic2x + harmonic3x (synchronous) | **Faz 5 single-faz**; disposed at Faz 6 entry via owner pool. Tinnitus bridges into BSOD as continuity element (D-1b); electrical-buzz does NOT bridge (cuts cleanly so BSOD beep reads as discrete percussive cue) | **-6dB atmospheric attenuation** — Lane A verifies amplitude clamp matches -6dB intent |
+| 9  | S6 | BSOD beep (Faz 6 entry) | **-12 dBFS** (linear ≈0.25) — current placeholder peak gain TBD, designer encodes -12dB target | 5A / 0D / 1.0S / 195R — short percussive beep (200ms total per `FAZ6_BSOD_BEEP_*_MS` cluster) | Per-fire allocation; `osc.stop(releaseEnd + 0.01)` + `ended` event disconnects osc + gain (synchronous; envelope completes within Faz 6 window) | One-shot at Faz 6 entry. Beep tail completes 200ms after onset; cross-fade Faz 6→7 (Sprint 7 §23 = 150ms fade-out) overlaps with bootloop ambient hum acoustic mix (D-1e — additive sum well below 0 dBFS) | UNCHANGED (functional cue — BSOD beep IS the system-failure punctuation; silencing breaks the genre reference) |
+| 10 | S6 | Electrical-tick (Faz 7 bootloop, 0.5Hz pulse) | **-26 dBFS**; current placeholder `ELECTRICAL_TICK_PEAK_GAIN=0.4` ≈ -8dB — DIVERGENT, see delta table | 30A noise-burst low-pass 200Hz Q=2.0 / setInterval every 2000ms / per-burst `ended` cleanup | clearInterval on dispose + per-burst `ended` event disconnects src + lp + gain (defensive: never holds buffer across Faz boundary) | **SURVIVES Faz 7**; disposed at Faz 8 entry via owner pool. Last tick burst (if mid-fire) release-tails into reveal-jingle 200ms attack — Sprint 7 §23 200ms cross-fade naturally absorbs (D-1f) | **-32 dBFS** (`ELECTRICAL_TICK_REDUCED_MOTION_GAIN=0.2` ≈ -14dB — currently 6dB clamp from full, matches -6dB design intent) |
+| 11 | S6 | Ambient-recovery (Faz 8 reveal) | **-24 dBFS** baseline (`FAZ8_AUDIO_BED_BASELINE_GAIN_DB`) — verified Phase 1 placeholder matches design (NEW baseline established Sprint 6) | 3000A linear `fadeIn(3000)` ramp 0→-24dB / sustained / 1500R on son-ekran teardown | `disposeAmbientRecovery` stops source + disconnects source + lowpass + gain (synchronous; release ramp before teardown) | **Faz 8 reveal lifecycle**; disposed at son-ekran teardown / restart abort. Crossfades with surviving Sprint 1 ambient bed — both at -24dB so the recovery RAMPS UP into the resting bed level rather than competing | UNCHANGED amplitude (felt-cue: the room "coming back" — attenuating it would mute the emotional resolution; Sprint 4 §8 row 4-5 precedent) |
+| 12 | S6 | Door-close accent (son-ekran +2sn) | **-10 dBFS** (`FAZ8_DOOR_CLOSE_PEAK_GAIN=0.3` ≈ -10dB) — verified Phase 1 placeholder matches design | 5A / 40D / 0.8S / 200R (`FAZ8_DOOR_CLOSE_*` cluster) — percussive thud | Per-fire allocation; `osc.stop(stopAt)` + `ended` event disconnects osc + filter + gain (synchronous) | One-shot at son-ekran +2sn. Reveal jingle release tail ends ≈2.5sn into reveal (jingle Total =2.5sn from 0ms offset); door-close fires ≈7sn into reveal-to-son-ekran timeline — NO temporal overlap (Sprint 7 §22 S12 confirmed) | **-16 dBFS** (`DOOR_CLOSE_REDUCED_MOTION_RATIO=0.5` × peak ≈ 0.15 linear ≈ -16dB) — 6dB atmospheric attenuation; thud reads as softer rather than punchier |
+| 13 | S7 | Reveal jingle — 4-osc triangle chord (Faz 8 entry) | **-30 dBFS** (`REVEAL_JINGLE_PEAK_DB`) — Sprint 7 §22 D-3 spec, verified Phase 1 matches design | 200A / 100D / 0.3S / 2000R per-note — slow swell-and-fade (2500ms total) | Per-branch `branch.osc.stop()` + `disconnect()` on dispose; `ended` event removes branch from tracking set (synchronous; release tail completes within reveal window) | **Faz 8 reveal lifecycle**; disposed at son-ekran entry via `runtime.revealJingle.dispose()`. Sprint 7 §23 200ms cross-fade naturally blends Faz 7→8 — bootloop fade concurrent with 200ms jingle attack (D-1f) | **-36 dBFS** (`REVEAL_JINGLE_REDUCED_MOTION_RATIO=0.5` × peak — Sprint 7 §22 D-3 precedent — 6dB atmospheric attenuation since chord is decorative not functional) |
+
+### Rationale — mix levels + envelope choices
+
+**Why -24dB ambient baseline (composite).** Sprint 1 audio bed shipped
+with bulb-hum 0.15 + wind 0.08 + radio-static 0.04 linear; summed
+composite reads ≈-26 dBFS on average laptop speakers. Faz 8
+ambient-recovery target `FAZ8_AUDIO_BED_BASELINE_GAIN_DB=-24` is the
+de-facto baseline for the post-reveal "resting bed". -24 dBFS is well
+above the typical playback noise floor (~-60 dBFS) but well below the
+audibility threshold where the bed would mask discrete cues. It is the
+reference level against which every other source in the table is
+balanced.
+
+**Why critical cues at -10 to -20 dBFS.** Bang (-15), empty click
+(-18), BSOD beep (-12), door-close (-10), native chord (-10). These
+are the audibility-mandatory cues — the user MUST hear them at typical
+listening volume (~70dB SPL) without straining. -10 dBFS is loud
+enough to register over the ambient bed but leaves 10dB of clipping
+headroom for ADSR peaks; -20 dBFS is the soft-cue floor (still audible
+in quiet listening but does not dominate the room).
+
+**Why atmospheric -22 to -32 dBFS.** HDD-grind (-22), fan-overdrive
+(-25), electrical-buzz (-20), electrical-tick (-26), tinnitus (-12 —
+exception: tinnitus is BOTH atmospheric AND functional, hence louder).
+Atmospheric sources establish texture without competing for narrative
+attention. -22 to -32 dBFS is below the perceptual "foreground" but
+above the "felt presence" floor — the user knows something is
+happening without consciously hearing it as a discrete cue.
+
+**Why -30 dBFS reveal jingle.** Sprint 7 §22 D-3 precedent: jingle
+sits 6dB below the recovering ambient bed (-24dB), preserving the
+"the room is still here" narrative through the bed while the jingle
+hangs above as a discrete musical cue. -30 dBFS is loud enough to
+register as music but quiet enough to avoid "verdict delivery" — the
+jingle is wry acknowledgement, not triumphant resolution.
+
+**Why -6dB reduced-motion attenuation (atmospheric only).** Sensory
+accommodation: users opting into prefers-reduced-motion typically also
+prefer lower sensory load. -6dB cuts perceived loudness ≈30% without
+hiding the cue. Functional cues (bang, click, BSOD beep) STAY
+UNCHANGED because they encode narrative state — silencing them under
+reduced-motion would break the spine. Atmospheric cues attenuate
+because their narrative role is "texture", which survives attenuation.
+
+**Why 5ms minimum attack on percussion.** Below 5ms, a square or
+sawtooth-derived envelope produces a digital "click" or "pop" at the
+sample-rate edge. 5ms is the minimum value where the envelope ramps
+smoothly across enough samples (≈220 samples at 44.1kHz) to avoid
+this artefact. Sprint 6 BSOD beep + door-close adopted 5ms attack
+deliberately; Sprint 8 codifies this as the floor for every percussive
+source.
+
+### Cross-Faz handoff decisions
+
+The audio chain has four critical transition zones where two or more
+sources are alive simultaneously OR a source's release tail crosses a
+Faz boundary. Sprint 8 designer makes the following acoustic-mix
+calls; Lane A Phase 2B implements them at the dispose/onset call
+sites.
+
+**D-1a — Faz 0 bang → Faz 1 critical dialog (FULL RELEASE).**
+The bang's 250ms envelope completes ~750ms before the Faz 1 dialog
+beep onset (Faz 0 lasts 2000ms total; Faz 1 chord stub fires at Faz 1
+entry = 2000ms post-bang). The 1750ms intervening window is dead-air
+(only ambient bed + tinnitus survive). The wider design choice (acoustic
+ringing overlap vs full release) is **full release**: the dialog is
+the new narrative beat; bang ringing into it muddles the "system has a
+new problem" message. The ringing-overlap alternative was considered
+and rejected — bang's role is the trigger-punctuation, not a sustained
+character.
+
+**D-1b — Faz 5 disk-format → Faz 6 BSOD (TINNITUS BRIDGES, BUZZ
+CUTS).** The hard-drive grind disposes immediately on Faz 6 entry
+(owner-pool teardown). Electrical-buzz disposes immediately. Tinnitus
+4kHz CONTINUES uninterrupted into BSOD as the bridging continuity
+element — the high-frequency ring is the constant "this is the user's
+ears" anchor while the surrounding texture changes. The buzz-bridging
+alternative was considered and rejected: dual-tonal content during
+BSOD onset would dilute the BSOD beep's percussive clarity.
+
+**D-1c — HDD-grind explicit dispose at Faz 6 entry.** HDD-grind
+SURVIVES Faz 4→Faz 5 by design (the "disk wipe in progress" continues
+through the format step); but at Faz 6 entry the system "dies" and
+the grind must stop synchronously. Lane A Phase 2B confirms the owner
+pool teardown order: HDD-grind disposes BEFORE the BSOD beep fires
+(no acoustic collision in the ≤16ms BSOD-onset frame).
+
+**D-1d — Fan-overdrive .stop() at Faz 6 end.** The fan ramps up over
+4000ms in Faz 4 and SURVIVES Faz 4→5→6. At Faz 6 end (before Faz 7
+entry) `.stop()` is called explicitly; the 400ms release ramps to zero
+during Faz 7 entry. Electrical-tick mounts at Faz 7 entry — no
+acoustic collision because fan-overdrive's release is brown-noise
+fading to zero (no sustained energy left for the tick to compete
+with).
+
+**D-1e — Faz 6 BSOD beep tail → Faz 7 bootloop (ADDITIVE MIX,
+NATURAL DECAY).** The Sprint 7 §23 D-4 cross-fade is 150ms for
+Faz 6→7. BSOD beep onset is at Faz 6 entry; beep envelope is 200ms
+total; therefore the beep RELEASE TAIL (final ≈50ms) overlaps the
+150ms cross-fade window. At that point the beep gain is below -30 dBFS
+and the bootloop ambient hum has ramped in from 0 to ~25% of peak.
+The additive sum is comfortably below 0 dBFS clipping (peak summation:
+-30 + -22 ≈ -20 dBFS linear sum) and the auditory effect is the beep
+"dissolving into" the bootloop hum — narratively desirable.
+
+**D-1f — Faz 7 bootloop → Faz 8 reveal (NATURAL BLEND VIA 200ms
+JINGLE ATTACK).** Sprint 7 §23 D-4 cross-fade is 200ms for Faz 7→8.
+The reveal jingle has a 200ms slow-swell attack at Faz 8 entry. These
+align by design: the bootloop audio fades concurrent with the jingle
+attack ramping in from 0 to peak. The auditory effect is "bootloop
+audio dissolves; jingle emerges from the dissolve" — a single
+acoustic gesture rather than a hard cut. Confirmed: the 200ms numbers
+match by design choice, not coincidence.
+
+### Sprint 8 design decisions (D-1 .. D-4)
+
+- **D-1 — Cross-Faz handoff strategy per zone** (this section). Sub-
+  items D-1a..D-1f cover the six critical handoff calls (Faz 0→1
+  bang/dialog, Faz 5→6 tinnitus-bridges-buzz-cuts, Faz 5→6 HDD-grind
+  dispose order, Faz 6→7 fan-overdrive release, Faz 6→7 BSOD beep
+  additive mix, Faz 7→8 jingle attack natural blend).
+- **D-2 — Atmospheric vs functional cue reduced-motion mapping.**
+  Atmospheric sources (ambient bed, HDD-grind, fan-overdrive,
+  electrical-buzz, electrical-tick, tinnitus, reveal jingle, door-close)
+  attenuate -6dB under prefers-reduced-motion. Functional cues
+  (bang, empty click, native chord stub, BSOD beep,
+  ambient-recovery) stay UNCHANGED. Tinnitus is the exception — it
+  has its OWN reduced-motion DB constant
+  (`TINNITUS_AMPLITUDE_REDUCED_MOTION_DB=-18`) because its baseline
+  is loud enough that -6dB is insufficient attenuation for sensory
+  accommodation. Lane A Phase 2B verifies every audio module's
+  reduced-motion branch matches this mapping.
+- **D-3 — Dispose contract per source: ALL synchronous.** No source
+  carries a buffer-chunk that plays out after the owner's dispose
+  call. Every source either (a) uses an `ended` event listener to
+  self-clean on natural envelope completion (one-shots), OR (b)
+  exposes an explicit `dispose*()` function that synchronously calls
+  `osc.stop()` + `disconnect()` (sustained sources). The "release
+  tail plays out across Faz boundary" alternative is REJECTED — every
+  Faz boundary is a hard ownership transfer; surviving release tails
+  create dispose-then-mount races (which Lane A documented in
+  `destruction-audio.ts` Phase 1 audit notes).
+- **D-4 — Tuning deviations from Phase 1 placeholder constants.**
+  See source-by-source delta table below. Four sources DIVERGE from
+  Phase 1 placeholders and require Lane A constant adjustment:
+  bang (placeholder 0.708 → target ~0.18), HDD-grind (placeholder
+  0.6 → target ~0.08), fan-overdrive (placeholder 0.8 → target
+  ~0.056), electrical-buzz (placeholder 1.0 → target ~0.1),
+  electrical-tick (placeholder 0.4 → target ~0.05). Empty click adds
+  a new peak gain constant. All other sources VERIFY Phase 1
+  placeholders match design intent.
+
+### Source-by-source delta vs Phase 1 placeholder constants
+
+This table documents which sources require Lane A Phase 2B constant
+adjustment vs which sources VERIFY Phase 1 placeholders as
+design-matching. Lane A reads `tests/sound-audit-checklist.md` and
+this delta to know where to focus constant-edit work.
+
+| # | Source | Phase 1 placeholder | Target peak dB | Linear-amplitude target | Lane A action |
+|---|--------|---------------------|----------------|--------------------------|----------------|
+| 1 | Bang | `BANG_FALLBACK_GAIN=0.708` (≈ -3dB) | -15 dBFS | ≈0.178 linear | **REDUCE** to ≈0.18 (12dB drop) |
+| 2 | Empty click | `SFX_EMPTY_CLICK_ENVELOPE_MS=60` (env only — no peak constant) | -18 dBFS | ≈0.126 linear | **NEW peak constant** — Lane A adds `SFX_EMPTY_CLICK_PEAK_GAIN ≈ 0.13` |
+| 3 | Ambient bed | `AUDIO_VOLUME_BULB_HUM=0.15` + wind 0.08 + radio 0.04 (composite ≈ -26dB) | -26 dBFS composite | VERIFIED — Sprint 1 levels match design | **VERIFY** (no constant change) |
+| 4 | Tinnitus 4kHz | `TINNITUS_AMPLITUDE_DB=-12` | -12 dBFS | VERIFIED | **VERIFY** |
+| 5 | Native chord stub | `CHORD_PEAK_GAIN=0.316` (-10 dB) | -10 dBFS | VERIFIED | **VERIFY** |
+| 6 | HDD-grind | `HDD_GRIND_PEAK_GAIN=0.6` (≈ -4dB) | -22 dBFS | ≈0.079 linear | **REDUCE** to ≈0.08 (18dB drop) |
+| 7 | Fan-overdrive | `FAN_OVERDRIVE_PEAK_GAIN=0.8` (≈ -2dB) | -25 dBFS | ≈0.056 linear | **REDUCE** to ≈0.06 (23dB drop) |
+| 8 | Electrical-buzz | `ELECTRICAL_BUZZ_PEAK_GAIN=1.0` (0dB) | -20 dBFS | ≈0.1 linear | **REDUCE** to ≈0.1 (20dB drop) |
+| 9 | BSOD beep | `FAZ6_BSOD_BEEP_*_MS` cluster (envelope only — peak target -12dB) | -12 dBFS | ≈0.25 linear | **VERIFY OR ADD** — Lane A confirms a `FAZ6_BSOD_BEEP_PEAK_GAIN` exists at ≈0.25 OR adds the constant |
+| 10 | Electrical-tick | `ELECTRICAL_TICK_PEAK_GAIN=0.4` (≈ -8dB) | -26 dBFS | ≈0.05 linear | **REDUCE** to ≈0.05 (18dB drop); also update `ELECTRICAL_TICK_REDUCED_MOTION_GAIN` from 0.2 to ≈0.025 |
+| 11 | Ambient-recovery | `FAZ8_AUDIO_BED_BASELINE_GAIN_DB=-24` | -24 dBFS | VERIFIED | **VERIFY** |
+| 12 | Door-close | `FAZ8_DOOR_CLOSE_PEAK_GAIN=0.3` (≈ -10dB) | -10 dBFS | VERIFIED | **VERIFY** |
+| 13 | Reveal jingle | `REVEAL_JINGLE_PEAK_DB=-30` | -30 dBFS | VERIFIED | **VERIFY** |
+
+**Net Lane A workload:** 5 REDUCE actions (rows 1, 6, 7, 8, 10 — the
+sources currently mixed too hot relative to the -24dB baseline) + 1
+NEW peak constant (row 2 — empty click never had a peak constant in
+Sprint 1) + 1 VERIFY-OR-ADD (row 9 — BSOD beep) + 6 verify-only.
+
+The 5 REDUCE actions represent the Sprint 1-5 audio era's "let it
+breathe" approach, which was correct for those sprints in isolation
+but produces over-hot composite mixes when summed against the now-
+established -24dB Faz 8 baseline. Sprint 8 normalises the entire
+chain to that single reference point.
+
+---
+
+## §25 — Sprint 8 performance budget table (design contract)
+
+The Phase 1 perf budget constants (`MAX_VOICE_COUNT_AT_PEAK`,
+`MAX_DRAW_CALLS_PER_FRAME`, `MAX_TEXTURE_MEMORY_MB`,
+`MAX_GEOMETRY_COUNT`, `FRAME_BUDGET_MS`) are accepted as the design-
+contract values for Sprint 8. Lane B Phase 2B (`@profiler`) audits
+`frame:stats` telemetry against these targets and flags over-budget
+flushes as Sprint 9 graceful-degradation candidates. The table below
+surfaces them as a single perceptual-impact reference so the design
+intent of each budget is explicit rather than implicit in code
+comments.
+
+### Perf budget table
+
+| Dimension | Target | Source constant | Perceptual impact when exceeded |
+|-----------|--------|------------------|----------------------------------|
+| Voice count at peak | ≤ 16 simultaneous Web Audio voices | `MAX_VOICE_COUNT_AT_PEAK` | Audio glitching / dropouts; Faz 7→8 jingle attack masks ambient-recovery onset |
+| Draw calls per frame | ≤ 100 | `MAX_DRAW_CALLS_PER_FRAME` | Render stutter at scene transitions; main thread blocked > frame budget |
+| Texture memory | ≤ 50 MB | `MAX_TEXTURE_MEMORY_MB` | GPU memory pressure → texture swap stalls during Faz 6 BSOD chrome |
+| Geometry count | ≤ 20 (top-level meshes) | `MAX_GEOMETRY_COUNT` | Same as draw-calls — typically the dominant render-cost contributor for Sprint 4-7 scenes |
+| Frame budget | 16.67 ms (60 fps on M1) | `FRAME_BUDGET_MS` | Frame drop → jank perceived as "the scene is hesitating" — breaks the "the room is alive" narrative |
+
+### Rationale — perf budgets as design contract
+
+Frame budget (16.67ms) sets the perceptual smoothness ceiling — at 60
+fps the scene reads as "alive"; below 30fps the scene reads as
+"struggling" which contradicts the deliberate-pace design intent. Voice
+count (16) is the audio clarity ceiling — beyond 16 simultaneous
+voices the user's auditory cortex cannot resolve discrete cues from
+the mix (the BSOD beep, reveal jingle, door-close, and tinnitus all
+become indistinguishable). Draw calls + geometry count + texture
+memory are the render-efficiency triad — exceeding any one stresses
+the same M1 GPU pipeline and surfaces as frame-budget violations. Lane
+B audits all four dimensions simultaneously via the Phase 1 frame-
+logger extension; three consecutive over-budget flushes file a
+Sprint 9 candidate.
+
+---
+
+*End of Sprint 8 Phase 2A designer pass. Sprint 8 §24-§25 are
+additive to Sprint 4 §1-§9 + Sprint 5 §10-§17 + Sprint 6 §18-§20 +
+Sprint 7 §21-§23. Combined: SSOT for the Faz 0-8 destruction
+sequence INCLUDING the canonical audio mix balance + the perceptual-
+impact performance budget. Sprint 8 introduces ZERO removals (audit
+sprint) and ZERO new visual surfaces — its design contribution is
+purely the audio balance normalisation table + the perf budget design
+contract. Phase 5 retro should revisit D-2 (atmospheric vs functional
+reduced-motion mapping) if QA observation shows any reduced-motion
+user reports finding the attenuated sources still too prominent — fall-
+back is to expand the atmospheric class to include native chord stub
++ ambient-recovery (currently both stay UNCHANGED).*
+
+## Files this Sprint 8 designer pass authored or edited
+- `destruction-direction.md` — Sprint 8 §24-§25 appended (Path A precedent: additive sections, no edits to Sprint 4-7 content).
+
+No constants edited (Lane A Phase 2B owns the
+`scene-destruction-constants.ts` + per-faz audio module gain
+adjustments per the §24 source-by-source delta table). No new
+files authored. TH-S7-02 file-structure-change signal: **NONE**.
