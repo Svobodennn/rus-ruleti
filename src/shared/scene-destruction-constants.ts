@@ -2000,3 +2000,159 @@ export const FAZ8_BUTTON_ENTRANCE_EASING = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)
  * band (100-150ms for hover/toggle feedback).
  */
 export const FAZ8_BUTTON_STATE_TRANSITION_MS = 100 as const;
+
+/* ========================================================================== */
+/* Sprint 8 — performance budgets (Phase 1 scaffold)                          */
+/*                                                                            */
+/* SSOT for performance design contracts. Phase 1 (kraken) seeds the named    */
+/* values; Phase 2A (designer / @profiler) reviews each constant against      */
+/* the destruction-direction.md §22 reveal-jingle voice-count peak + the      */
+/* Sprint 4-7 audio inventory (full enumeration in                            */
+/* tests/sound-audit-checklist.md). Phase 2B Lane B (@profiler) tunes these   */
+/* against actual frame:stats telemetry harvested from packaged builds.      */
+/*                                                                            */
+/* NOT runtime-enforced. These are DESIGN CONTRACTS — a frame:stats payload   */
+/* exceeding any budget triggers a Sprint 9+ candidate for auto-demote /      */
+/* graceful degradation, not an immediate runtime error. The audit lives in   */
+/* main/ipc.ts frame:stats handler (logged + reviewed; no UI surface).        */
+/*                                                                            */
+/* Measurement contract (how each value was set):                             */
+/*   - MAX_VOICE_COUNT_AT_PEAK: from destruction-direction.md §22 reveal-     */
+/*     jingle peak inventory (4 chord oscillators) + ambient-recovery        */
+/*     source (1) + door-close accent osc (1) + concurrent Faz 7 electrical  */
+/*     tick branches (up to 3 ticks within the 6sn window) + Sprint 1        */
+/*     ambient bed layers (4 layers × 1-3 nodes each) = headroom to 16.      */
+/*   - MAX_DRAW_CALLS_PER_FRAME: Sprint 3 GLB scene mounts at ~30-60 draw    */
+/*     calls; Sprint 4-7 destruction overlay adds 0 (DOM, not WebGL); 100   */
+/*     is the headroom ceiling above the worst-observed Sprint 7 baseline.  */
+/*   - MAX_TEXTURE_MEMORY_MB: 50MB matches the PLAN §1 low-end target (4GB  */
+/*     VRAM Intel UHD baseline). Estimated from texture COUNT × format      */
+/*     heuristic (assume 4 bytes/pixel RGBA; average GLB texture ~1024²;    */
+/*     50MB ≈ 12 textures at 1024² RGBA — Sprint 3 inventory has 8 GLBs    */
+/*     so 50MB is a 1.5× headroom).                                         */
+/*   - MAX_GEOMETRY_COUNT: 20 covers the Sprint 3 GLB graph (lobby + revolver*/
+/*     + 6 placeholder primitives) with headroom for the smoke particle    */
+/*     system (Sprint 3 +1 BufferGeometry) and destruction-overlay DOM      */
+/*     (which does NOT allocate THREE Geometry).                            */
+/*   - FRAME_BUDGET_MS: 16.67ms = 1000/60. The Sprint 1 quality-tier        */
+/*     controller already uses this implicitly (auto-demote when p99       */
+/*     exceeds 16.67); Sprint 8 codifies it as a named constant for cross-  */
+/*     module reference (frame-logger.ts + quality.ts + tests).             */
+/*   - PERF_STATS_FLUSH_INTERVAL_MS: 5000ms matches Sprint 1's              */
+/*     FRAME_LOG_FLUSH_INTERVAL_MS (scene-constants.ts). Re-exported here   */
+/*     as the Sprint 8 perf-domain alias so audit checklists + tooling can  */
+/*     reference one canonical perf-flush cadence without crossing the      */
+/*     scene-constants barrel.                                              */
+/* ========================================================================== */
+
+/**
+ * Peak concurrent Web Audio voice count budget.
+ *
+ * `voice` = OscillatorNode OR AudioBufferSourceNode actively scheduled
+ * between start() and stop()/`ended`. Filters/gains do NOT count as voices.
+ *
+ * Methodology: counted by inventory (destruction-direction.md §22 +
+ * tests/sound-audit-checklist.md). Worst-case concurrent window is the
+ * Faz 8 reveal entry (jingle 4 + ambient-recovery 1 + ambient bed 4 + any
+ * lingering Faz 7 electrical-tick branches ≤ 3) ≈ 12 voices; budget of 16
+ * leaves 4-voice headroom for cross-faz transition overlap (Lane A
+ * Phase 2B Sprint 8 audits cross-Faz handoff for dispose-then-mount
+ * races — see destruction-audio.ts dispose contract notes).
+ *
+ * Sprint 9+ candidate: enforce via voice-counter sample at flush — if
+ * `maxAudioVoiceCount > MAX_VOICE_COUNT_AT_PEAK` over 3 consecutive
+ * flushes, log a warning + queue a Sprint 9 retro item.
+ */
+export const MAX_VOICE_COUNT_AT_PEAK = 16 as const;
+
+/**
+ * Peak WebGL draw call budget per frame.
+ *
+ * Source: `renderer.info.render.calls` on the active WebGLRenderer. Captured
+ * per-frame by the Sprint 8 frame-logger extension (max over the rolling
+ * 60-frame window, reported at FRAME_LOG_FLUSH_INTERVAL_MS cadence).
+ *
+ * Methodology: Sprint 3 GLB scene composition uses ≤8 mesh nodes (lobby
+ * room + revolver + 6 placeholder primitives) — most rendered as
+ * MeshStandardMaterial single-pass draws. PS1 ShaderMaterial promotes do
+ * NOT add draw calls (single material override). Post-fx pipeline adds
+ * 3-5 full-screen passes (chromatic + scanline + grain + dither + tone-
+ * map). Worst-case baseline ≈ 30-45 draw calls; 100 is the Sprint 8
+ * headroom ceiling above worst-observed Sprint 7 max.
+ *
+ * Phase 2B Lane B (@profiler) may revise after packaged-build telemetry.
+ */
+export const MAX_DRAW_CALLS_PER_FRAME = 100 as const;
+
+/**
+ * Peak texture memory budget (megabytes — estimate).
+ *
+ * Estimate = `renderer.info.memory.textures` × average bytes-per-texture
+ * heuristic. Average heuristic: assume 4 bytes/pixel RGBA + average
+ * texture size 1024² → ~4 MiB per texture. Frame-logger samples the
+ * count + multiplies by the heuristic; exact byte count is unavailable
+ * from Three.js (the engine tracks COUNT not BYTES).
+ *
+ * Methodology: PLAN §1 low-end target is the Intel UHD 4GB VRAM baseline
+ * (~50MB scene budget leaves ~3.9GB for Electron compositor + OS). 50MB
+ * ≈ 12 textures at 1024² RGBA. Sprint 3 GLB inventory has 8 textures
+ * (lobby walls + floor + 6 props) so 50MB is a 1.5× headroom against the
+ * Sprint 7 production-ship baseline.
+ *
+ * Lane B (@profiler) calibrates the bytes-per-texture heuristic against
+ * actual GPU memory readings (Chrome DevTools → Memory → GPU process)
+ * for the packaged build.
+ */
+export const MAX_TEXTURE_MEMORY_MB = 50 as const;
+
+/**
+ * Peak active Three.js BufferGeometry count budget.
+ *
+ * Source: `renderer.info.memory.geometries` on the active WebGLRenderer.
+ *
+ * Methodology: Sprint 3 GLB scene = 8 geometries (one per GLB mesh node).
+ * Sprint 3 smoke particle system = 1 BufferGeometry (instanced). Sprint
+ * 4-7 destruction overlay = 0 (DOM, not WebGL). Worst-case baseline ≈ 9;
+ * 20 is the Sprint 8 headroom ceiling allowing for a future Sprint 9+
+ * particle effect or GLB swap-in (e.g. revolver state-machine variant
+ * geometries) without budget breach.
+ *
+ * Memory-leak signal: geometry count climbing over flushes without
+ * scene-mount changes implies a dispose() leak — Lane B Phase 2B
+ * @profiler audit candidate.
+ */
+export const MAX_GEOMETRY_COUNT = 20 as const;
+
+/**
+ * Per-frame render budget (milliseconds).
+ *
+ * `1000 / 60 ≈ 16.67ms` — single-frame target at 60fps. Sprint 1's
+ * quality-tier auto-demote already triggers when frame-logger p99
+ * exceeds this implicitly (auto-demote threshold lives in quality.ts).
+ * Sprint 8 promotes the value to a NAMED constant so audit checklists +
+ * Sprint 9 perf tooling can reference one canonical frame-budget number
+ * without re-deriving from quality.ts magic literals.
+ *
+ * Methodology: PLAN §1 ships at 60fps locked. Below 60fps the post-fx
+ * pipeline reads as "stutter" rather than "PS1 vibe"; the Sprint 1
+ * quality-tier system protects this contract by auto-demoting.
+ */
+export const FRAME_BUDGET_MS = 16.67 as const;
+
+/**
+ * Perf stats flush interval (milliseconds).
+ *
+ * Sprint 8 perf-domain alias for the Sprint 1 FRAME_LOG_FLUSH_INTERVAL_MS
+ * (scene-constants.ts). Re-named here so the perf budget cluster reads as
+ * self-contained — audit checklists + tooling can reference one canonical
+ * perf-flush cadence without crossing the scene-constants barrel.
+ *
+ * VALUE-EQUAL to FRAME_LOG_FLUSH_INTERVAL_MS by contract (Sprint 8 Lane B
+ * Phase 2B may bump if telemetry sampling warrants — but both constants
+ * MUST move together to avoid drift).
+ *
+ * 5000ms (= 5sn) balances: long enough to compute meaningful percentiles
+ * over ~300 frames at 60fps; short enough that ESC-abort renders a final
+ * flush before scene teardown.
+ */
+export const PERF_STATS_FLUSH_INTERVAL_MS = 5000 as const;

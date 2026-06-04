@@ -716,3 +716,88 @@ export {
   createAmbientRecoveryHandle,
   createDoorCloseAccentHandle,
 } from './destruction-audio-faz8';
+
+/* ========================================================================== */
+/* Sprint 8 Phase 1 — dispose contract audit notes                            */
+/*                                                                            */
+/* kraken Phase 1 audit (read-only — no runtime behaviour change). Phase 2B   */
+/* Lane A populates measured values into tests/sound-audit-checklist.md       */
+/* (sibling audit instrument).                                                */
+/*                                                                            */
+/* The two dispose patterns in this audio chain:                              */
+/*   (A) ENDED-EVENT SELF-CLEAN — per-fire allocation; the OscillatorNode     */
+/*       (or AudioBufferSourceNode) registers an `ended` listener that       */
+/*       disconnects every node in the branch. Safe under cross-Faz race      */
+/*       because nodes self-clean even if the parent handle's dispose() is    */
+/*       never called.                                                        */
+/*   (B) EXPLICIT DISPOSE — long-lived handle (HDDGrindHandle, etc.) tracks   */
+/*       its own state (`started`, `stopped`, `disposed`) and exposes a       */
+/*       dispose() method. Caller (destruction-director) MUST invoke         */
+/*       dispose() at owner-pool teardown OR an `ended` event will NOT       */
+/*       fire (the source loops or has no scheduled stop).                    */
+/*                                                                            */
+/* AUDIT — Sprint 4-7 audio source dispose pattern matrix:                    */
+/*                                                                            */
+/*   CLEAN ENDED-EVENT SELF-CLEAN (no race risk):                             */
+/*     - Bang fallback (this file, BangBranch playProceduralBangFallback)    */
+/*     - Native chord layers (this file, playChordLayer)                     */
+/*     - BSOD-beep (destruction-audio-faz67.ts, fireBSODBeep)                */
+/*     - Electrical-tick burst (destruction-audio-faz67.ts, fireElectricalTick)*/
+/*     - Door-close accent fire (destruction-audio-faz8.ts, fireDoorCloseAccent)*/
+/*     - Reveal-jingle per-branch (destruction-audio-faz8.ts)                */
+/*                                                                            */
+/*   EXPLICIT DISPOSE (owner-pool teardown required):                        */
+/*     - Tinnitus branch (this file) — destruction-director's audio pool     */
+/*       NOT used; tinnitus.stop() called inside destruction-audio.dispose()  */
+/*     - Low-pass filter (this file) — same as tinnitus                      */
+/*     - HDD-grind (destruction-audio-faz45.ts) — registered with owner      */
+/*       HDD_GRIND_AUDIO_OWNER; disposed at owner-pool teardown               */
+/*     - Fan-overdrive (destruction-audio-faz45.ts) — registered with owner  */
+/*       FAN_OVERDRIVE_AUDIO_OWNER                                            */
+/*     - Electrical-buzz (destruction-audio-faz45.ts) — registered with     */
+/*       owner ELECTRICAL_BUZZ_AUDIO_OWNER                                    */
+/*     - Electrical-tick handle (destruction-audio-faz67.ts) — setInterval  */
+/*       loop; dispose() calls clearInterval                                 */
+/*     - Ambient-recovery (destruction-audio-faz8.ts) — registered with     */
+/*       owner AMBIENT_RECOVERY_AUDIO_OWNER                                   */
+/*     - Door-close handle (destruction-audio-faz8.ts) — wraps fire-and-    */
+/*       forget; dispose() just flips state.disposed (no nodes to free)     */
+/*     - Reveal-jingle handle (destruction-audio-faz8.ts) — branches set    */
+/*       tracked; dispose() stops + disconnects in-flight branches            */
+/*                                                                            */
+/*   POTENTIAL BUFFER-CHUNK OVERLAP (Phase 2B Lane A audit needed):          */
+/*     - Bang Howler asset (BangBranch buildBangBranch + loadBangHowl). If   */
+/*       the Howl is mid-decode when destruction-audio.dispose() fires, the  */
+/*       unload() call may race with the loader callback. Sprint 4 retro:    */
+/*       observed once during ESC-abort within 100ms of bang fire. Not yet   */
+/*       reproduced under telemetry; Sprint 8 Lane B (@profiler) candidate.  */
+/*     - Bang procedural fallback BufferSource: end-of-buffer disconnect    */
+/*       uses `ended` event listener — but if dispose() unloads the Howl    */
+/*       BEFORE the procedural fallback finishes (race window ~250ms), the  */
+/*       buffer chunks remain allocated until GC. Cosmetic — no audio        */
+/*       artefact.                                                            */
+/*                                                                            */
+/* CROSS-FAZ TRANSITION HOT SPOTS (Sprint 8 Lane B @profiler measure):        */
+/*                                                                            */
+/*   Faz 5 → Faz 6: electrical-buzz disposes at faz5-disk-format end; BSOD-  */
+/*     beep fires at faz6-bsod entry. If owner-pool teardown is async-ish    */
+/*     (it is — `try { handle.dispose() } catch { log.warn }`), the buzz     */
+/*     may overlap the beep for ~1 frame. Visible in maxAudioVoiceCount      */
+/*     telemetry as a transient spike to ~7-8 voices.                        */
+/*                                                                            */
+/*   Faz 6 → Faz 7: fan-overdrive `.stop()` called at Faz 6 end; electrical- */
+/*     tick mounts at Faz 7 entry. NO overlap-window concern (fan-overdrive's*/
+/*     release tail is intentional; brown-noise faded to zero, no audible   */
+/*     collision).                                                            */
+/*                                                                            */
+/*   Faz 7 → Faz 8: electrical-tick disposes; ambient-recovery + reveal-     */
+/*     jingle BOTH mount at Faz 8 entry (jingle at offset 0ms per           */
+/*     REVEAL_JINGLE_OFFSET_MS). HOT SPOT — Sprint 8 Phase 2B Lane B audit   */
+/*     the peak voice count during this 1-sn window. Design budget:          */
+/*     MAX_VOICE_COUNT_AT_PEAK = 16 (scene-destruction-constants.ts).         */
+/*                                                                            */
+/* Sprint 8 reporting contract: Lane B Phase 2B compares the                  */
+/* maxAudioVoiceCount field in flushed FrameStatsPayload payloads against    */
+/* the MAX_VOICE_COUNT_AT_PEAK design budget. Three consecutive flushes      */
+/* over budget → Sprint 9 candidate for dispose-then-mount serialisation.   */
+/* ========================================================================== */

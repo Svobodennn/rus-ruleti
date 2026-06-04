@@ -164,8 +164,16 @@ function getUsernameHandler(event: IpcMainInvokeEvent): string {
  * Runtime shape guard for FrameStatsPayload.
  *
  * Defensive — preload guarantees the shape, but we never trust IPC payloads.
- * Returns true only if every numeric field is a finite number and quality is
- * one of the three accepted tiers.
+ * Returns true only if every REQUIRED numeric field is a finite number and
+ * quality is one of the three accepted tiers.
+ *
+ * Sprint 8 ADDITIVE fields (maxDrawCalls / maxTextureCount /
+ * maxTextureMemoryEstimateMB / maxGeometryCount / maxAudioVoiceCount) are
+ * OPTIONAL — the validator permits payloads with or without them. If
+ * present, the optional-field guard below enforces they are finite numbers;
+ * if absent, the payload is still accepted. This preserves backward compat
+ * with Sprint 7 builds (no Sprint 8 frame-logger extension) and forward
+ * compat with the Sprint 8 extension itself.
  */
 function isFrameStatsPayload(value: unknown): value is FrameStatsPayload {
   if (value === null || typeof value !== 'object') {
@@ -180,5 +188,23 @@ function isFrameStatsPayload(value: unknown): value is FrameStatsPayload {
     }
   }
   const q = v['quality'];
-  return q === 'low' || q === 'medium' || q === 'high';
+  if (q !== 'low' && q !== 'medium' && q !== 'high') {
+    return false;
+  }
+  // Sprint 8 optional perf fields — present-then-finite contract.
+  const optionalNumericKeys = [
+    'maxDrawCalls',
+    'maxTextureCount',
+    'maxTextureMemoryEstimateMB',
+    'maxGeometryCount',
+    'maxAudioVoiceCount',
+  ];
+  for (const key of optionalNumericKeys) {
+    const n = v[key];
+    if (n === undefined) continue;
+    if (typeof n !== 'number' || !Number.isFinite(n)) {
+      return false;
+    }
+  }
+  return true;
 }
