@@ -29,6 +29,10 @@ import {
   PREFERS_REDUCED_MOTION_QUERY,
 } from '../../../shared/scene-destruction-constants.js';
 import type { BSODBeepHandle, ElectricalTickHandle } from './destruction-audio.js';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -135,10 +139,14 @@ function fireBSODBeep(
   gain.gain.setValueAtTime(sustainLevel, releaseStart);
   gain.gain.linearRampToValueAtTime(0, releaseEnd);
   osc.start(now);
+  // Sprint 8 M2 — voice-counter increment per BSOD beep oscillator (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   osc.stop(releaseEnd + 0.01);
   osc.addEventListener('ended', (): void => {
     osc.disconnect();
     gain.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
 }
 
@@ -259,10 +267,14 @@ function fireElectricalTick(
   gain.gain.setValueAtTime(peakGain, now);
   gain.gain.linearRampToValueAtTime(0, now + ELECTRICAL_TICK_BURST_LENGTH_SEC);
   src.start(now);
+  // Sprint 8 M2 — voice-counter increment per electrical-tick burst (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.stop(now + ELECTRICAL_TICK_BURST_LENGTH_SEC + 0.01);
   src.addEventListener('ended', (): void => {
     src.disconnect();
     lp.disconnect();
     gain.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
 }

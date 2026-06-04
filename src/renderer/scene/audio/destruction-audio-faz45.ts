@@ -33,6 +33,10 @@ import type {
   FanOverdriveHandle,
   HDDGrindHandle,
 } from './destruction-audio';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -182,6 +186,8 @@ function startHDDGrind(
   const now = context.currentTime;
   nodes.source.start(now);
   nodes.lfo.start(now);
+  // Sprint 8 M2 — voice-counter increment per audio source (source + lfo = 2).
+  try { incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
   nodes.carrierGain.gain.setValueAtTime(0, now);
   nodes.carrierGain.gain.linearRampToValueAtTime(peakGain, now + HDD_GRIND_ATTACK_SEC);
 }
@@ -218,6 +224,9 @@ function stopHDDGrind(state: HDDGrindState, nodes: HDDGrindNodes, context: Audio
 
 function disposeHDDGrind(state: HDDGrindState, nodes: HDDGrindNodes): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose. Only
+  // decrement if start() ran (otherwise the increment never fired).
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     nodes.source.disconnect();
@@ -227,6 +236,9 @@ function disposeHDDGrind(state: HDDGrindState, nodes: HDDGrindNodes): void {
     nodes.lfoGain.disconnect();
   } catch {
     // Already disconnected — safe.
+  }
+  if (wasStarted) {
+    try { decrementVoiceCount(); decrementVoiceCount(); } catch { /* defensive */ }
   }
 }
 
@@ -339,6 +351,8 @@ function startFanOverdrive(
   state.started = true;
   const now = context.currentTime;
   nodes.source.start(now);
+  // Sprint 8 M2 — voice-counter increment per audio source (1 BufferSource).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   nodes.gain.gain.setValueAtTime(0, now);
   nodes.gain.gain.linearRampToValueAtTime(peakGain, now + FAN_OVERDRIVE_RAMP_SEC);
 }
@@ -378,6 +392,8 @@ function stopFanOverdrive(
 
 function disposeFanOverdrive(state: FanOverdriveState, nodes: FanOverdriveNodes): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose.
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     nodes.source.disconnect();
@@ -385,6 +401,9 @@ function disposeFanOverdrive(state: FanOverdriveState, nodes: FanOverdriveNodes)
     nodes.gain.disconnect();
   } catch {
     // Already disconnected.
+  }
+  if (wasStarted) {
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   }
 }
 
@@ -485,6 +504,9 @@ function startElectricalBuzz(
   nodes.fundamental.start(now);
   nodes.harmonic2x.start(now);
   nodes.harmonic3x.start(now);
+  // Sprint 8 M2 — voice-counter increment per audio source
+  // (fundamental + harmonic2x + harmonic3x = 3 oscillators).
+  try { incrementVoiceCount(); incrementVoiceCount(); incrementVoiceCount(); } catch { /* defensive */ }
   nodes.masterGain.gain.setValueAtTime(0, now);
   nodes.masterGain.gain.linearRampToValueAtTime(peakGain, now + ELECTRICAL_BUZZ_ATTACK_SEC);
 }
@@ -526,6 +548,8 @@ function stopElectricalBuzz(
 
 function disposeElectricalBuzz(state: ElectricalBuzzState, nodes: ElectricalBuzzNodes): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose.
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     nodes.fundamental.disconnect();
@@ -537,6 +561,13 @@ function disposeElectricalBuzz(state: ElectricalBuzzState, nodes: ElectricalBuzz
     nodes.harmonic3xGain.disconnect();
   } catch {
     // Already disconnected.
+  }
+  if (wasStarted) {
+    try {
+      decrementVoiceCount();
+      decrementVoiceCount();
+      decrementVoiceCount();
+    } catch { /* defensive */ }
   }
 }
 

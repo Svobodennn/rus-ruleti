@@ -70,6 +70,10 @@ import type {
   RevealJingleHandle,
   RevealJingleOptions,
 } from '../destruction/types.js';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /* ------------------------------------------------------------------------ */
 /* Shared helpers                                                           */
@@ -221,6 +225,8 @@ function fadeInAmbientRecovery(
   if (!state.started) {
     state.started = true;
     nodes.source.start();
+    // Sprint 8 M2 — voice-counter increment per ambient-recovery source (Pattern B).
+    try { incrementVoiceCount(); } catch { /* defensive */ }
   }
   const target = dbToLinear(FAZ8_AUDIO_BED_BASELINE_GAIN_DB);
   const now = context.currentTime;
@@ -238,6 +244,8 @@ function disposeAmbientRecovery(
   nodes: AmbientRecoveryNodes,
 ): void {
   if (state.disposed) return;
+  // Sprint 8 M2 — voice-counter decrement on explicit dispose.
+  const wasStarted = state.started;
   state.disposed = true;
   try {
     if (state.started) nodes.source.stop();
@@ -250,6 +258,9 @@ function disposeAmbientRecovery(
     nodes.gain.disconnect();
   } catch {
     // Already disconnected.
+  }
+  if (wasStarted) {
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   }
 }
 
@@ -385,10 +396,14 @@ function startAndScheduleStopDoorClose(
       } catch {
         // Already disconnected.
       }
+      // Sprint 8 M2 — voice-counter decrement on `ended` self-clean (Pattern A).
+      try { decrementVoiceCount(); } catch { /* defensive */ }
     },
     { once: true },
   );
   osc.start(now);
+  // Sprint 8 M2 — voice-counter increment per door-close oscillator fire (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   try {
     osc.stop(stopAt);
   } catch {
@@ -588,17 +603,26 @@ function startAndScheduleStopRevealJingle(
   branch.osc.addEventListener(
     'ended',
     (): void => {
-      branches.delete(branch);
+      // Sprint 8 M2 — defence-in-depth: only decrement if the branch is
+      // still tracked. dispose() may have already removed it (then we
+      // decrement there); avoiding double-decrement keeps the counter
+      // integrity intact across the dispose / `ended` race window.
+      const wasTracked = branches.delete(branch);
       try {
         branch.osc.disconnect();
         branch.gain.disconnect();
       } catch {
         // Already disconnected.
       }
+      if (wasTracked) {
+        try { decrementVoiceCount(); } catch { /* defensive */ }
+      }
     },
     { once: true },
   );
   branch.osc.start(startTime);
+  // Sprint 8 M2 — voice-counter increment per reveal-jingle branch (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   try {
     branch.osc.stop(stopAt);
   } catch {
@@ -617,6 +641,10 @@ function disposeRevealJingle(
 ): void {
   if (state.disposed) return;
   state.disposed = true;
+  // Sprint 8 M2 — voice-counter decrement per still-tracked branch.
+  // The `ended` listener also decrements, but we delete() here so the
+  // wasTracked check inside the listener evaluates false on race — net
+  // ONE decrement per branch regardless of which path wins.
   for (const branch of branches) {
     try {
       branch.osc.stop();
@@ -629,6 +657,7 @@ function disposeRevealJingle(
     } catch {
       // Already disconnected.
     }
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   }
   branches.clear();
 }

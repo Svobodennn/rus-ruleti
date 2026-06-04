@@ -53,6 +53,10 @@ import {
   TINNITUS_AMPLITUDE_REDUCED_MOTION_DB,
   TINNITUS_FREQ_HZ,
 } from '../../../shared/scene-destruction-constants.js';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter.js';
 
 /** Lowpass Q factor — designer §7 specifies 1.0 (12dB/octave). */
 const LOW_PASS_Q = 1.0;
@@ -270,6 +274,8 @@ function buildTinnitusBranch(
       if (started || stopped) return;
       started = true;
       osc.start();
+      // Sprint 8 M2 — voice-counter increment after start (Pattern B).
+      try { incrementVoiceCount(); } catch { /* defensive — never breaks audio */ }
       const now = ctx.currentTime;
       gain.gain.setValueAtTime(0, now);
       gain.gain.linearRampToValueAtTime(target, now + TINNITUS_FADE_IN_MS / 1000);
@@ -284,6 +290,10 @@ function buildTinnitusBranch(
       }
       osc.disconnect();
       gain.disconnect();
+      // Sprint 8 M2 — voice-counter decrement on explicit dispose.
+      if (started) {
+        try { decrementVoiceCount(); } catch { /* defensive */ }
+      }
     },
   };
 }
@@ -408,10 +418,14 @@ function playProceduralBangFallback(
   gain.gain.setValueAtTime(BANG_FALLBACK_GAIN, now);
   gain.gain.linearRampToValueAtTime(0, now + BANG_FALLBACK_LENGTH_SEC);
   src.start();
+  // Sprint 8 M2 — voice-counter increment after BufferSource start (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.addEventListener('ended', () => {
     src.disconnect();
     hp.disconnect();
     gain.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   src.stop(now + BANG_FALLBACK_LENGTH_SEC + 0.01);
 }
@@ -466,12 +480,16 @@ function playChordLayer(
   const startOffset = startOffsetMs / 1000;
   scheduleChordEnvelope(ctx, gain.gain, startOffset);
   osc.start(ctx.currentTime + startOffset);
+  // Sprint 8 M2 — voice-counter increment per chord layer (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   const totalSec =
     (CHORD_ATTACK_MS + CHORD_DECAY_MS + CHORD_SUSTAIN_MS + CHORD_RELEASE_MS) / 1000;
   osc.stop(ctx.currentTime + startOffset + totalSec + 0.01);
   osc.addEventListener('ended', () => {
     osc.disconnect();
     gain.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
 }
 

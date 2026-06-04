@@ -37,6 +37,10 @@ import {
   SFX_HEARTBEAT_ENVELOPE_MS,
   SFX_SWEAT_DRIP_ENVELOPE_MS,
 } from '../../../shared/scene-audio-constants';
+import {
+  decrementVoiceCount,
+  incrementVoiceCount,
+} from './audio-voice-counter';
 
 /** Public handle returned by `createOneShotPlayer`. */
 export interface OneShotPlayer {
@@ -130,10 +134,14 @@ function playCockBurst(
   src.connect(bp).connect(g).connect(destination);
   rampParam(g.gain, 0, SFX_COCK_ENVELOPE_MS, ctx);
   src.start();
+  // Sprint 8 M2 — voice-counter increment per cock-burst BufferSource (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.addEventListener('ended', () => {
     src.disconnect();
     bp.disconnect();
     g.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   src.stop(ctx.currentTime + 0.12);
 }
@@ -177,9 +185,13 @@ function playEmptyClickTransient(
   osc.connect(g).connect(destination);
   rampParam(g.gain, 0, SFX_EMPTY_CLICK_ENVELOPE_MS, ctx);
   osc.start();
+  // Sprint 8 M2 — voice-counter increment per empty-click oscillator (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   osc.addEventListener('ended', () => {
     osc.disconnect();
     g.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   osc.stop(ctx.currentTime + 0.08);
 }
@@ -218,9 +230,13 @@ function playBangBurst(
   src.connect(g).connect(destination);
   rampParam(g.gain, 0, SFX_BANG_ENVELOPE_MS, ctx);
   src.start();
+  // Sprint 8 M2 — voice-counter increment per bang-burst BufferSource (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.addEventListener('ended', () => {
     src.disconnect();
     g.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   src.stop(ctx.currentTime + 0.25);
 }
@@ -256,9 +272,13 @@ function playHeartbeatPulse(
   osc.connect(g).connect(destination);
   rampParam(g.gain, 0, SFX_HEARTBEAT_ENVELOPE_MS, ctx);
   osc.start();
+  // Sprint 8 M2 — voice-counter increment per heartbeat oscillator (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   osc.addEventListener('ended', () => {
     osc.disconnect();
     g.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   osc.stop(ctx.currentTime + 0.16);
 }
@@ -311,10 +331,14 @@ function spawnSweatNoise(
   src.connect(bp).connect(g).connect(destination);
   rampParam(g.gain, 0, SFX_SWEAT_DRIP_ENVELOPE_MS, ctx);
   src.start();
+  // Sprint 8 M2 — voice-counter increment per sweat-noise burst (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.addEventListener('ended', () => {
     src.disconnect();
     bp.disconnect();
     g.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   src.stop(ctx.currentTime + 0.14);
 }
@@ -329,9 +353,13 @@ function spawnSweatPlip(ctx: AudioContext, destination: AudioNode): void {
   osc.connect(g).connect(destination);
   rampParam(g.gain, 0, 80, ctx);
   osc.start();
+  // Sprint 8 M2 — voice-counter increment per sweat-plip oscillator (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   osc.addEventListener('ended', () => {
     osc.disconnect();
     g.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   osc.stop(ctx.currentTime + 0.1);
 }
@@ -381,11 +409,15 @@ function playChairCreak(
   rampParam(bp.frequency, CHAIR_CREAK_END_HZ, SFX_CHAIR_CREAK_ENVELOPE_MS, ctx);
   rampParam(g.gain, 0, SFX_CHAIR_CREAK_ENVELOPE_MS, ctx);
   src.start();
+  // Sprint 8 M2 — voice-counter increment per chair-creak BufferSource (Pattern A).
+  try { incrementVoiceCount(); } catch { /* defensive */ }
   src.addEventListener('ended', () => {
     src.disconnect();
     bp.disconnect();
     g.disconnect();
     panner.disconnect();
+    // Sprint 8 M2 — voice-counter decrement on `ended` self-clean.
+    try { decrementVoiceCount(); } catch { /* defensive */ }
   });
   src.stop(ctx.currentTime + 0.65);
 }
