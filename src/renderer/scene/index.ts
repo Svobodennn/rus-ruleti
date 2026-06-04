@@ -27,7 +27,7 @@
  */
 
 import type { Group, WebGLRenderer, PerspectiveCamera, Scene } from 'three';
-import type { FrameStats } from './frame-logger';
+import type { FrameStats, ScenePerfSample } from './frame-logger';
 import { createFrameLogger } from './frame-logger';
 import type { FrameLoggerHandle } from './frame-logger';
 import { createQualityController } from './quality';
@@ -48,6 +48,7 @@ import type { PostFxHandle } from './post-fx/pipeline';
 import { updatePs1MaterialAspect } from './shaders/ps1-material';
 import { mountAudioBed } from './audio/audio-bed';
 import type { AudioBedHandle } from './audio/audio-bed';
+import { getActiveVoiceCount } from './audio/audio-voice-counter';
 import { mountRevolver, type RevolverHandle } from './revolver';
 import { resolveUserLocale } from '../i18n/strings';
 import {
@@ -239,7 +240,7 @@ async function buildResources(
   const audioBed = await mountAudioBed();
   audioBed.fadeInAmbient();
 
-  const { frameLogger, quality } = buildTelemetry();
+  const { frameLogger, quality } = buildTelemetry(renderer);
   const initialQuality = quality.getQualityLevel();
   // Sprint 3 Phase 2B: parallel preload of all 7 GLBs before scene graph
   // composition. Promise.allSettled — one failed GLB renders placeholder
@@ -297,15 +298,29 @@ async function buildResources(
  * other (logger reads quality at flush time, quality reads stats from
  * logger), so we instantiate them as a pair and return both.
  */
-function buildTelemetry(): {
+function buildTelemetry(renderer: WebGLRenderer): {
   frameLogger: FrameLoggerHandle;
   quality: QualityControllerHandle;
 } {
   // eslint-disable-next-line prefer-const -- logger captures `quality` lazily.
   let quality: QualityControllerHandle;
+  // Sprint 8 Phase 2B Lane B (S11 closure) — wire the optional
+  // sceneStatsReader so frame:stats payloads ship the Sprint 8 max*
+  // perf-capture fields. Reader is a single closure over the existing
+  // WebGLRenderer.info accessor + the audio-voice-counter module; each
+  // field is an O(1) property read (the renderer itself maintains the
+  // counters during draw, the voice counter is a module-level number).
+  // See profile-sprint8.md hotspot H3 for the gap analysis this closes.
+  const sceneStatsReader = (): ScenePerfSample => ({
+    drawCalls: renderer.info.render.calls,
+    textureCount: renderer.info.memory.textures,
+    geometryCount: renderer.info.memory.geometries,
+    audioVoiceCount: getActiveVoiceCount(),
+  });
   const frameLogger = createFrameLogger(
     () => quality.getQualityLevel(),
     (payload) => window.api.sendFrameStats(payload),
+    sceneStatsReader,
   );
   quality = createQualityController(frameLogger, {
     info: (message: string): void => {
