@@ -49,9 +49,29 @@ export type OsFamily = 'mac' | 'win';
 /**
  * Payload shape for the frame:stats one-way channel.
  *
- * Renderer flushes one of these every FRAME_LOG_FLUSH_INTERVAL_MS. Numbers
- * are milliseconds. `quality` reflects the active runtime tier (which may
- * differ from the build-time tier after promote/demote).
+ * Renderer flushes one of these every FRAME_LOG_FLUSH_INTERVAL_MS. The
+ * five p50/p95/p99 + mean/max + sampleCount + quality fields are the
+ * Sprint 1 baseline (frame-time percentiles). The five max* perf
+ * capture fields are
+ * Sprint 8 ADDITIVE extensions for the S11 closure (Three.js + Web
+ * Audio profiling). Every Sprint 8 field is OPTIONAL so a renderer
+ * built without the Sprint 8 frame-logger extension still emits a
+ * payload accepted by the main-process validator (additive contract —
+ * backward compat with Sprint 7).
+ *
+ * Sprint 8 capture dimensions (sampled per frame inside the rolling
+ * 60-frame window; reported as MAX per FRAME_LOG_FLUSH_INTERVAL_MS):
+ *   - maxDrawCalls:                renderer.info.render.calls
+ *   - maxTextureCount:             renderer.info.memory.textures
+ *   - maxTextureMemoryEstimateMB:  textureCount × 4 MiB heuristic
+ *                                  (assume 1024² RGBA average)
+ *   - maxGeometryCount:            renderer.info.memory.geometries
+ *   - maxAudioVoiceCount:          getActiveVoiceCount() from
+ *                                  audio-voice-counter.ts
+ *
+ * Numbers are milliseconds (frame-time) / counts (perf) / megabytes
+ * (texture estimate). `quality` reflects the active runtime tier
+ * (which may differ from the build-time tier after promote/demote).
  */
 export interface FrameStatsPayload {
   readonly p50: number;
@@ -61,4 +81,34 @@ export interface FrameStatsPayload {
   readonly max: number;
   readonly quality: 'low' | 'medium' | 'high';
   readonly sampleCount: number;
+  /**
+   * Sprint 8 — max `renderer.info.render.calls` seen in the rolling
+   * 60-frame window. Optional (Sprint 7 builds omit this field).
+   */
+  readonly maxDrawCalls?: number;
+  /**
+   * Sprint 8 — max `renderer.info.memory.textures` (count of active
+   * Three.js textures) seen in the rolling 60-frame window. Optional.
+   */
+  readonly maxTextureCount?: number;
+  /**
+   * Sprint 8 — texture memory ESTIMATE in megabytes. Three.js exposes
+   * COUNT not BYTES; estimate = count × 4 MiB (1024² RGBA heuristic,
+   * see MAX_TEXTURE_MEMORY_MB in scene-destruction-constants.ts).
+   * Optional.
+   */
+  readonly maxTextureMemoryEstimateMB?: number;
+  /**
+   * Sprint 8 — max `renderer.info.memory.geometries` (count of active
+   * Three.js BufferGeometry instances) seen in the rolling 60-frame
+   * window. Optional.
+   */
+  readonly maxGeometryCount?: number;
+  /**
+   * Sprint 8 — max active Web Audio voice count (= count of
+   * OscillatorNode + AudioBufferSourceNode actively scheduled between
+   * start() and stop()/`ended`) seen across the flush window. Sourced
+   * from audio-voice-counter.ts. Optional.
+   */
+  readonly maxAudioVoiceCount?: number;
 }
