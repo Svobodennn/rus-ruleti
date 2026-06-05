@@ -28,7 +28,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 30_000,
+  // Sprint 9: bumped 30s → 120s — Faz 8 son-ekran disclaimer .is-visible
+  // arrives at ~58s into destruction sequence; per-test `test.setTimeout`
+  // overrides this for the longer tests but the default needs headroom.
+  timeout: 120_000,
   retries: 0,
   reporter: [['list'], ['html']],
   use: {

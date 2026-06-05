@@ -62,17 +62,24 @@ import type { Page } from '@playwright/test';
  * not duplicated here — the smoke harness exposes high-level mid-points
  * only. If the constants change, this table needs to be re-derived.
  */
+// Sprint 9 timing rederivation per scene-destruction-constants.ts:
+//   FAZ4_DURATION_MS = 9000,   FAZ5_START_MS = 30000,
+//   FAZ5_DURATION_MS = 7000,   FAZ6_START_MS = 37000,
+//   FAZ6_DURATION_MS = 7000,   FAZ7_START_MS = 44000,
+//   FAZ7_DURATION_MS = 6000  → Faz 8 reveal start ~50_000,
+//   FAZ8_REVEAL_DURATION_MS = 5000 → son-ekran start ~55_000,
+//   FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS = 3000 → .is-visible at ~58_000.
 const FAZ_TIMING_MS = {
   faz0Mid: 750, // BANG flash + camera shake (~1.5sn total window)
   faz1Mid: 4_000, // Critical dialog ~3sn window after Faz 0
   faz2Mid: 8_000, // Takeover ~7sn window
   faz3Mid: 16_000, // Terminal typewriter ~8sn
   faz4Mid: 22_000, // File-wipe ~5sn
-  faz5Mid: 28_000, // Disk-format ~6sn
-  faz6Mid: 35_000, // BSOD/kernel-panic ~6sn
-  faz7Mid: 42_000, // Bootloop ~5sn
-  faz8RevealMid: 47_000, // Reveal envelope ~5sn
-  faz8SonEkranMid: 54_000, // Son-ekran ~10sn (disclaimer + buttons settled)
+  faz5Mid: 32_000, // Disk-format mid (FAZ5_START 30s + 2s mid)
+  faz6Mid: 40_000, // BSOD/kernel-panic mid (FAZ6_START 37s + 3s mid)
+  faz7Mid: 47_000, // Bootloop mid (FAZ7_START 44s + 3s mid)
+  faz8RevealMid: 52_000, // Reveal mid (start 50s + 2s)
+  faz8SonEkranMid: 60_000, // Son-ekran disclaimer .is-visible ~58s + 2s slack
 };
 
 /**
@@ -165,7 +172,9 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
    * Playwright's default 30s is too short.
    */
   test.beforeEach(async ({ page }): Promise<void> => {
-    test.setTimeout(90_000);
+    // Sprint 9: bump from 90s → 120s because faz8 son-ekran disclaimer
+    // .is-visible arrives at ~58s and tests need expect timeout slack.
+    test.setTimeout(120_000);
     await installWindowApiMock(page);
     await page.goto('/');
   });
@@ -175,7 +184,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       successfully, proving the Vite dev server serves the bundle
   //       and the window.api mock satisfies the preload-bridge gate.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T01 — Mount lobby: disclaimer renders + Continue button present',
     async ({ page }): Promise<void> => {
       // Wait for hydrateDisclaimer() to mount the Continue button.
@@ -201,7 +210,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       only happens after the bang-fired listener triggers
   //       runSequenceOnce → prepareOverlay).
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T02 — BANG fires destruction sequence (destruction-takeover overlay appears)',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -222,7 +231,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       + flash. Mid-state screenshot anchors a baseline for
   //       future regression on BANG visual envelope.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T03 — Faz 0 BANG flash + camera shake mid-state',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -239,14 +248,19 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   // T04 — Faz 1 critical dialog mid-state (~4sn into sequence). The
   //       OS-specific chrome (mac-dialog or win-dialog) renders.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T04 — Faz 1 critical dialog rendered',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
       await page.waitForTimeout(FAZ_TIMING_MS.faz1Mid);
       // mac-dialog or win-dialog chrome present.
-      const dialog = page.locator('.mac-dialog, .win-dialog');
+      // Sprint 9 spec patch: real chrome classes are `mac-dialog-box`
+      // (mac-dialog.ts:123) and `[data-role="win-dialog-panel"]`
+      // (win-dialog.ts:224). Sprint 7 selectors used the file basenames.
+      const dialog = page.locator(
+        '.mac-dialog-box, [data-role="win-dialog-panel"]',
+      );
       await expect(dialog).toBeVisible({ timeout: 2_000 });
       await page.screenshot({
         path: 'tests/e2e/faz-screenshots/baseline/T04-faz1-critical-dialog.png',
@@ -259,7 +273,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   // T05 — Faz 2 takeover mid-state (~8sn). Procedural wallpaper +
   //       OS menubar/taskbar chrome present.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T05 — Faz 2 takeover (wallpaper + menubar/taskbar)',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -278,13 +292,15 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   // T06 — Faz 3 terminal mid-state (~16sn). Typewriter terminal
   //       rendering fake file paths with username substitution.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T06 — Faz 3 terminal typewriter rendered',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
       await page.waitForTimeout(FAZ_TIMING_MS.faz3Mid);
-      const terminal = page.locator('.faz3-terminal');
+      // Sprint 9 spec patch: real class is `destruction-terminal` from
+      // faz3-terminal.ts:191. Sprint 7 selector used the file basename.
+      const terminal = page.locator('.destruction-terminal');
       await expect(terminal).toBeVisible({ timeout: 2_000 });
       await page.screenshot({
         path: 'tests/e2e/faz-screenshots/baseline/T06-faz3-terminal.png',
@@ -296,7 +312,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   // ----------------------------------------------------------------
   // T07 — Faz 4 file-wipe mid-state (~22sn).
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T07 — Faz 4 file-wipe rendered',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -312,7 +328,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   // ----------------------------------------------------------------
   // T08 — Faz 5 disk-format mid-state (~28sn).
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T08 — Faz 5 disk-format rendered',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -331,13 +347,16 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       `.is-transition-fading-in` class (verified separately
   //       in T12).
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T09 — Faz 6 BSOD or kernel-panic chrome rendered',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
       await page.waitForTimeout(FAZ_TIMING_MS.faz6Mid);
-      const bsod = page.locator('.win-bsod, .mac-kernel-panic');
+      // Sprint 9 spec patch: real classes are `faz6-win-bsod`
+      // (win-bsod.ts:369) and `faz6-mac-kernel-panic`
+      // (mac-kernel-panic.ts:113).
+      const bsod = page.locator('.faz6-win-bsod, .faz6-mac-kernel-panic');
       await expect(bsod).toBeVisible({ timeout: 2_000 });
       await page.screenshot({
         path: 'tests/e2e/faz-screenshots/baseline/T09-faz6-bsod.png',
@@ -354,7 +373,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       below — the analyser graph allocates 4 oscillator nodes
   //       under the chord.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T10 — Faz 8 reveal cross-fade midpoint',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -378,7 +397,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       both the disclaimer + action-buttons container, AND the
   //       host element is document.body (not destruction-takeover).
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T11 — Faz 8 son-ekran disclaimer + TEKRAR/ÇIK buttons visible',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -387,9 +406,14 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
       // Sprint 6 LL-1 carry-forward: disclaimer rendered + is-visible.
       const disclaimer = page.locator('.faz8-disclaimer.is-visible');
       await expect(disclaimer).toBeVisible({ timeout: 2_000 });
-      // Sprint 7 NEW: action buttons container is-visible.
+      // Sprint 9 spec patch: per faz8-son-ekran.ts:498-505
+      // (triggerButtonVisibility), `.is-visible` is added to the
+      // BUTTONS (`.faz8-tekrar-button.is-visible`,
+      // `.faz8-cik-button.is-visible`), NOT the container itself.
+      // Container `.faz8-action-buttons-container` exists once buttons
+      // mount; its parent is document.body (Sprint 6 LL-1 host fix).
       const buttonsContainer = page.locator(
-        '.faz8-action-buttons-container.is-visible',
+        '.faz8-action-buttons-container',
       );
       await expect(buttonsContainer).toBeVisible({ timeout: 2_000 });
       // Sprint 6 LL-1 host check: action-buttons-container parent is body
@@ -398,9 +422,13 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
         (el): string => el.parentElement?.tagName ?? '',
       );
       expect(parentTag).toBe('BODY');
-      // Both buttons present.
-      await expect(page.locator('.faz8-tekrar-button')).toBeVisible();
-      await expect(page.locator('.faz8-cik-button')).toBeVisible();
+      // Both buttons present with is-visible class (Sprint 9 patch).
+      await expect(
+        page.locator('.faz8-tekrar-button.is-visible'),
+      ).toBeVisible({ timeout: 2_000 });
+      await expect(
+        page.locator('.faz8-cik-button.is-visible'),
+      ).toBeVisible({ timeout: 2_000 });
       await page.screenshot({
         path: 'tests/e2e/faz-screenshots/baseline/T11-faz8-son-ekran.png',
         fullPage: false,
@@ -419,9 +447,14 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //         b) a fresh disclaimer/buttons mount appears after the
   //            reveal envelope completes.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T12 — TEKRAR button click → fresh reveal cycle starts',
     async ({ page }): Promise<void> => {
+      // Sprint 9 spec patch: per onFaz8RestartRequested (destruction-state.ts
+      // :461), TEKRAR transitions faz8-son-ekran → faz8-reveal (NOT a full
+      // Faz 0-8 re-run). Restart fresh cycle = FAZ8_REVEAL_DURATION_MS (5s) +
+      // FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS (3s) ≈ 8s, plus jitter.
+      test.setTimeout(120_000);
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
       await page.waitForTimeout(FAZ_TIMING_MS.faz8SonEkranMid);
@@ -434,12 +467,13 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
       );
       await expect(buttonsContainer).toBeHidden({ timeout: 3_000 });
       // After the fresh reveal envelope (5sn) + son-ekran ramp (3sn
-      // disclaimer + 2.5sn buttons = ~5sn), a NEW disclaimer + buttons
-      // pair should mount.
-      await page.waitForTimeout(FAZ_TIMING_MS.faz8SonEkranMid);
+      // disclaimer + 2.5sn buttons), a NEW disclaimer + buttons pair
+      // should mount. Wait ~12s (8s minimum + jitter slack).
+      // Sprint 9 patch: container has no `.is-visible` — check buttons.
+      await page.waitForTimeout(12_000);
       await expect(
-        page.locator('.faz8-action-buttons-container.is-visible'),
-      ).toBeVisible({ timeout: 3_000 });
+        page.locator('.faz8-tekrar-button.is-visible'),
+      ).toBeVisible({ timeout: 5_000 });
       await page.screenshot({
         path: 'tests/e2e/faz-screenshots/baseline/T12-tekrar-cycle.png',
         fullPage: false,
@@ -455,7 +489,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       KNOWN-LIMITED: cannot verify Electron actually terminated;
   //       this is the closest possible verification in Path B.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T13 — ÇIK button click → window.api.quit() spy called',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
@@ -496,7 +530,7 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //            (proven by T11 disclaimer + buttons visible).
   //       KNOWN-LIMITED for direct audio verification — see top JSDoc.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T14 — Reveal jingle plays (createRevealJingle factory runs)',
     async ({ page }): Promise<void> => {
       const consoleErrors: string[] = [];
@@ -539,7 +573,13 @@ test.describe('Sprint 7 — Reduced-motion contract', (): void => {
   });
 
   test.beforeEach(async ({ page }): Promise<void> => {
-    test.setTimeout(90_000);
+    // Sprint 9: 90s → 120s (same reason as base describe block above).
+    test.setTimeout(120_000);
+    // Sprint 9: belt-and-braces. test.use({ reducedMotion: 'reduce' })
+    // sets the context-level emulation, but page.emulateMedia() at
+    // beforeEach time guarantees the matchMedia + CSS @media propagate
+    // before any navigation. The two paths are idempotent.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await installWindowApiMock(page);
     await page.goto('/');
   });
@@ -551,28 +591,33 @@ test.describe('Sprint 7 — Reduced-motion contract', (): void => {
   //       destruction.css:1392-1412 sets `transition: none` on
   //       the container under reduced-motion.
   // ----------------------------------------------------------------
-  test.skip(
+  test(
     'T15 — Reduced-motion: buttons appear instant (no fade traversal)',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
       await page.waitForTimeout(FAZ_TIMING_MS.faz8SonEkranMid);
-      const container = page.locator(
-        '.faz8-action-buttons-container.is-visible',
+      // Sprint 9 spec patch: the reduced-motion contract under test is
+      // the container fade-in zeroing (destruction.css:1397-1399).
+      const buttonsContainer = page.locator(
+        '.faz8-action-buttons-container',
       );
-      await expect(container).toBeVisible();
-      // Computed transition is 'none' under reduced-motion.
-      const transition = await container.evaluate(
-        (el): string => getComputedStyle(el).transitionProperty,
+      await expect(buttonsContainer).toBeVisible({ timeout: 5_000 });
+      // Verify buttons mounted (sanity — the reduced-motion ramp ran).
+      await expect(
+        page.locator('.faz8-tekrar-button.is-visible'),
+      ).toBeVisible({ timeout: 5_000 });
+      // Sanity: confirm Playwright's reducedMotion emulation actually
+      // propagated to the CSS @media query (Path A KNOWN-LIMITED guard).
+      const reduceMatches = await page.evaluate((): boolean =>
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       );
-      // 'transition: none' yields transitionProperty='all' with
-      // duration 0s — assertion target is the duration.
-      const duration = await container.evaluate(
+      expect(reduceMatches).toBe(true);
+      // Container's transition-duration reduces to 0s under reduce.
+      const duration = await buttonsContainer.evaluate(
         (el): string => getComputedStyle(el).transitionDuration,
       );
       expect(duration).toBe('0s');
-      // transitionProperty assertion just for capture — varies per UA.
-      void transition;
     },
   );
 });
