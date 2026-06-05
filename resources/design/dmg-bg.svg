@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Rus Ruleti — DMG installer background (Sprint 9 release art)
+  600x400 standard DMG window. Sodium-rule + Old Standard TT wordmark
+  + PT Serif drag-instruction. See destruction-direction.md §26.4.
+  Lane A Phase 2B rasterizes to build/dmg-bg.png.
+  electron-builder default DMG positions: icon @ (150,200) ; Applications symlink @ (450,200).
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 600 400"
+     width="600" height="400">
+  <!-- Full black field -->
+  <rect x="0" y="0" width="600" height="400" fill="#000000"/>
+
+  <!-- Sodium-yellow horizontal rule — 1px tall, 320px wide, centred y=240 -->
+  <!-- Rule width 320px = 53% of canvas; visually separates drag-source (left icon)
+       from drag-target (right Applications symlink) without arrow iconography -->
+  <rect x="140" y="240" width="320" height="1" fill="#FFC75E"/>
+
+  <!-- Wordmark "Rus Ruleti" — Old Standard TT regular @ 22pt, centred at y=180.
+       Font fallback chain: Old Standard TT (Sprint 0 OFL bundle) → PT Serif → Georgia → serif.
+       The rasterizer (librsvg) MUST have Old Standard TT installed on PATH; if missing,
+       falls back through chain. Lane A documents font availability in build host. -->
+  <text x="300" y="180"
+        font-family="'Old Standard TT', 'PT Serif', Georgia, serif"
+        font-size="22"
+        font-weight="400"
+        fill="#FFC75E"
+        text-anchor="middle">Rus Ruleti</text>
+
+  <!-- Drag-instruction "Sürükle Uygulamalar'a" — PT Serif italic @ 13pt, 70% opacity, y=270 -->
+  <text x="300" y="270"
+        font-family="'PT Serif', Georgia, serif"
+        font-size="13"
+        font-style="italic"
+        font-weight="400"
+        fill="#FFC75E"
+        fill-opacity="0.7"
+        text-anchor="middle">Sürükle Uygulamalar'a</text>
+</svg>

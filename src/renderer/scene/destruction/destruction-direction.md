@@ -3561,3 +3561,243 @@ No constants edited (Lane A Phase 2B owns the
 `scene-destruction-constants.ts` + per-faz audio module gain
 adjustments per the §24 source-by-source delta table). No new
 files authored. TH-S7-02 file-structure-change signal: **NONE**.
+
+---
+
+## §26 — Sprint 9 distributable art spec (release prep)
+
+Sprint 9 is the FINAL RELEASE sprint. Phase 2A specifies the three
+visual artifacts that ship OUTSIDE the running app: the OS-level
+application icon (dock / Start menu / Linux launcher), the macOS
+DMG installer background, and the Windows NSIS installer welcome
+banner. These three surfaces are seen BEFORE the user launches the
+app — they set the tonal expectation. They must read as "approach
+carefully, this is a deliberate object" — NOT cheerful, NOT cute,
+NOT colorful. Dread + ritual. Sovyet brutalism + Tarkovsky palette
+holds.
+
+### §26.1 — Icon concept decision (Option b: Cyrillic "РР" monogram)
+
+Four candidates were considered. The decision:
+
+| # | Concept | Verdict | Rationale |
+|---|---|---|---|
+| a | Revolver silhouette | **REJECTED** | Reads as shooter-game (we are NOT a shooter — joke/destruction app); risks App Store / Microsoft Store rejection on firearm imagery; sets wrong genre expectation in dock thumbnails |
+| b | Cyrillic "РР" monogram | **ACCEPTED** | Strongest cultural read (game title Russian Roulette → Cyrillic initials); least violent (no weapon iconography for store gatekeepers); highest legibility at 16px Start-menu thumb (two strokes, high contrast); aligns with Sprint 0 Old Standard TT typographic identity already bundled |
+| c | Lightbulb silhouette | **REJECTED** | Too ambient — fails to signal "approach carefully" dread; reads as utility/lamp app at 16px (could be confused with system tray brightness control) |
+| d | Bullet cylinder top-down | **REJECTED** | Ambiguous at 16px (six dots in a ring reads as wheel / gear / donut / loading spinner depending on context); requires hi-res viewer to register as revolver chamber — fails the dock-thumbnail legibility test |
+
+**Selected concept (b) — design specification:**
+
+- **Glyphs:** Two Cyrillic capital letters "Р" + "Р" (U+0420 twice).
+  Original glyph composition — NOT copied from any existing Russian
+  Roulette wordmark or game logo. Strokes traced from Old Standard TT
+  Regular @ 1024pt as reference but redrawn as a closed silhouette
+  (single fill, no font dependency at runtime — the icon is a frozen
+  SVG path, not a text render).
+- **Layout:** Two РР glyphs centered horizontally, slightly overlapping
+  at the bowl (left Р's bowl tangent kisses the right Р's stem at the
+  baseline). Suggests "two chambers, two outcomes" — the game's binary
+  ritual. Vertical centering with 12% transparent margin top + bottom
+  (the rounded-square Apple inset region).
+- **Negative space:** The interior bowl of each Р is filled SOLID (not
+  hollow) so the glyph reads cleanly at 16px. At 16px hollow counters
+  collapse to a single mush; solid bowls preserve the "РР" silhouette.
+- **No serifs:** Sprint 0 ships Old Standard TT (serif), but the ICON
+  glyphs are drawn as a CLOSED SILHOUETTE without serifs — serifs do
+  not survive 16px rasterization and would alias as artefact pixels.
+  The serif-removal is a deliberate rasterization-safety choice, not
+  a typographic departure. (Inside the app, Old Standard TT renders
+  WITH serifs at 28pt+ where they survive — only the icon path is
+  serif-free.)
+
+### §26.2 — Icon color palette (max 2 colors, sodium + black)
+
+| Element | Color | Hex | Role |
+|---|---|---|---|
+| Background | Black | `#000000` | Field — full bleed for Linux 512×512; under transparent margin for macOS rounded inset |
+| Glyph fill | Sodium yellow | `#FFC75E` | The Sprint 1 sodium-lamp warm-yellow tone. Same hue family as the §1 sodium lamp specular highlight, slightly desaturated for 16px contrast against pure black |
+
+**Why two colors, not three:** Sovyet poster aesthetic + minimalist
+icon design both demand binary palette. A third color (e.g., grey
+shadow under glyphs) would soften the dread; the icon must read as
+flat object, not as a 3D rendered scene. Sprint 0-8 destruction
+sequence runs full PS1-affine 3D, but the icon is the only surface
+where the aesthetic INVERTS — flat, frozen, posterized.
+
+**Why sodium `#FFC75E` instead of the Sprint 5/6 chrome amber
+`#FFAA00`:** The amber is the failing-state alert color inside the
+app (S.M.A.R.T. warnings, BSOD borders). The sodium `#FFC75E` is the
+ambient atmospheric color (Sprint 1 lamp specular). The ICON is an
+ambient surface — it sits on the user's dock BEFORE failure starts.
+Using the alert-amber for the icon would betray the post-launch
+narrative arc (calm ambient → escalating warning → catastrophe). The
+sodium tone preserves the "this object is asleep" pre-launch read.
+
+### §26.3 — Master raster + platform deliverables
+
+- **Master:** `resources/design/icon-master.svg` — 1024×1024 viewBox.
+  Single `<path>` element per Р glyph (two paths total), one `<rect>`
+  for the black background field. NO embedded fonts, NO external refs.
+  Renders identically in any SVG renderer (Inkscape, Chrome, librsvg).
+- **macOS .icns:** Lane A Phase 2B rasterizes master @ 1024×1024 with
+  12% transparent margin (Apple convention). electron-builder calls
+  electron-icon-builder OR `iconutil` to generate the multi-size
+  .icns bundle (16/32/64/128/256/512/1024). Output: `build/icon.icns`.
+- **Windows .ico:** Lane A rasterizes master with NO margin (full bleed
+  square) to multi-size .ico (16/32/48/64/128/256). The 16px and 48px
+  renders are the dominant Start-menu thumbnail sizes — these MUST
+  read cleanly. Output: `build/icon.ico`.
+- **Linux .png:** Lane A rasterizes master @ 512×512 PNG, no margin,
+  full bleed (FreeDesktop spec). Output: `build/icon.png`.
+
+### §26.4 — DMG background (INCLUDED — minimalist text-only variant)
+
+Decision: **INCLUDED**, but as the absolute minimum atmospheric
+gesture. A blank default-electron-builder DMG would suffice
+technically, but the first-impression surface deserves the same
+tonal discipline as the in-app §1-§25 chrome. The atmospheric gain
+of a 30KB PNG is non-zero; the asset weight cost is negligible.
+
+**Layout (600×400 standard DMG window):**
+
+- Full black field (`#000000`).
+- Sodium yellow horizontal rule (1px tall, 320px wide) centered at
+  y=240, color `#FFC75E`. The rule is the ONLY non-text graphic
+  element — references the Sprint 5 disk-format progress-bar visual
+  rhythm but as a frozen post-event trace.
+- Above the rule (y=180), Old Standard TT regular at 22pt, color
+  `#FFC75E`, centered: "**Rus Ruleti**". Just the wordmark — no
+  subtitle. The version string is owned by the DMG title bar, not the
+  background.
+- Below the rule (y=270), PT Serif regular at 13pt, color `#FFC75E`
+  at 70% opacity (#FFC75E with alpha 0.7), centered: "*Sürükle
+  Uygulamalar'a*".
+- App icon and Applications symlink positions: electron-builder
+  default DMG layout (icon-x: 150, icon-y: 200; app-folder-x: 450,
+  app-folder-y: 200). The horizontal rule visually separates the
+  drag-source (left) from drag-target (right) without explicit arrow
+  iconography — Sovyet posters use rules where Apple uses arrows.
+
+**Why not just plain black:** Plain black DMG works but reads as
+"developer was lazy / forgot to configure". The 30KB cost of the
+text+rule version signals deliberate restraint, which IS the brand
+read. The discipline is in what's NOT there (no glossy gradient, no
+drop shadow, no animated reveal), not in absence of background.
+
+### §26.5 — Installer banner (NSIS Modern UI 2 widescreen 497×312)
+
+The NSIS welcome panel is the consent surface — user sees this BEFORE
+agreeing to install. The aesthetic must be sober, text-dominant, and
+must NOT visually celebrate the install action.
+
+**Layout (497×312 BMP — Modern UI 2 widescreen welcome panel):**
+
+- Full black field (`#000000`).
+- **Sodium yellow vertical bar** on left edge: 40px wide, full height
+  312px, solid fill `#FFC75E`. This bar is the only graphic element —
+  references the Sprint 6 BSOD blue-bar visual vocabulary but inverted
+  to sodium (the calm-before-storm color, not the catastrophe color).
+- **Title text** at right of bar, y=80, Old Standard TT regular at
+  32pt, color `#FFC75E`: "**Rus Ruleti**".
+- **Subtitle text** at right of bar, y=260, PT Serif italic at 11pt,
+  color `#FFC75E` at 80% opacity: "*Şaka uygulaması — kurulum öncesi
+  LEGAL.md okuyun.*"
+- **NO app icon in banner.** Deliberate omission. The consent screen
+  focuses the user's attention on the LEGAL.md disclaimer text, not
+  on visual hype. NSIS will render the standard system icon in the
+  installer title bar separately; that's sufficient identification.
+  The banner's job is to set the consent-screen tonal register, not
+  to brand-announce.
+
+**Why italic subtitle:** Old Standard TT regular is the title voice
+(monumental, frozen). PT Serif italic is the side-note voice — a
+typographer's parenthetical. The disclaimer subtitle SHOULD read as a
+side-note, not as primary copy, because the primary action (install /
+cancel) is owned by the NSIS chrome buttons below. The italic
+typographic cue + the 80% opacity together demote the disclaimer to
+"present but quiet" — the user can read it without it screaming.
+
+### §26.6 — File output enumeration (Phase 2A → Phase 2B handoff)
+
+Designer commits THREE SVG sources Phase 2A. Lane A Phase 2B handles
+rasterization OR stubs with placeholders if rasterization tooling is
+unavailable on the build host.
+
+| Phase | Path | Format | Size | Owner |
+|---|---|---|---|---|
+| 2A | `resources/design/icon-master.svg` | SVG | 1024×1024 | designer (commits) |
+| 2A | `resources/design/dmg-bg.svg` | SVG | 600×400 | designer (commits) |
+| 2A | `resources/design/nsis-banner.svg` | SVG | 497×312 | designer (commits) |
+| 2B | `build/icon.icns` | ICNS | multi (16-1024) | Lane A rasterizes from `icon-master.svg` |
+| 2B | `build/icon.ico` | ICO | multi (16-256) | Lane A rasterizes from `icon-master.svg` |
+| 2B | `build/icon.png` | PNG | 512×512 | Lane A rasterizes from `icon-master.svg` |
+| 2B | `build/dmg-bg.png` | PNG | 600×400 | Lane A rasterizes from `dmg-bg.svg` |
+| 2B | `build/nsis-banner.bmp` | BMP | 497×312 | Lane A rasterizes from `nsis-banner.svg` |
+
+**Stub-permitted contract:** Lane A MAY commit a 1×1 placeholder PNG
+at each `build/icon.{icns,ico,png}` target IF rasterization tooling
+(librsvg / ImageMagick / iconutil) is unavailable on the build host,
+documenting in CODE-SIGNING.md: "designer SVG sources ready at
+`resources/design/`; ship-time rasterization deferred to user before
+tagging release". The 1×1 placeholder is enough to satisfy
+electron-builder's icon-file-exists check; the actual icon is owned
+by the user at release-tag time.
+
+**LEGAL-CHECKLIST.md attribution row (Lane A fills):**
+
+> Application icon (`build/icon.{icns,ico,png}`), DMG background
+> (`build/dmg-bg.png`), and NSIS installer banner
+> (`build/nsis-banner.bmp`): designer's original work for Sprint 9
+> release. No third-party assets. Cyrillic "РР" glyph composition
+> traced from Old Standard TT Regular (OFL-licensed Sprint 0 bundle)
+> as reference, redrawn as closed silhouette path — no font binary
+> embedded in icon output.
+
+### §26.7 — What Sprint 9 does NOT request
+
+To make the Sprint 9 Phase 2A scope boundary explicit:
+
+- NO new bundled fonts — Sprint 0's Old Standard TT + PT Serif +
+  DSEG7-Classic stack covers every text surface (the icon glyphs are
+  SVG paths, not font renders, so no font bundling required).
+- NO third color beyond sodium `#FFC75E` + black `#000000`.
+- NO animated icon variants (no .icns animation; no Linux X11 cursor
+  theme; no Windows tile live-tile).
+- NO Apple/Microsoft icon-language shorthand (no Apple-style glossy
+  rounded-square shadow; no Windows Metro flat-tile background fill
+  beyond what Modern UI 2 requires technically).
+- NO splash screen art — Sprint 9 ships the existing Sprint 0 splash
+  unchanged; the installer banner is the only consent-screen surface.
+- NO marketing assets (screenshots, banners, social-media previews) —
+  out of Phase 2A scope; deferred to Sprint 10+ if/when needed.
+
+### §26.8 — Acceptance criteria for Phase 2A
+
+- [x] §26 written to `destruction-direction.md` (Path A precedent —
+  additive section, no edits to §1-§25)
+- [x] Icon concept selected (b: Cyrillic "РР" monogram) with rejected
+  alternatives documented
+- [x] DMG background INCLUDED (minimalist text + rule variant)
+- [x] NSIS banner spec written (497×312 widescreen, sodium bar + text)
+- [x] File output table enumerates Phase 2A SVGs + Phase 2B rasters
+- [x] No new bundled fonts requested (Sprint 0 stack reused)
+- [x] Max 2 colors confirmed (sodium `#FFC75E` + black `#000000`)
+- [x] LEGAL-CHECKLIST.md attribution row drafted for Lane A fill
+- [x] Designer commits SVG sources Phase 2A; rasterization deferred
+  to Lane A Phase 2B (stub permitted)
+
+## Files this Sprint 9 Phase 2A designer pass authored or edited
+
+- `destruction-direction.md` — Sprint 9 §26 appended (Path A precedent
+  continues: additive section, no edits to Sprint 4-8 content).
+- `resources/design/icon-master.svg` — 1024×1024 master, Cyrillic РР
+  monogram, sodium `#FFC75E` on black.
+- `resources/design/dmg-bg.svg` — 600×400 minimalist DMG layout, sodium
+  rule + Old Standard TT wordmark + PT Serif drag-instruction.
+- `resources/design/nsis-banner.svg` — 497×312 widescreen NSIS welcome
+  panel, sodium vertical bar + title + italic disclaimer subtitle.
+
+No constants edited. No code changes (`src/*.ts` untouched). Sprint 9
+file-size precheck signal: **NONE** (Phase 2A touches only `.md` + new
+`.svg` files, no `.ts` source-line growth).

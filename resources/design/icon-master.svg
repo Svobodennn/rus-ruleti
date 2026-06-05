@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Rus Ruleti — application icon master (Sprint 9 release art)
+  1024x1024 viewBox. Cyrillic "РР" monogram, sodium #FFC75E on black.
+  See destruction-direction.md §26.1-§26.3 for design rationale.
+  Lane A Phase 2B rasterizes to build/icon.{icns,ico,png}.
+
+  Apple convention: 12% inset → glyph drawing region is x:122..902, y:122..902
+  (780px square inset). Within that region the РР glyphs are centred.
+  Each Р occupies a 360px-wide cell with 60px gap. Total glyph block:
+  360 + 60 + 360 = 780px (exactly fills the Apple inset width).
+  Left Р: x 122..482 ; Right Р: x 542..902
+  Vertical centring: glyph height 520px, y 252..772
+
+  Glyph geometry per Р:
+    - Stem: 80px wide × 520px tall, leftmost column of the cell
+    - Bowl: solid D-shape attached at top, 280px wide × 250px tall,
+      semicircular outer edge (radius 125), flat inner edge tangent to stem
+    - Bowls are SOLID (not hollow) per §26.1 — rasterization-safe at 16px
+
+  Path tracing (single closed outline per glyph):
+    Start bottom-left of stem → up stem-left to top → right along glyph-top to
+    bowl-end → semicircle clockwise down to bowl-base → left along bowl-bottom
+    to stem-right edge → down stem-right to bottom → left along stem-bottom →
+    close.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+  <!-- Black field — full bleed for Linux 512px PNG; under Apple inset for macOS .icns -->
+  <rect x="0" y="0" width="1024" height="1024" fill="#000000"/>
+
+  <!-- LEFT Р (Cyrillic capital, U+0420)
+       Stem x:122..202 ; Bowl extends right to x:482 (semicircle radius 125 centred y=377)
+       Bowl-base flat segment at y=502 returning to stem-right edge x=202
+       Stem continues down x:122..202, y:502..772 -->
+  <path d="M 122 252
+           L 482 252
+           A 125 125 0 0 1 482 502
+           L 202 502
+           L 202 772
+           L 122 772
+           Z"
+        fill="#FFC75E"/>
+
+  <!-- RIGHT Р — identical glyph shifted +420 on X axis
+       Stem x:542..622 ; Bowl extends right to x:902 (semicircle radius 125 centred y=377)
+       Bowl-base flat segment at y=502 returning to stem-right edge x=622
+       Stem continues down x:542..622, y:502..772 -->
+  <path d="M 542 252
+           L 902 252
+           A 125 125 0 0 1 902 502
+           L 622 502
+           L 622 772
+           L 542 772
+           Z"
+        fill="#FFC75E"/>
+</svg>
