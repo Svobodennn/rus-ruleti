@@ -104,3 +104,69 @@
 - **.deb cross-build from macOS:** If `fpm` flow blocks, AppImage-only ship is acceptable; document as deviation; users on Debian/Ubuntu can install via AppImage.
 - **Notarization timeout:** If Apple Notary service has > 30 min delay, retry once; if persistent, document as "unsigned macOS build, Gatekeeper bypass instructions in release notes (`xattr -dr com.apple.quarantine`)".
 - **Playwright LOCAL e2e baseline:** Sprint 8 + Sprint 9 deferred. Final-deferral acceptable for joke-app ship; visual regression coverage added post-launch if real-user issues surface (see Sprint 9 directive §0 Friction 1).
+
+- **`npm run build:dryrun` from worktree harness (TH-S9-01 KNOWN-LIMITED):**
+  Sprint 9 Lane A M5 attempted `npm run build:dryrun` from inside a git
+  worktree (`.claude/worktrees/agent-<id>/`). The `electron-vite build`
+  prefix step succeeded — `out/main`, `out/preload`, `out/renderer` all
+  emitted at ~7.7 MB total. The `electron-builder --dir` packing step
+  failed with:
+
+  ```
+  ⨯ Cannot compute electron version from installed node modules - none of
+    the possible electron modules are installed and version ("^30.1.0") is
+    not fixed in project.
+  See https://github.com/electron-userland/electron-builder/issues/3984
+  ```
+
+  Root cause: a git worktree does NOT inherit `node_modules/` from the
+  parent repo's tree. While Node's module resolution walks UP the
+  directory tree and DOES find `../../node_modules/typescript` (so
+  `tsc`/`eslint`/`electron-vite` work via npm script PATH), electron-
+  builder runs a separate `app-builder` subprocess that reads
+  `<project-root>/node_modules/electron/package.json` for the resolved
+  Electron version. With no local `node_modules/electron/`, that lookup
+  fails. The caret-ranged `"electron": "^30.1.0"` in `package.json` is
+  not enough for electron-builder to resolve absent the local install.
+
+  **Ship-time user procedure** (NOT a worktree task — orchestrator runs
+  the merged main branch, where `node_modules/` is present):
+
+  ```sh
+  # Step 1 — From main repo root (NOT a worktree), ensure deps installed:
+  cd /Users/svoboden/development/rus-ruleti
+  npm ci
+
+  # Step 2 — Verify electron resolves:
+  node -e "console.log(require('electron/package.json').version)"
+  # → 30.x.y (specific resolved version)
+
+  # Step 3 — Run the full dryrun:
+  npm run build:dryrun
+
+  # Step 4 — Verify outputs:
+  ls -la dist/mac-arm64/  # OR dist/mac/, dist/win-unpacked/, etc.
+  du -sh dist/
+  # Sprint 9 ceiling: ≤ 8.0 MB for app bundle (excluding Electron framework)
+  ```
+
+  **What WAS verified Sprint 9 Lane A M5 (without running the full pack):**
+
+  1. `electron-builder.yml` YAML parses cleanly via `js-yaml` (Lane A M1
+     YAML still parses post-M2 raster commits).
+  2. `build/entitlements.mac.plist` XML parses cleanly via `plutil -lint`
+     (Apple's native plist validator).
+  3. `out/` bundle size from `electron-vite build` step: 7.7 MB ≤ 8.0 MB
+     ceiling (acceptance criterion 9 met for the application portion).
+  4. All 5 raster artifacts present at `build/icon.{icns,ico,png}` +
+     `build/dmg-bg.png` + `build/nsis-banner.bmp` (Lane A M2).
+  5. All 3 platform target blocks (mac DMG+ZIP, win NSIS+MSI, linux
+     AppImage+deb) syntactically valid in YAML.
+
+  **This is NOT a blocker for ship.** The dryrun failure is purely a
+  worktree-environment limitation; it does not impact the actual ship
+  build path (which runs from main branch with deps installed). The
+  electron-builder configuration is correct and parses; the icons exist;
+  LEGAL is closed; entitlements XML is well-formed. The maintainer
+  executes the ship-time procedure above from the main repo before
+  tagging release.

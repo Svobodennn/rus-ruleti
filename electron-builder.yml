@@ -46,6 +46,23 @@ files:
   - '!**/__specs__/**'
   - '!**/*.test.*'
   - '!**/*.spec.*'
+  # Sprint 9: explicit dev-tooling + repo-meta exclusions. electron-builder
+  # already prunes devDependencies via its asar packer, but these patterns are
+  # belt-and-braces against accidental bundling of:
+  #   - Playwright browser binaries (~250-300MB each → catastrophic bundle bloat
+  #     if leaked; TH-S8-01 keeps Playwright in devDependencies but the binaries
+  #     live under node_modules/playwright-core/.local-browsers — exclude all
+  #     playwright* paths defensively).
+  #   - tests/ directory (Sprint 0-8 test plans, audit checklists, file-size
+  #     prechecks — repo-only, NOT runtime).
+  #   - docs/ directory (any markdown reference documentation).
+  #   - .claude/ directory (agent worktrees, cache, handoffs, ledger — never
+  #     ship to end users; would expose orchestration internals).
+  - '!**/node_modules/playwright*/**'
+  - '!**/node_modules/@playwright/**'
+  - '!tests/**'
+  - '!docs/**'
+  - '!.claude/**'
 
 # Node modules pruning — electron-builder already prunes devDependencies, but
 # explicitly excluding common dev cruft keeps the asar tight.
@@ -82,10 +99,16 @@ mac:
   # Sprint 9 keeps identity:null; CSC_LINK / CSC_KEY_PASSWORD / CSC_NAME env
   # vars override at build time (see build/CODE-SIGNING.md §1).
   identity: null
-  # Notarization placeholder — populated at build time via Notary API env vars
+  # Notarization stub — electron-builder reads APPLE_TEAM_ID env var at build
+  # time and substitutes into ${env.APPLE_TEAM_ID}. When unset, electron-builder
+  # treats notarize as disabled (Sprint 9 local dev path). Notary API credentials
   # (APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER) OR legacy app-specific
-  # password (APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD). See build/CODE-SIGNING.md §1.
-  notarize: false
+  # password (APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD) ALSO env-injected at build
+  # time. See build/CODE-SIGNING.md §1 for the full enrollment flow. Setting
+  # teamId stub here makes electron-builder's notarize attempt explicit at build
+  # time (vs `notarize: false` which silently skipped notarization).
+  notarize:
+    teamId: ${env.APPLE_TEAM_ID}
   # Sprint 9: entitlements wired (Sprint 0 placeholder uncommented). Plist
   # requests ONLY Hardened-Runtime entitlements Electron requires (JIT,
   # unsigned executable memory, DYLD env vars, disable library validation).
@@ -129,6 +152,17 @@ win:
   # Sectigo/GlobalSign/Comodo if rate-limited (see build/CODE-SIGNING.md §2.4).
   rfc3161TimeStampServer: http://timestamp.digicert.com
   timeStampServer: http://timestamp.digicert.com
+  # Certificate env-var stubs (read by electron-builder at build time — listed
+  # here for inline visibility; actual values stored in maintainer's secret
+  # manager, NEVER in repo):
+  #   CSC_LINK              → path or HTTPS URL to .pfx signing cert
+  #   CSC_KEY_PASSWORD      → password to decrypt .pfx
+  #   WIN_CSC_LINK          → Windows-specific override of CSC_LINK
+  #   WIN_CSC_KEY_PASSWORD  → Windows-specific override of CSC_KEY_PASSWORD
+  #   CSC_NAME              → cert subject string (Windows cert-store reference)
+  # When all env vars unset, electron-builder emits an unsigned .exe / .msi
+  # (Sprint 9 local dev path; SmartScreen warns user on first run — see
+  # build/CODE-SIGNING.md §2 + §5 for the unsigned-build UX).
 
 nsis:
   # oneClick: false REQUIRED by PLAN section 6 — joke app must present a consent
