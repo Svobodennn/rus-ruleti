@@ -202,20 +202,20 @@ chromium browser binary was NOT installed.
 
 **Fix**: Run `npx playwright install chromium`.
 
-### 2. Vite dev server fails to boot on port 5173
+### 2. Vite dev server fails to boot on port 5173 OR dies mid-suite
 
 **Symptom**: Playwright webServer block times out after 60sn waiting
-for http://localhost:5173. The `npm run dev` command may have:
-- Port 5173 already in use → kill the existing process or change port
-  in `electron.vite.config.ts`.
-- electron-vite startup hang (rare; usually module resolution issue).
+for http://localhost:5173. OR tests T07+ fail with
+`net::ERR_CONNECTION_REFUSED` mid-suite.
 
-**Diagnosis**: Open a second terminal, run `npm run dev` manually,
-observe output. Look for "Local: http://localhost:5173" line.
+**Diagnosis (Sprint 9 root cause)**: Using `npm run dev` for the dev
+server. electron-vite couples Vite to the Electron BrowserWindow
+lifecycle; the destruction sequence in Faz 8 closes Electron which
+drags the dev server with it.
 
-**Fix**: Kill conflicting process (`lsof -i :5173`) or set
-`reuseExistingServer: false` in `playwright.config.ts` to force
-restart.
+**Fix**: Boot Vite renderer-only:
+`node node_modules/vite/bin/vite.js --port 5173 src/renderer &`.
+See LOCAL execution sequence above.
 
 ### 3. Renderer aborts with "Preload bridge missing."
 
@@ -248,12 +248,14 @@ under swiftshader.
 **Symptom**: T12 (TEKRAR restart cycle) fails with `Test timeout of
 90000ms exceeded`.
 
-**Diagnosis**: Full Faz 0..8 sequence takes ~55-60sn; restart cycle
-adds another reveal+son-ekran round (~15sn). 90sn ceiling is tight.
+**Diagnosis**: Faz 8 son-ekran disclaimer `.is-visible` arrives at
+~58sn into the destruction sequence; the 90sn ceiling left no slack
+for expect timeouts.
 
-**Fix**: Bump `test.setTimeout(120_000)` in the offending test.
-Sprint 7 baseline used 90sn — Sprint 8 retro candidate to raise to
-120sn for restart-cycle tests specifically.
+**Fix**: Sprint 9 bumped per-test `setTimeout` 90s → 120s and the
+config default 30s → 120s. T12 now waits ~12s post-TEKRAR-click
+instead of a full second cycle — `onFaz8RestartRequested` transitions
+`faz8-son-ekran` → `faz8-reveal` (NOT a full Faz 0-8 re-run).
 
 ### 6. Baseline screenshot path missing
 
@@ -283,8 +285,16 @@ GPU), mark it as `@local-only` and skip in CI.
 ## Reference
 
 - Sprint 7 directive §5 (TH-S6-01 first deployment).
-- `tests/e2e/sprint7-faz-smoke.spec.ts` — full harness (T01..T14 +
-  T15 reduced-motion).
-- `playwright.config.ts` — Sprint 7 baseline config.
 - Sprint 8 directive §7 — Phase 1 perf-instrumentation hooks +
   audio voice counter (this file's siblings under `tests/`).
+- Sprint 9 Lane B directive §8 — Path A SUCCESS unblock plan.
+- `tests/e2e/sprint7-faz-smoke.spec.ts` — full harness (T01..T14 +
+  T15 reduced-motion).
+- `playwright.config.ts` — Sprint 9 timeout-bumped config.
+
+## Sprint 9 closure commits
+
+- **M1** `1a6c8b21` — TH-S8-01 Playwright Path A SUCCESS spec/config
+  patches + this doc rewrite.
+- **M3** `2d656af9` — 13 baseline PNGs committed under
+  `tests/e2e/faz-screenshots/baseline/`.
