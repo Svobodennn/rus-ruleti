@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Hardened Runtime entitlements for notarization (Sprint 9 release prep).
+    Joke app: minimal entitlement surface — request ONLY what Electron framework
+    requires to run. NO camera, microphone, network, files, photos, contacts,
+    location, or any other privacy-sensitive entitlement is requested.
+    Rationale per PLAN §14 + LEGAL.md: zero real system access — pure synthesis,
+    pure local rendering, zero outbound network, zero shell, zero fs (PLAN §6).
+  -->
+
+  <!-- V8 JIT for Electron renderer (required for any modern browser engine). -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+
+  <!-- Electron framework requires this for its embedded Chromium runtime
+       (Chromium allocates unsigned executable pages for its V8 codegen). -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!-- DYLD env vars used by Electron's bundled Helper apps (the renderer/GPU
+       helpers communicate with the main process via DYLD-injected libs). -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+
+  <!-- Required for Electron to load its own .dylib / .framework bundle layout.
+       Without this, signed Helpers cannot load nested Electron Framework dylibs. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!--
+    INTENTIONALLY OMITTED (joke app — zero real system access):
+      com.apple.security.device.camera           — never requested
+      com.apple.security.device.microphone       — never requested (Web Audio
+                                                    AudioContext is pure synthesis,
+                                                    no real microphone capture)
+      com.apple.security.device.location         — never requested
+      com.apple.security.device.audio-input      — never requested
+      com.apple.security.network.client          — never requested (zero outbound HTTP)
+      com.apple.security.network.server          — never requested
+      com.apple.security.files.user-selected.*   — never requested (no fs access)
+      com.apple.security.personal-information.*  — never requested
+    See build/CODE-SIGNING.md §1 for full rationale + LEGAL.md disclaimer.
+  -->
+</dict>
+</plist>
