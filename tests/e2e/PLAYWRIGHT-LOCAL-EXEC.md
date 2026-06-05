@@ -1,53 +1,92 @@
-# Playwright Local Execution — Sprint 8 Phase 1 prep notes
+# Playwright Local Execution — Sprint 9 CLOSED (Path A SUCCESS)
 
 > Sprint 7 (TH-S6-01) deployed the smoke harness with 15 test bodies
-> populated. Sprint 8 Phase 2B (qa-engineer) **EXECUTES** the suite for
-> the first time against the packaged build. This document is the
-> pre-flight checklist + Path A/B fallback contingency plan.
+> populated. Sprint 8 Phase 2B harness sandbox blocked execution
+> (KNOWN-LIMITED). Sprint 9 Phase 2B Lane B (kraken) **EXECUTED**
+> the suite end-to-end with Path A vanilla Playwright + `window.api`
+> mock + Vite renderer-only dev server. **All 15 tests pass.**
+>
+> Status: **CLOSED** — 13 baseline screenshots committed under
+> `tests/e2e/faz-screenshots/baseline/`. Two tests (T14 reveal-jingle
+> error-log scan, T15 reduced-motion CSS computed-style check) verify
+> behaviour without producing screenshots.
+
+## Sprint 9 unblock summary (what changed since Sprint 7/8)
+
+1. **`test.skip()` → `test()`** for all 15 tests (Sprint 7 left them
+   skipped; Sprint 8 sandbox could not flip them).
+2. **Renderer-only Vite boot** (not `npm run dev`). The Sprint 7-8
+   approach used `npm run dev` (= electron-vite) which couples the
+   Vite server to the Electron BrowserWindow lifecycle; when the
+   first test's destruction sequence reached Faz 8 son-ekran, the
+   Electron process exited and dragged the Vite server with it,
+   killing tests T07+ with `ERR_CONNECTION_REFUSED`. Sprint 9 boots
+   `node node_modules/vite/bin/vite.js --port 5173 src/renderer`
+   directly so the dev server survives the full 8.4-minute suite.
+3. **Spec selector fixes** — Sprint 7 selectors used file basenames
+   (`.mac-dialog`, `.win-dialog`, `.faz3-terminal`, `.win-bsod`)
+   instead of the runtime CSS class names. Sprint 9 patched them to
+   the actual `className` values from each chrome module.
+4. **Timing windows re-derived** — `FAZ_TIMING_MS.faz5/6/7/8RevealMid/
+   faz8SonEkranMid` were tightened against the SSOT constants in
+   `scene-destruction-constants.ts`. Sprint 7 estimates were 5-6s
+   early; Sprint 9 values land mid-window for every Faz.
+5. **`is-visible` lives on buttons, not the container** — Sprint 7
+   asserted `.faz8-action-buttons-container.is-visible` but per
+   `faz8-son-ekran.ts:498-505` the `.is-visible` class lands on
+   `.faz8-tekrar-button` / `.faz8-cik-button`.
+6. **`reducedMotion` test.use needs explicit `emulateMedia`** —
+   Playwright 1.60 `test.use({ reducedMotion: 'reduce' })` did not
+   propagate to `window.matchMedia('(prefers-reduced-motion: reduce)')`
+   in our setup. Calling `page.emulateMedia({ reducedMotion: 'reduce' })`
+   in `beforeEach` is the belt-and-braces fix.
+7. **Per-test timeout bumped 30s → 120s** (`playwright.config.ts`) and
+   per-test `setTimeout(120_000)` in the destruction suite —
+   Faz 8 son-ekran `.is-visible` arrives at ~58s into the sequence.
 
 ## Goal
 
 Run `npm run test:e2e` LOCALLY and produce the baseline screenshots +
-test PASS/FAIL report. The Sprint 7 harness was AUTHORED but never
-executed end-to-end (Sprint 7 retro: Phase 3 marked all tests as
-`test.skip()` placeholders with bodies populated for Phase 4 review).
+test PASS/FAIL report. Sprint 9 closed this goal with all 15 tests
+passing and 13 baselines committed. The sequence below is the recipe
+that produced the green run; rerun it on any host to regenerate the
+baselines after intentional visual changes.
 
-Sprint 8 lifts the `test.skip()` gate, runs the suite, captures the
-baseline screenshots under `tests/e2e/faz-screenshots/baseline/`, and
-files any test failures as Sprint 8 Phase 4 escalation candidates.
-
-## LOCAL execution sequence
+## LOCAL execution sequence (Sprint 9 — Path A, validated)
 
 Run in order from the project root:
 
 ```bash
 # 1. Verify Playwright chromium browser is installed.
-#    Sprint 7 did not install browsers (CI-only build path); local run needs:
+#    First-time setup only:
 npx playwright install chromium
 
-# 2. Verify Vite dev server boots in standalone (no Electron).
-#    Sprint 7 playwright.config.ts uses `npm run dev` which spawns
-#    electron-vite (= Vite + Electron). For Playwright the renderer-side
-#    Vite HTTP server is the only consumer; Electron window is irrelevant.
-#    Confirm port 5173 is reachable:
-npm run dev &      # boot Vite + Electron (Electron window can be closed)
+# 2. Boot Vite renderer-only (NOT `npm run dev`).
+#    `npm run dev` invokes electron-vite which couples the dev server
+#    to the Electron BrowserWindow lifecycle — the destruction sequence
+#    in faz8 ends up closing Electron which drops the dev server
+#    mid-suite. Renderer-only Vite has no such coupling.
+node node_modules/vite/bin/vite.js --port 5173 src/renderer > /tmp/vite.log 2>&1 &
 DEV_PID=$!
 sleep 5
 curl -sf http://localhost:5173 >/dev/null && echo "Vite OK" || echo "Vite FAIL"
 
-# 3. Run the suite. Sprint 8 Phase 2B unskips T01..T14 + T15-reduced-motion.
-#    The webServer block in playwright.config.ts reuses the existing dev
-#    server (reuseExistingServer: true) so no second `npm run dev` boot.
-npm run test:e2e
+# 3. Run the suite. The webServer block in playwright.config.ts will
+#    reuse the existing server (reuseExistingServer: true).
+#    --update-snapshots regenerates the baselines under
+#    tests/e2e/faz-screenshots/baseline/.
+npx playwright test --update-snapshots --reporter=list
 
 # 4. View the HTML report (post-run).
 #    playwright-report/index.html is generated under the project root and
 #    is gitignored.
 open playwright-report/index.html
 
-# 5. Teardown (only if you used the manual dev boot above).
+# 5. Teardown.
 kill $DEV_PID
 ```
+
+Wall-clock for the full 15-test suite is ~8.4 minutes (single worker).
 
 ## Path A — `window.api` mock fallback (Sprint 7 default)
 
