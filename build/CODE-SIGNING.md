@@ -9,12 +9,19 @@
 > See `electron-builder.yml` (mac / win / linux blocks) and
 > `build/entitlements.mac.plist` for the wired stubs.
 >
-> **Icon files (`build/icon.icns`, `build/icon.ico`, `build/icon.png`) are
-> BLOCKED on PHASE 2A — designer specifies the Sovyet brutalist master art
-> (1024×1024) in Sprint 9 Phase 2A; rasterized derivatives land in Lane A
-> Phase 2B. Build will fail until Phase 2A delivers — that is the intended
-> gate ordering per directive §6/§7. Local dev `build:dryrun` works without
-> the icons (electron-builder warns but continues for unpacked dir output).**
+> **Icon files RESOLVED Sprint 9 Phase 2B Lane A M2:**
+>   - `build/icon.icns` (multi-size 16-1024, packed via macOS native
+>     `sips` + `iconutil` from `resources/design/icon-master.svg`)
+>   - `build/icon.ico` (7 sizes: 16/24/32/48/64/128/256, packed via
+>     `scripts/pack-ico.cjs` Node helper from sips-generated PNGs)
+>   - `build/icon.png` (512×512, sips-rasterized from icon-master.svg)
+>   - `build/dmg-bg.png` (600×400, sips from dmg-bg.svg)
+>   - `build/nsis-banner.bmp` (497×312 32-bit BMP, sips from nsis-banner.svg)
+>
+> All raster artifacts generated reproducibly from Phase 2A designer SVGs
+> using only macOS built-in tooling (`sips`, `iconutil`) plus a pure-stdlib
+> Node helper (`scripts/pack-ico.cjs`). No ImageMagick, no rsvg-convert,
+> no npm dep added. Re-run procedure documented in §6 below.
 
 ---
 
@@ -206,3 +213,93 @@ For local-only development builds without certificates:
 These fallbacks are for developer convenience ONLY — release builds MUST be
 signed per the env var contract above. See `scripts/release-checklist.md`
 pre-ship section for the gate.
+
+---
+
+## 6. Icon raster reproduction (Sprint 9 Phase 2B Lane A — RESOLVED)
+
+The 5 raster artifacts shipped Sprint 9 (`build/icon.icns`, `build/icon.ico`,
+`build/icon.png`, `build/dmg-bg.png`, `build/nsis-banner.bmp`) were generated
+on macOS using ONLY built-in `sips` + `iconutil` plus the repo-local Node
+helper `scripts/pack-ico.cjs`. No ImageMagick, no librsvg, no npm dependency
+added. The full reproduction procedure is documented here so any maintainer
+on any macOS host can regenerate the rasters from the Phase 2A SVG sources.
+
+### 6.1 Prerequisites (all macOS native)
+
+```sh
+which sips      # /usr/bin/sips
+which iconutil  # /usr/bin/iconutil
+which node      # any Node 14+
+```
+
+If `sips` or `iconutil` is missing (e.g., on Linux build host), install
+ImageMagick (`brew install imagemagick`) and adapt the commands below to
+`convert -background none input.svg -resize NxN out.png` instead. The
+`scripts/pack-ico.cjs` packer step remains identical on any platform.
+
+### 6.2 Reproduction sequence
+
+```sh
+# Step 1 — Rasterize the 1024×1024 master SVG to PNG, then downscale to 512×512.
+sips -s format png resources/design/icon-master.svg --out /tmp/icon-1024.png
+sips -z 512 512 /tmp/icon-1024.png --out build/icon.png
+
+# Step 2 — Build the macOS .icns via iconset directory.
+ICONSET=/tmp/icon-build.iconset
+rm -rf $ICONSET && mkdir -p $ICONSET
+SRC=/tmp/icon-1024.png
+sips -z 16 16     $SRC --out $ICONSET/icon_16x16.png
+sips -z 32 32     $SRC --out $ICONSET/icon_16x16@2x.png
+sips -z 32 32     $SRC --out $ICONSET/icon_32x32.png
+sips -z 64 64     $SRC --out $ICONSET/icon_32x32@2x.png
+sips -z 128 128   $SRC --out $ICONSET/icon_128x128.png
+sips -z 256 256   $SRC --out $ICONSET/icon_128x128@2x.png
+sips -z 256 256   $SRC --out $ICONSET/icon_256x256.png
+sips -z 512 512   $SRC --out $ICONSET/icon_256x256@2x.png
+sips -z 512 512   $SRC --out $ICONSET/icon_512x512.png
+sips -z 1024 1024 $SRC --out $ICONSET/icon_512x512@2x.png
+iconutil -c icns $ICONSET -o build/icon.icns
+
+# Step 3 — Build the Windows .ico via the Node packer.
+ICOTMP=/tmp/ico-build
+rm -rf $ICOTMP && mkdir -p $ICOTMP
+for s in 16 24 32 48 64 128 256; do
+  sips -z $s $s /tmp/icon-1024.png --out $ICOTMP/${s}.png
+done
+node scripts/pack-ico.cjs build/icon.ico
+
+# Step 4 — DMG background + NSIS banner.
+sips -s format png resources/design/dmg-bg.svg --out build/dmg-bg.png
+sips -s format bmp resources/design/nsis-banner.svg --out build/nsis-banner.bmp
+```
+
+### 6.3 Verification
+
+```sh
+file build/icon.icns       # Mac OS X icon (multiple sizes)
+file build/icon.ico        # MS Windows icon resource — 7 icons
+file build/icon.png        # PNG image data, 512 x 512
+file build/dmg-bg.png      # PNG image data, 600 x 400
+file build/nsis-banner.bmp # PC bitmap, Windows ... 497 x -312 x 32
+
+ls -la build/icon.{icns,ico,png} build/dmg-bg.png build/nsis-banner.bmp
+```
+
+Expected file sizes (within ±10%):
+
+| Asset | Bytes (approx.) |
+|---|---|
+| `build/icon.icns` | ~58000 |
+| `build/icon.ico`  | ~13000 |
+| `build/icon.png`  | ~10000 |
+| `build/dmg-bg.png` | ~11000 |
+| `build/nsis-banner.bmp` | ~620000 (uncompressed BMP) |
+
+### 6.4 If SVG source ever changes
+
+The Phase 2A SVGs (`resources/design/*.svg`) are the canonical source of
+truth. If a maintainer edits any SVG, re-run §6.2 in full to regenerate
+the rasters — do NOT hand-edit the binary outputs. The Sprint 9 LEGAL.md
+attribution row is keyed off the SVGs as designer's original work; rasters
+are mechanical derivatives.
