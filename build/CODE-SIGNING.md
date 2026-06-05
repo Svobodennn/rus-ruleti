@@ -8,6 +8,13 @@
 >
 > See `electron-builder.yml` (mac / win / linux blocks) and
 > `build/entitlements.mac.plist` for the wired stubs.
+>
+> **Icon files (`build/icon.icns`, `build/icon.ico`, `build/icon.png`) are
+> BLOCKED on PHASE 2A — designer specifies the Sovyet brutalist master art
+> (1024×1024) in Sprint 9 Phase 2A; rasterized derivatives land in Lane A
+> Phase 2B. Build will fail until Phase 2A delivers — that is the intended
+> gate ordering per directive §6/§7. Local dev `build:dryrun` works without
+> the icons (electron-builder warns but continues for unpacked dir output).**
 
 ---
 
