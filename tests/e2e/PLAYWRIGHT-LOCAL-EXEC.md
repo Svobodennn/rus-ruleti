@@ -328,3 +328,40 @@ blank frames are a correct swiftshader artefact, not a product defect.
   patches + this doc rewrite.
 - **M3** `2d656af9` — 13 baseline PNGs committed under
   `tests/e2e/faz-screenshots/baseline/`.
+
+## Sprint 9.1 post-ship disclaimer removal — baseline regeneration note
+
+Sprint 9.1 removed the in-app joke disclaimer surfaces per the post-ship
+user directive ("uygulamanın her yerine bu şakadır bu şakadır yazdık,
+bunların hepsini kaldır"):
+
+1. **Sprint 0 intro disclaimer** (`#disclaimer` + Continue button) —
+   removed; `main.ts` now mounts the scene directly into `#app` on
+   bootstrap.
+2. **Faz 8 son-ekran disclaimer** (`.faz8-disclaimer` Cyrillic + Turkish
+   text overlay) — removed; the closing tableau holds purely visual +
+   atmospheric.
+
+The following Playwright baselines are **INVALIDATED** by this change
+and require regeneration on the next Playwright run via
+`npm run test:e2e:update-snapshots`:
+
+- `tests/e2e/faz-screenshots/baseline/T01-lobby.png` — was disclaimer
+  headline + Continue button; now the scene-container first paint.
+- `tests/e2e/faz-screenshots/baseline/T11-faz8-son-ekran.png` — was
+  closing tableau with `.faz8-disclaimer.is-visible` text overlay;
+  now the same tableau without overt text (TEKRAR / ÇIK buttons
+  still visible).
+- `tests/e2e/faz-screenshots/baseline/T12-tekrar-cycle.png` — was a
+  fresh disclaimer + buttons re-mount after TEKRAR; now buttons-only.
+- `tests/e2e/faz-screenshots/baseline/T13-pre-cik-click.png` — was
+  pre-quit DOM state including the disclaimer; now disclaimer-free.
+
+The associated spec assertions (T01 lobby, T11 son-ekran, T12 cycle)
+are already patched in `sprint7-faz-smoke.spec.ts` to no longer
+reference `#disclaimer.is-revealed` / `.faz8-disclaimer.is-visible`;
+only the PNG baselines need to be re-captured.
+
+The other 9 baselines (T02..T10, T14 screenshot if any) are NOT
+invalidated by this change — they cover Faz 0..7 chrome that the
+disclaimer removal did not touch.
