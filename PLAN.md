@@ -2294,3 +2294,81 @@ files:
 
 The joke-app narrative invariant is preserved: `os.userInfo().username` (Sprint 4) remains the ONLY system-touching call in the entire codebase. Faz 0-8 chrome is 100% DOM + Canvas2D + Web Audio synth + CSS — pure theater. Sprint 7's reveal jingle is procedural Web Audio (4-oscillator triangle-wave ADSR chord at `destruction-audio-faz8.ts:478-501`); no `.ogg`/`.wav` bundled.
 
+## Sprint 9 Security Audit
+
+**Auditor:** security-reviewer (Phase 3 Wave 2)
+**Audit date:** 2026-06-08
+**HEAD at audit:** `486aaa6` (Sprint 9 Phase 1+2A+2B merged)
+**Scope:** FINAL pre-ship security posture confirmation — 12 dimensions
+**Wave 1 verifier result (precondition):** PASS 13/13
+**Handoff:** `.claude/cache/handoffs/sprint9/phase3-wave2-security.md`
+
+### Audit dimensions
+
+| # | Dimension | Result | Severity |
+|---|---|---|---|
+| 1 | IPC channel count invariant (5 channels) | PASS | — |
+| 2 | CSP unchanged (Sprint 4 baseline) | PASS | — |
+| 3 | preload bridge surface unchanged | PASS | — |
+| 4 | entitlements.mac.plist joke-app minimum | PASS | — |
+| 5 | Code-signing stub config env-var safety | PASS | — |
+| 6 | `.gitignore` cert path patterns | MINOR | advisory (non-blocking) |
+| 7 | Sprint 9 docs no literal cert paths/secrets | PASS | — |
+| 8 | LEGAL.md disclaimer adequacy | PASS | — |
+| 9 | npm audit production baseline (0 vulns) | PASS | — |
+| 10 | License headers / SPDX (UNLICENSED + author) | PASS | — |
+| 11 | Sprint 5+6 QR URL stability | INFO | ACCEPTED-FOR-SHIP (per directive §2) |
+| 12 | Distributable verification closure (MAJOR drift=0) | PASS | — |
+
+**11/12 PASS · 1/12 MINOR · 0 CRITICAL · 0 MAJOR**
+
+### Key invariants confirmed
+
+1. **IPC contract:** 5 channels (`app:quit`, `os:get`, `kiosk:toggle`, `frame:stats`, `os:get-username`) — byte-identical to Sprint 4 baseline. `ALLOWED_IPC_CHANNELS` list matches `IPC_CHANNELS` 1-to-1.
+2. **CSP:** `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; script-src 'self'; media-src 'self';` — byte-identical to Sprint 4. ZERO new directives, ZERO relaxations.
+3. **Preload bridge:** single `contextBridge.exposeInMainWorld('api', ...)` call exposing 6 APIs (5 IPC-backed + 1 local keyboard timer) — byte-identical to Sprint 4 baseline. Banned Node imports (fs, child_process, shell, net, http, https, dgram, cluster, vm, os) absent.
+4. **Hardened Runtime entitlements:** ONLY 4 Electron-required entitlements (`allow-jit`, `allow-unsigned-executable-memory`, `allow-dyld-environment-variables`, `disable-library-validation`). ZERO privacy-sensitive entitlements (camera/microphone/network/files/location/photos/contacts/audio-input/personal-information). Plist explicitly documents OMITTED entitlements for auditability.
+5. **Code-signing stubs:** `mac.identity: null` (explicit don't-sign default); `mac.notarize.teamId: ${env.APPLE_TEAM_ID}` (env-var reference, no literal); Win cert env vars commented at electron-builder.yml:156-165 (CSC_LINK / CSC_KEY_PASSWORD / WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD / CSC_NAME) — documentation only, no inline values.
+6. **Cert binary scan:** `find . \( -name "*.pfx" -o -name "*.p12" -o -name "*.p8" -o -name "*.cer" -o -name "*.crt" -o -name "*.key" \) -not -path "*/node_modules/*" -not -path "*/.git/*"` returns ZERO matches across the entire working tree (including all `.claude/worktrees/` agent worktrees).
+7. **Docs secret-literal scan:** `grep -rEi "(CSC_LINK|CSC_KEY_PASSWORD|APPLE_ID|APPLE_APP_SPECIFIC|APPLE_TEAM_ID|APPLE_API_KEY)" build/CODE-SIGNING.md scripts/release-checklist.md` matches ONLY env-var NAMES in reference tables/instructional prose — ZERO literal values detected.
+8. **LEGAL.md disclaimer:** Bilingual Cyrillic+Turkish original wording (`Это игра.` / `Это просто шутка.` + `Bu sadece bir şaka.`); joke-app framing explicit; references PLAN.md §9 safety contract (`sandbox: true`, no fs/child_process/network); audit chain attestation present at LEGAL.md:228-229.
+9. **npm audit (production):** `metadata.vulnerabilities = { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 }`. 4 direct production deps (electron-log, howler, postprocessing, three) unchanged since Sprint 2.
+10. **License/attribution clarity:** `package.json` "license: UNLICENSED" + "private: true" + "author: famelink"; `electron-builder.yml` "copyright: Copyright (C) 2026 famelink" — joke-app proprietary distribution model unambiguous.
+11. **QR URL stability:** `https://www.windows.com/stopcode` hardcoded across 9 src/ references (chrome/win-bsod.ts:142 + 8 comment/docs); S7 risk ACCEPTED-FOR-SHIP per directive §2 — graceful in-joke degradation if URL retires.
+12. **LEGAL drift:** 0 MAJOR / 0 MINOR per LEGAL-CHECKLIST.md M3 audit (HEAD `ac917cc`). All 7 Sprint 3 GLB SHA-256s byte-for-byte match `SHA256-MANIFEST.txt`.
+
+### MINOR finding (advisory, non-blocking)
+
+**.gitignore cert path patterns missing.** Current `.gitignore` lacks defensive cert exclusions (`*.pfx`, `*.p12`, `*.p8`, `*.cer`, `*.crt`, `*.key`, `csc_*`). The env-var contract (per `build/CODE-SIGNING.md`) is the primary protection and ZERO cert files currently exist in the repo (verified). Recommendation: add cert path patterns to `.gitignore` post-ship as belt-and-braces hygiene.
+
+### INFO finding (ACCEPTED-FOR-SHIP)
+
+**Sprint 5+6 QR URL stability (S7 carry-forward).** QR URL `https://www.windows.com/stopcode` hardcoded as string. Per directive §2 and LEGAL.md:208 risk disposition: ACCEPTED-FOR-SHIP — staleness manifests as graceful in-joke degradation; regeneration command documented in LEGAL.md §QR code asset.
+
+### Section Summary
+
+| Section | Result |
+|---------|--------|
+| 1. IPC channel count invariant | PASS |
+| 2. CSP unchanged | PASS |
+| 3. preload bridge surface unchanged | PASS |
+| 4. entitlements.mac.plist joke-app minimum | PASS |
+| 5. Code-signing stub config env-var safety | PASS |
+| 6. .gitignore cert path patterns | MINOR (advisory) |
+| 7. Docs no literal cert paths/secrets | PASS |
+| 8. LEGAL.md disclaimer adequacy | PASS |
+| 9. npm audit production baseline | PASS |
+| 10. License headers / SPDX | PASS |
+| 11. Sprint 5+6 QR URL stability | INFO (ACCEPTED-FOR-SHIP) |
+| 12. Distributable verification closure | PASS |
+
+**11/12 PASS · 1/12 MINOR · 0 CRITICAL · 0 MAJOR.**
+
+### Final Verdict
+
+**PASS-WITH-MINOR — SHIP-READY.** Sprint 9 release prep upholds every security invariant established Sprint 0-8. IPC contract byte-identical to Sprint 4 (5 channels); CSP byte-identical to Sprint 4; preload bridge byte-identical to Sprint 4; hardened-runtime entitlements minimal (4, ZERO privacy-sensitive); code-signing config fully env-var-driven; ZERO cert binaries committed anywhere; docs reference env-var NAMES only; disclaimer bilingual and clear; npm audit production = 0 vulns; LEGAL drift = 0 MAJOR.
+
+ZERO new IPC channels, ZERO new preload APIs, ZERO new production dependencies, ZERO new CSP directives Sprint 9 — release prep was distribution-config only (electron-builder Linux block, MSI target, code-signing env-var stubs, entitlements.mac.plist, docs). Joke-app narrative invariant preserved: `os.userInfo().username` (Sprint 4) remains the ONLY system-touching call in the entire codebase.
+
+Single MINOR finding (`.gitignore` cert patterns) is post-ship hygiene; the env-var contract is the primary protection and no certs currently exist in the repo. INFO finding (QR URL) is ACCEPTED-FOR-SHIP per directive §2. Sprint 9 cleared for distribution-time release.
+
