@@ -371,7 +371,7 @@ export const STRINGS = {
         button: {
           tekrar: {
             label: 'ЕЩЁ РАЗ',
-            'aria-label': 'ЕЩЁ РАЗ. Перезапустить шутку с начала.',
+            'aria-label': 'ЕЩЁ РАЗ. Перезапустить с начала.',
           },
           cik: {
             label: 'ВЫЙТИ',
@@ -599,7 +599,7 @@ export const STRINGS = {
         button: {
           tekrar: {
             label: 'TEKRAR',
-            'aria-label': 'TEKRAR. Şakayı baştan başlat.',
+            'aria-label': 'TEKRAR. Baştan başlat.',
           },
           cik: {
             label: 'ÇIK',
