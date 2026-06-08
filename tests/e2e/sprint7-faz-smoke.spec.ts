@@ -73,8 +73,13 @@ import type { Page } from '@playwright/test';
 //   FAZ5_DURATION_MS = 7000,   FAZ6_START_MS = 37000,
 //   FAZ6_DURATION_MS = 7000,   FAZ7_START_MS = 44000,
 //   FAZ7_DURATION_MS = 6000  → Faz 8 reveal start ~50_000,
-//   FAZ8_REVEAL_DURATION_MS = 5000 → son-ekran start ~55_000,
-//   FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS = 3000 → .is-visible at ~58_000.
+//   FAZ8_REVEAL_DURATION_MS = 5000 → son-ekran start ~55_000.
+// Sprint 9.1 — the prior FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS (3000)
+// gate is no longer relevant (disclaimer surface removed); the 60_000
+// midpoint is now keyed off the TEKRAR/ÇIK button fade-in
+// (FAZ8_BUTTON_FADEIN_START_OFFSET_MS = 2500 → buttons visible at
+// ~57_500). The 60_000 sample still lands inside the 10sn son-ekran
+// window so the slack remains adequate.
 const FAZ_TIMING_MS = {
   faz0Mid: 750, // BANG flash + camera shake (~1.5sn total window)
   faz1Mid: 4_000, // Critical dialog ~3sn window after Faz 0
@@ -85,7 +90,7 @@ const FAZ_TIMING_MS = {
   faz6Mid: 40_000, // BSOD/kernel-panic mid (FAZ6_START 37s + 3s mid)
   faz7Mid: 47_000, // Bootloop mid (FAZ7_START 44s + 3s mid)
   faz8RevealMid: 52_000, // Reveal mid (start 50s + 2s)
-  faz8SonEkranMid: 60_000, // Son-ekran disclaimer .is-visible ~58s + 2s slack
+  faz8SonEkranMid: 60_000, // Son-ekran mid (buttons visible at ~57.5s + slack)
 };
 
 /**
@@ -404,28 +409,28 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   );
 
   // ----------------------------------------------------------------
-  // T11 — Faz 8 son-ekran disclaimer + buttons visible (~54sn).
-  //       Sprint 7 NEW: TEKRAR + ÇIK action buttons mount at +2.5sn
-  //       into son-ekran; disclaimer at +3sn. Sprint 6 LL-1 closure
-  //       verification: assert `.is-visible` class IS present on
-  //       both the disclaimer + action-buttons container, AND the
-  //       host element is document.body (not destruction-takeover).
+  // T11 — Faz 8 son-ekran TEKRAR/ÇIK buttons visible (~54sn).
+  //       Sprint 7: TEKRAR + ÇIK action buttons mount at +2.5sn into
+  //       son-ekran. Sprint 9.1: the Sprint 6 disclaimer surface was
+  //       REMOVED post-ship; the `.faz8-disclaimer.is-visible`
+  //       assertion is dropped. Sprint 6 LL-1 closure verification is
+  //       preserved on the buttons surface (the action-buttons
+  //       container parent MUST be document.body, not destruction-
+  //       takeover).
   // ----------------------------------------------------------------
   test(
-    'T11 — Faz 8 son-ekran disclaimer + TEKRAR/ÇIK buttons visible',
+    'T11 — Faz 8 son-ekran TEKRAR/ÇIK buttons visible',
     async ({ page }): Promise<void> => {
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
       await page.waitForTimeout(FAZ_TIMING_MS.faz8SonEkranMid);
-      // Sprint 6 LL-1 carry-forward: disclaimer rendered + is-visible.
-      const disclaimer = page.locator('.faz8-disclaimer.is-visible');
-      await expect(disclaimer).toBeVisible({ timeout: 2_000 });
-      // Sprint 9 spec patch: per faz8-son-ekran.ts:498-505
-      // (triggerButtonVisibility), `.is-visible` is added to the
-      // BUTTONS (`.faz8-tekrar-button.is-visible`,
-      // `.faz8-cik-button.is-visible`), NOT the container itself.
-      // Container `.faz8-action-buttons-container` exists once buttons
-      // mount; its parent is document.body (Sprint 6 LL-1 host fix).
+      // Sprint 9.1 — disclaimer assertion REMOVED.
+      // Sprint 9 spec patch: per faz8-son-ekran.ts (triggerButton-
+      // Visibility), `.is-visible` is added to the BUTTONS
+      // (`.faz8-tekrar-button.is-visible`, `.faz8-cik-button.is-visible`),
+      // NOT the container itself. Container
+      // `.faz8-action-buttons-container` exists once buttons mount; its
+      // parent is document.body (Sprint 6 LL-1 host fix).
       const buttonsContainer = page.locator(
         '.faz8-action-buttons-container',
       );
@@ -458,8 +463,10 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //       assert via:
   //         a) the action-buttons-container is removed after click
   //            (chrome dispose runs in requestRestart cycle), then
-  //         b) a fresh disclaimer/buttons mount appears after the
-  //            reveal envelope completes.
+  //         b) a fresh buttons mount appears after the reveal
+  //            envelope completes (Sprint 9.1 — the prior disclaimer
+  //            re-mount step no longer applies; we assert button
+  //            re-mount only).
   // ----------------------------------------------------------------
   test(
     'T12 — TEKRAR button click → fresh reveal cycle starts',
@@ -467,7 +474,9 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
       // Sprint 9 spec patch: per onFaz8RestartRequested (destruction-state.ts
       // :461), TEKRAR transitions faz8-son-ekran → faz8-reveal (NOT a full
       // Faz 0-8 re-run). Restart fresh cycle = FAZ8_REVEAL_DURATION_MS (5s) +
-      // FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS (3s) ≈ 8s, plus jitter.
+      // FAZ8_BUTTON_FADEIN_START_OFFSET_MS (2.5s) ≈ 7.5s, plus jitter
+      // (Sprint 9.1 — the prior 3s disclaimer beat is removed from the
+      // critical-path timing).
       test.setTimeout(120_000);
       await advancePastDisclaimer(page);
       await dispatchBangFired(page);
@@ -480,9 +489,9 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
         '.faz8-action-buttons-container',
       );
       await expect(buttonsContainer).toBeHidden({ timeout: 3_000 });
-      // After the fresh reveal envelope (5sn) + son-ekran ramp (3sn
-      // disclaimer + 2.5sn buttons), a NEW disclaimer + buttons pair
-      // should mount. Wait ~12s (8s minimum + jitter slack).
+      // After the fresh reveal envelope (5sn) + son-ekran ramp (2.5sn
+      // buttons), a NEW buttons pair should mount. Wait ~12s (8s
+      // minimum + jitter slack).
       // Sprint 9 patch: container has no `.is-visible` — check buttons.
       await page.waitForTimeout(12_000);
       await expect(
@@ -541,7 +550,8 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   //         a) the director constructs runtime.revealJingle (proven
   //            by absence of "createRevealJingle" error in console)
   //         b) at son-ekran ramp the reveal envelope has run end-to-end
-  //            (proven by T11 disclaimer + buttons visible).
+  //            (proven by T11 buttons visible — Sprint 9.1 dropped the
+  //            disclaimer leg from this implication).
   //       KNOWN-LIMITED for direct audio verification — see top JSDoc.
   // ----------------------------------------------------------------
   test(

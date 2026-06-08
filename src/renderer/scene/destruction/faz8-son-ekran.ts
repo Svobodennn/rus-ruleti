@@ -13,9 +13,6 @@
  * decrees):
  *   - DOOR_CLOSE_AUDIO_OWNER (DoorCloseAccentHandle, single-fire at
  *     FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS = 2sn into son-ekran)
- *   - FAZ8_DISCLAIMER_OWNER (Faz8DisclaimerHandle — Cyrillic primary +
- *     Turkish subtitle; fades in at FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS
- *     = 3sn)
  *   - FAZ8_TEKRAR_BUTTON_CHROME_OWNER (Sprint 7 — Faz8TekrarButton
  *     mount, fade-in at FAZ8_BUTTON_FADEIN_START_OFFSET_MS = 2.5sn;
  *     click/Enter/Space → opts.requestRestart() = director.requestRestart)
@@ -26,6 +23,14 @@
  *     activation gated on activeElement === tekrar/cik button)
  *   - FAZ8_VOLUMETRIC_SMOKE_OWNER (Faz8VolumetricSmokeHandle — Phase
  *     2A may DROP; only mounted when handle constructed)
+ *
+ * Sprint 9.1 — FAZ8_DISCLAIMER_OWNER decree DROPPED. The Cyrillic /
+ * Turkish "Это просто шутка. / Bu sadece bir şaka." text overlay has
+ * been removed from the in-app surface per the post-ship user
+ * directive. The closing tableau is now purely visual + atmospheric
+ * (revolver-on-table + door-close audio + sigara dumanı + TEKRAR /
+ * ÇIK buttons). The bilingual joke framing now lives in the visual
+ * tableau and the button affordances themselves, not in overt text.
  *
  * Sprint 7 D-2 — restart-hint REMOVED. The Sprint 6 .faz8-restart-hint
  * chrome (R-key hint text) is no longer mounted; the TEKRAR button is
@@ -39,9 +44,13 @@
  *   1. Construct + register DoorCloseAccentHandle (audio).
  *   2. Schedule door-close trigger at 2sn via setTimeout (abort-aware).
  *   3. Schedule TEKRAR + ÇIK button mount at 2.5sn (Sprint 7).
- *   4. Schedule disclaimer fade-in at 3sn (mount via Lane B fn,
- *      override text via i18n-resolved STRINGS values).
- *   5. Hold for total 10sn or abort.
+ *   4. Hold for total 10sn or abort.
+ *
+ * Sprint 9.1 — step 4 of the original Sprint 6 sequence (disclaimer
+ * mount at 3sn) is REMOVED. The 3sn beat now passes silently: the
+ * door-close has fired, the buttons have begun their fade-in, and
+ * the tableau holds visually without a text overlay until natural
+ * completion at FAZ8_SON_EKRAN_DURATION_MS.
  *
  * R key handling: scoped to son-ekran via the existing scene-mount.ts
  * keydown listener which gates on `getState().kind === 'faz8-son-ekran'`.
@@ -52,14 +61,14 @@
  * here (FAZ8_BUTTON_KEYDOWN_LISTENER_OWNER).
  *
  * Reduced-motion gate (designer Phase 2A §16):
- *   - Disclaimer fade-in: Lane B chrome handles via prefers-reduced-
- *     motion @media @keyframes; this runner only toggles the class.
  *   - Button fade-in: Lane B CSS @media (prefers-reduced-motion: reduce)
  *     drops the transition; .is-visible class snap-jumps to opacity 1.
  *   - Door-close audio amplitude -6dB: gated inside
  *     createDoorCloseAccentHandle (Lane A audio factory).
  *   - Volumetric smoke OPTIONAL drop (Phase 2A); if shipped, the smoke
  *     column's reduced-motion gate skips spawn at the mount fn.
+ *   - (Sprint 9.1 — the prior disclaimer fade-in reduced-motion gate
+ *     is no longer applicable; the disclaimer surface was removed.)
  */
 
 import log from 'electron-log/renderer';
@@ -74,14 +83,11 @@ import {
   FAZ8_CIK_BUTTON_CHROME_OWNER,
   FAZ8_CIK_BUTTON_FOCUSED_CLASS,
   FAZ8_CIK_BUTTON_VISIBLE_CLASS,
-  FAZ8_DISCLAIMER_OWNER,
-  FAZ8_DISCLAIMER_VISIBLE_CLASS,
   FAZ8_TEKRAR_BUTTON_CHROME_OWNER,
   FAZ8_TEKRAR_BUTTON_FOCUSED_CLASS,
   FAZ8_TEKRAR_BUTTON_VISIBLE_CLASS,
   FAZ8_VOLUMETRIC_SMOKE_OWNER,
   FAZ8_VOLUMETRIC_SMOKE_MODE,
-  FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
   FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS,
   FAZ8_SON_EKRAN_DURATION_MS,
 } from '../../../shared/scene-destruction-constants.js';
@@ -89,12 +95,12 @@ import {
   mountFaz8CikButton,
   mountFaz8TekrarButton,
 } from './chrome/faz8-action-buttons.js';
-import { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
+// Sprint 9.1 — mountFaz8Disclaimer + Faz8DisclaimerHandle imports removed
+// alongside the deleted chrome/faz8-disclaimer.ts file.
 import { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
 import { t, resolveUserLocale } from '../../i18n/strings.js';
 import type {
   Faz8CikButtonHandle,
-  Faz8DisclaimerHandle,
   Faz8TekrarButtonHandle,
   Faz8VolumetricSmokeHandle,
   OsVariant,
@@ -107,24 +113,24 @@ import type {
  * `container` is the destruction-takeover overlay element (the one
  * reveal faded out) — kept for reference but NOT the chrome host.
  *
- * `chromeHost` is the element into which the disclaimer / restart-hint
- * / volumetric-smoke chrome are mounted. MUST be a sibling of the
+ * `chromeHost` is the element into which the son-ekran chrome
+ * (volumetric-smoke) is mounted. MUST be a sibling of the
  * destruction-takeover (or document.body) so its opacity is independent
  * of the takeover's CSS transition (takeover fades to opacity:0 during
  * reveal; children of an opacity:0 parent are invisible by compositor
- * multiply regardless of their own opacity). Per chrome JSDoc
- * (faz8-disclaimer.ts:23-25): "Lane A passes the apartment scene root
- * (NOT the destruction-takeover overlay)".
+ * multiply regardless of their own opacity). Sprint 9.1 — the disclaimer
+ * surface that previously also lived under this host is removed; the
+ * volumetric-smoke is the only remaining son-ekran chrome attached here.
  */
 export interface Faz8SonEkranRunArgs {
   readonly os: OsVariant;
   readonly signal: AbortSignal;
   readonly container: HTMLElement;
   /**
-   * Host element for Faz 8 son-ekran chrome (disclaimer, volumetric
-   * smoke). Must NOT be the destruction-takeover overlay or a
-   * descendant of it — that overlay is at opacity:0 by son-ekran
-   * entry and would hide all child chrome. Typically document.body.
+   * Host element for Faz 8 son-ekran chrome (volumetric-smoke). Must
+   * NOT be the destruction-takeover overlay or a descendant of it —
+   * that overlay is at opacity:0 by son-ekran entry and would hide all
+   * child chrome. Typically document.body.
    */
   readonly chromeHost: HTMLElement;
   readonly destructionAudio: DestructionAudioHandle;
@@ -177,7 +183,6 @@ export async function startFaz8SonEkran(
 
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const handles: Faz8SonEkranHandles = {
-    disclaimer: null,
     tekrarButton: null,
     cikButton: null,
     volumetricSmoke: null,
@@ -201,7 +206,6 @@ export async function startFaz8SonEkran(
   handles.detachKeydown?.();
   handles.tekrarButton?.dispose();
   handles.cikButton?.dispose();
-  handles.disclaimer?.dispose();
   handles.volumetricSmoke?.dispose();
 }
 
@@ -209,9 +213,11 @@ export async function startFaz8SonEkran(
  * Mutable handle bag — populated as Lane B mount fns are invoked.
  * Sprint 7 — restartHint REMOVED (D-2: TEKRAR button replaces the hint
  * text); tekrarButton + cikButton + detachKeydown added.
+ * Sprint 9.1 — disclaimer REMOVED (post-ship: the in-app joke disclaimer
+ * surface was removed; the closing tableau holds visually without a
+ * text overlay).
  */
 interface Faz8SonEkranHandles {
-  disclaimer: Faz8DisclaimerHandle | null;
   tekrarButton: Faz8TekrarButtonHandle | null;
   cikButton: Faz8CikButtonHandle | null;
   volumetricSmoke: Faz8VolumetricSmokeHandle | null;
@@ -271,70 +277,19 @@ function scheduleSonEkranCues(
       if (!opts.signal.aborted) doorClose.trigger();
     }, FAZ8_SON_EKRAN_DOOR_CLOSE_AT_MS),
   );
-  timers.add(
-    setTimeout(
-      (): void => mountDisclaimerIfActive(opts, handles),
-      FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS,
-    ),
-  );
-  // Sprint 7 — TEKRAR + ÇIK buttons fade in at 2.5sn (after disclaimer
-  // settles + door-close has fired; before son-ekran natural-completes
-  // at 10sn). The Sprint 6 restart-hint mount is REMOVED (D-2).
+  // Sprint 9.1 — disclaimer mount at FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS
+  // REMOVED. The 3sn beat passes silently; the closing tableau is now
+  // purely visual + atmospheric (revolver-on-table + sigara dumanı +
+  // door-close at 2sn + TEKRAR/ÇIK buttons at 2.5sn).
+  // Sprint 7 — TEKRAR + ÇIK buttons fade in at 2.5sn (after door-close
+  // has fired; before son-ekran natural-completes at 10sn). The
+  // Sprint 6 restart-hint mount is REMOVED (D-2).
   timers.add(
     setTimeout(
       (): void => mountActionButtonsIfActive(opts, handles),
       FAZ8_BUTTON_FADEIN_START_OFFSET_MS,
     ),
   );
-}
-
-/**
- * Mount the Faz 8 disclaimer chrome at the 3sn mark and override the
- * text via i18n-resolved STRINGS. Lane B's mount fn already accepts
- * the strings via opts.primaryRu/secondaryTr — we also call
- * setPrimaryText/setSecondaryText explicitly so the bilingual contract
- * (RU literal under .primary, TR literal under .secondary across BOTH
- * locale trees) is honoured at the call site.
- *
- * BLOCKER-001 fix: after mount, a rAF callback removes the (now
- * absent) inline opacity anchor and toggles `.is-visible` on the
- * returned element. The rAF deferral lets the browser paint one frame
- * with `opacity:0` (from the CSS class) so the CSS transition has a
- * definite starting point before the end-state class is added.
- *
- * BLOCKER-003 fix: opts.chromeHost (document.body or scene root) is
- * used as hostElement, NOT opts.container (the destruction-takeover
- * overlay which is at opacity:0 by son-ekran entry).
- */
-function mountDisclaimerIfActive(
-  opts: Faz8SonEkranRunArgs,
-  handles: Faz8SonEkranHandles,
-): void {
-  if (opts.signal.aborted) return;
-  const locale = resolveUserLocale();
-  const primary = t('destruction.faz8.disclaimer.primary', locale);
-  const secondary = t('destruction.faz8.disclaimer.secondary', locale);
-  const ariaLabel = t('destruction.faz8.disclaimer.aria-label', locale);
-  const handle = mountFaz8Disclaimer({
-    caller: FAZ8_DISCLAIMER_OWNER,
-    primaryRu: primary,
-    secondaryTr: secondary,
-    ariaLabel,
-    signal: opts.signal,
-    hostElement: opts.chromeHost,
-  });
-  handle.setPrimaryText(primary);
-  handle.setSecondaryText(secondary);
-  handles.disclaimer = handle;
-  // Trigger CSS fade-in: one rAF so the browser paints opacity:0
-  // (CSS base state) first, then the is-visible class drives 0→0.9.
-  // Sprint 7 Phase 1 TH-S6-02: class name sourced from SSOT constant
-  // FAZ8_DISCLAIMER_VISIBLE_CLASS (= 'is-visible').
-  requestAnimationFrame((): void => {
-    if (!opts.signal.aborted) {
-      handle.element.classList.add(FAZ8_DISCLAIMER_VISIBLE_CLASS);
-    }
-  });
 }
 
 /**

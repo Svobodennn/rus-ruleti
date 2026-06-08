@@ -43,10 +43,13 @@ import type {
  *
  * Sprint 6 Phase 1 — Faz 8 surface handles (consumers Phase 2B):
  *   - faz8-reveal.ts                 (OsVariant; no chrome handle — fade-out only)
- *   - faz8-son-ekran.ts              (OsVariant, Faz8Disclaimer/RestartHint/VolumetricSmoke)
- *   - chrome/faz8-disclaimer.ts      (Faz8DisclaimerHandle)
+ *   - faz8-son-ekran.ts              (OsVariant, Faz8RestartHint/VolumetricSmoke)
  *   - chrome/faz8-restart-hint.ts    (Faz8RestartHintHandle)
  *   - chrome/faz8-volumetric-smoke.ts(Faz8VolumetricSmokeHandle; Phase 2A may drop)
+ *
+ * Sprint 9.1 — Faz8DisclaimerHandle interface REMOVED (post-ship
+ * in-app disclaimer surface removal). The chrome/faz8-disclaimer.ts
+ * file is deleted; faz8-son-ekran.ts no longer mounts the chrome.
  *
  * External consumer:
  *   - scene/index.ts SceneHandle.destructionDirector field (lazy import).
@@ -106,19 +109,23 @@ export type DestructionPhase =
  *                        overlay fades out, lobby restored, bulb pulse
  *                        normalises, camera dolly-out, audio bed fades in.
  *                        Reference PLAN.md §7 lines 290-303.
- *   faz8-son-ekran     — Sprint 6 variant (Sprint 7 D-2 button upgrade):
+ *   faz8-son-ekran     — Sprint 6 variant (Sprint 7 D-2 button upgrade;
+ *                        Sprint 9.1 disclaimer removal):
  *                        55-65sn closing tableau. Revolver-on-table
  *                        framing held; sigara dumanı (optional,
  *                        designer §6); door-close audio at ~7sn into
- *                        son-ekran; Cyrillic disclaimer "Это просто
- *                        шутка." centred ~3sn + TR subtitle "Bu sadece
- *                        bir şaka."; Sprint 7 D-2 replaced the Sprint 6
+ *                        son-ekran; Sprint 7 D-2 replaced the Sprint 6
  *                        restart-hint TEXT with actual TEKRAR / ÇIK
- *                        BUTTONS (faz8-action-buttons.ts). The
- *                        restart-hint chrome type (Faz8RestartHintHandle)
- *                        remains in types.ts for type continuity; Sprint 8
- *                        cleanup may remove the hint chrome entirely once
- *                        the button UI is confirmed stable.
+ *                        BUTTONS (faz8-action-buttons.ts). Sprint 9.1
+ *                        removed the Sprint 6 Cyrillic + Turkish
+ *                        disclaimer "Это просто шутка. / Bu sadece
+ *                        bir şaka." text overlay post-ship; the
+ *                        closing tableau is now purely visual +
+ *                        atmospheric. The restart-hint chrome type
+ *                        (Faz8RestartHintHandle) remains in types.ts
+ *                        for type continuity; Sprint 8/10 cleanup may
+ *                        remove the hint chrome entirely once the
+ *                        button UI is confirmed stable.
  *   aborted            — terminal state; either user ESC-held or sequence
  *                        completed cleanly. Director can be re-armed only by
  *                        re-mounting (lobby reload) or — for Sprint 6 — by
@@ -429,28 +436,13 @@ export interface WinBiosBootloopHandle extends ChromeHandle {
 /* ------------------------------------------------------------------------ */
 
 /**
- * Faz 8 disclaimer handle — Sprint 6 closing tableau surface.
- *
- * Owns the centred bilingual disclaimer block — Cyrillic primary
- * ("Это просто шутка.") + Turkish subtitle ("Bu sadece bir şaka.").
- * Fades in at FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS (~3sn into son-ekran)
- * over FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS (1sn). Final opacity capped
- * at FAZ8_DISCLAIMER_OPACITY_MAX (0.9) so the lobby read remains the
- * primary visual; the text is the WHISPER, not the headline.
- *
- * Owner: faz8-son-ekran.ts (FAZ8_DISCLAIMER_OWNER decree). Lane B fills
- * the body (mount DOM, ARIA labelling, CSS class wiring). The setters
- * exist so the runner can swap the primary/secondary copy at any time
- * (e.g. translation re-evaluation under locale-switch — Sprint 7+).
+ * Sprint 9.1 — Faz8DisclaimerHandle interface REMOVED post-ship. The
+ * Sprint 6 chrome (`chrome/faz8-disclaimer.ts`) is deleted and
+ * faz8-son-ekran.ts no longer mounts a text overlay. The closing
+ * tableau holds visually + atmospherically without overt disclaimer
+ * text (revolver-on-table + door-close audio + sigara dumanı +
+ * TEKRAR / ÇIK buttons carry the joke framing).
  */
-export interface Faz8DisclaimerHandle extends ChromeHandle {
-  readonly kind: 'faz8-disclaimer';
-  readonly element: HTMLElement;
-  /** Replace the primary Cyrillic copy (default: "Это просто шутка."). */
-  readonly setPrimaryText: (text: string) => void;
-  /** Replace the secondary Turkish copy (default: "Bu sadece bir şaka."). */
-  readonly setSecondaryText: (text: string) => void;
-}
 
 /**
  * Faz 8 restart-hint handle — Sprint 6 optional surface.

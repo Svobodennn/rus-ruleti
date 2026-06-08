@@ -283,33 +283,14 @@ export const STRINGS = {
         },
       },
       /**
-       * Sprint 6 Faz 8 — Reveal + Son ekran disclaimer + restart hint + a11y.
+       * Sprint 6 Faz 8 — Reveal + Son ekran restart hint + a11y.
        *
-       * Bilingual presentation contract (PRIMARY + SECONDARY disclaimer):
-       *
-       *   `disclaimer.primary` and `disclaimer.secondary` are
-       *   PRESENTATION-CONSTANT — they render the SAME literal regardless of
-       *   the runtime `currentLocale`. The disclaimer block visually presents
-       *   the Russian punchline first (large serif, top) and the Turkish
-       *   gloss below (smaller serif, secondary opacity). Both lines appear
-       *   together for every user, every session — the bilingual stack IS
-       *   the design (see designer Phase 2A §19 lines 2445-2492, and the
-       *   Sprint 5 "ШУТКА / ŞAKA" precedent for `panicHeadlineRu` /
-       *   `panicHeadlineTr` under `destruction.faz6.mac`).
-       *
-       *   Concretely:
-       *     - `STRINGS.ru.destruction.faz8.disclaimer.primary` = Russian
-       *     - `STRINGS.tr.destruction.faz8.disclaimer.primary` = Russian (SAME)
-       *     - `STRINGS.ru.destruction.faz8.disclaimer.secondary` = Turkish
-       *     - `STRINGS.tr.destruction.faz8.disclaimer.secondary` = Turkish (SAME)
-       *
-       *   The TR-locale tree carries the SAME Russian literal under
-       *   `disclaimer.primary` because the disclaimer is delivered in the
-       *   language of the immersion. Likewise, the RU-locale tree carries
-       *   the SAME Turkish literal under `disclaimer.secondary` because the
-       *   gloss is always the Turkish translation. Lane B (frontend-dev)
-       *   resolves both via `t(key, locale)` at the son-ekran call site and
-       *   the chrome stacks the two lines in a single `<section>` block.
+       * Sprint 9.1 — the `disclaimer.{primary,secondary,aria-label}` leaves
+       * are REMOVED post-ship along with the chrome that consumed them.
+       * The Sprint 6 bilingual presentation contract is no longer required
+       * because no text overlay renders during the closing tableau; the
+       * joke framing now lives in the revolver-on-table tableau and the
+       * TEKRAR / ÇIK button affordances.
        *
        * Locale-specific keys (follow UI locale):
        *
@@ -321,22 +302,16 @@ export const STRINGS = {
        *   The English line is NOT keyed here (it is a presentation constant
        *   the chrome may inline if joining-mode is chosen).
        *
-       *   `son-ekran.aria-label` / `disclaimer.aria-label` — screen-reader
-       *   labels, locale-specific so the announced text matches the user's
-       *   locale. Defensive a11y: the disclaimer surface uses
-       *   `role="status" aria-live="polite"`; the son-ekran parent surface
-       *   uses `role="region" aria-label=…`. Both labels follow the runtime
-       *   locale because they are heard, not seen — there is no bilingual
-       *   visual stack to mirror.
+       *   `son-ekran.aria-label` — screen-reader label, locale-specific so
+       *   the announced text matches the user's locale. The son-ekran
+       *   parent surface uses `role="region" aria-label=…`; the label
+       *   follows the runtime locale because it is heard, not seen.
+       *   Sprint 9.1 updated this label to drop the "Şaka" reference now
+       *   that the disclaimer text no longer participates in the surface.
        *
        * No template tokens at this layer.
        */
       faz8: {
-        disclaimer: {
-          primary: 'Это просто шутка.',
-          secondary: 'Bu sadece bir şaka.',
-          'aria-label': 'Сообщение: это просто шутка.',
-        },
         /**
          * Sprint 7 Phase 2A D-2: Lane 0 (this commit) RETAINS the
          * `restart.hint` leaves because Sprint 6's `faz8-son-ekran.ts`
@@ -566,30 +541,18 @@ export const STRINGS = {
       },
       /**
        * Mirror of `STRINGS.ru.destruction.faz8`. See the RU-tree comment
-       * for the full bilingual-disclaimer contract.
+       * for the Sprint 9.1 disclaimer-removal context.
        *
-       * `disclaimer.primary` here carries the SAME Russian literal as
-       * `STRINGS.ru.destruction.faz8.disclaimer.primary` — the primary
-       * disclaimer is a presentation constant in Russian (the language
-       * of the immersion). Likewise `disclaimer.secondary` carries the
-       * SAME Turkish literal across both locale trees — the secondary
-       * line is always the Turkish gloss.
-       *
-       * Only `restart.hint`, `son-ekran.aria-label`, and
-       * `disclaimer.aria-label` are locale-specific (follow UI locale).
-       * Turkish phrasing follows the formal-imperative register that
-       * matches the destruction-direction `restart` family in the
-       * Sprint 5 trees ("R'ye basın" infinitive-imperative). The aria-
-       * labels follow the same calm, descriptive register used by
-       * Turkish screen-reader conventions ("bitti" past-passive,
-       * "duruyor" present-progressive for the still-life tableau).
+       * Only `restart.hint` and `son-ekran.aria-label` are locale-specific
+       * (follow UI locale). Turkish phrasing follows the formal-imperative
+       * register that matches the destruction-direction `restart` family
+       * in the Sprint 5 trees ("R'ye basın" infinitive-imperative). The
+       * aria-label follows the calm, descriptive register used by Turkish
+       * screen-reader conventions ("duruyor" present-progressive for the
+       * still-life tableau). Sprint 9.1 dropped the "Şaka" reference from
+       * the son-ekran aria-label alongside the disclaimer text removal.
        */
       faz8: {
-        disclaimer: {
-          primary: 'Это просто шутка.',
-          secondary: 'Bu sadece bir şaka.',
-          'aria-label': 'Mesaj: bu sadece bir şaka.',
-        },
         /**
          * Mirror of `STRINGS.ru.destruction.faz8.restart`. See the RU-tree
          * comment for the Phase 2A D-2 retention rationale. Phase 4 spark /

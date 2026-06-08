@@ -10,8 +10,10 @@
  * synth handle factories — Lane A/B/C/D pick these up in Phase 2B.
  *
  * Sprint 6 Phase 1 adds Faz 8 reveal + son-ekran lane runners + chrome
- * stubs (disclaimer + restart-hint + optional volumetric-smoke) — Lane
- * A/B pick these up in Phase 2B.
+ * stubs (restart-hint + optional volumetric-smoke) — Lane A/B pick these
+ * up in Phase 2B. (Sprint 9.1 — the Sprint 6 disclaimer chrome was
+ * removed from the in-app surface post-ship; the mount fn + handle
+ * export are both dropped from this barrel.)
  *
  * Sprint 7 Phase 1 adds Faz 8 TEKRAR / ÇIK button chrome stubs + the
  * RevealJingleHandle factory (in audio/destruction-audio-faz8.ts) —
@@ -39,7 +41,6 @@ export type {
   WinBsodHandle,
   WinProgressDialogHandle,
   WinBiosBootloopHandle,
-  Faz8DisclaimerHandle,
   Faz8RestartHintHandle,
   Faz8VolumetricSmokeHandle,
   Faz8TekrarButtonHandle,
@@ -65,10 +66,11 @@ export { mountWinBiosBootloop } from './chrome/win-bios-bootloop.js';
 export { scheduleBleed3, scheduleBleed4 } from './apartment-bleed.js';
 export type { BleedScheduleOptions, Bleed3ScheduleOptions, Bleed4ScheduleOptions } from './apartment-bleed.js';
 
-/* Sprint 6 Phase 1 — Faz 8 reveal + son-ekran lane runners + chrome mounts. */
+/* Sprint 6 Phase 1 — Faz 8 reveal + son-ekran lane runners + chrome mounts.
+ * Sprint 9.1 — mountFaz8Disclaimer export REMOVED (post-ship disclaimer
+ * surface removal); chrome/faz8-disclaimer.ts deleted. */
 export { startFaz8Reveal } from './faz8-reveal.js';
 export { startFaz8SonEkran } from './faz8-son-ekran.js';
-export { mountFaz8Disclaimer } from './chrome/faz8-disclaimer.js';
 export { mountFaz8RestartHint } from './chrome/faz8-restart-hint.js';
 export { mountFaz8VolumetricSmoke } from './chrome/faz8-volumetric-smoke.js';
 

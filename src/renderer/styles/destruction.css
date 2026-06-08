@@ -1041,27 +1041,35 @@
 }
 
 /* ========================================================================== */
-/* SPRINT 6 — Faz 8 Reveal + Son-ekran styles (Lane B FILLED)                 */
+/* SPRINT 6 — Faz 8 Reveal + Son-ekran styles (Lane B FILLED;                 */
+/*            Sprint 9.1 — disclaimer chrome REMOVED post-ship)               */
 /*                                                                            */
-/* Phase 2B Lane B fills:                                                     */
+/* Phase 2B Lane B fills (Sprint 9.1 revised set):                            */
 /*   - .destruction-takeover.is-fading-out — opacity 1→0 transition for      */
 /*     the reveal phase (3sn ease-out-quad).                                   */
-/*   - .faz8-disclaimer + child selectors — Cyrillic primary + Turkish       */
-/*     subtitle typography, opacity-cap transition, centred layout.          */
-/*   - .faz8-restart-hint + .is-visible — bottom-centred locale-conditional */
-/*     hint text (single-line; opacity 0.4 cap; PT Serif 14px).             */
 /*   - .faz8-smoke-source + .faz8-smoke-trail + @keyframes faz8-smoke-rise   */
 /*     — CSS-only D-2 mode='css' / D-4 source='desk-ashtray'.                */
-/*   - @media (prefers-reduced-motion: reduce) gates for the four surfaces   */
-/*     (matrix §20 rows 38, 41, 42, 43).                                      */
+/*   - @media (prefers-reduced-motion: reduce) gates for the remaining       */
+/*     surfaces (reveal fade + volumetric smoke loop).                       */
+/*                                                                            */
+/* Sprint 9.1 removed:                                                        */
+/*   - .faz8-disclaimer + .faz8-disclaimer-primary + .faz8-disclaimer-       */
+/*     secondary + .faz8-disclaimer.is-visible (entire centred bilingual     */
+/*     disclaimer typography block).                                          */
+/*   - Reduced-motion gate row 41 (disclaimer fade-in snap-jump).            */
+/*   - The two SSOT-bridged custom properties --faz8-disclaimer-fade-in-ms / */
+/*     --faz8-disclaimer-fade-easing / --faz8-disclaimer-opacity-max are     */
+/*     orphaned in the constants file; designer cleanup can prune them.      */
+/*                                                                            */
+/* Sprint 7 D-2 already removed the .faz8-restart-hint surface (replaced     */
+/* by the TEKRAR / ÇIK button pair). Sprint 9.1 finishes the closing-        */
+/* tableau text-overlay cleanup; the surface is now purely visual +          */
+/* atmospheric.                                                               */
 /*                                                                            */
 /* Constants consumed via CSS custom properties so the SSOT stays in         */
 /* src/shared/scene-destruction-constants.ts:                                 */
 /*   --faz8-reveal-fade-duration   ← FAZ8_REVEAL_FADE_DURATION_MS  (3000ms)  */
 /*   --faz8-reveal-fade-easing     ← FAZ8_REVEAL_FADE_EASING                 */
-/*   --faz8-disclaimer-fade-in-ms  ← FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS    */
-/*   --faz8-disclaimer-fade-easing ← FAZ8_DISCLAIMER_FADE_EASING             */
-/*   --faz8-disclaimer-opacity-max ← FAZ8_DISCLAIMER_OPACITY_MAX   (0.9)    */
 /*   --faz8-volumetric-smoke-rise-ms ← FAZ8_VOLUMETRIC_SMOKE_RISE_DURATION_MS*/
 /* The destruction-director (or the chrome mount fns) writes these custom   */
 /* properties onto element.style at mount; CSS reads them via var(...).      */
@@ -1090,65 +1098,22 @@
 }
 
 /* ------------------------------------------------------------------------ */
-/* Faz 8 Son ekran (55-65sn) — disclaimer (Cyrillic primary + TR secondary) */
+/* Faz 8 Son ekran (55-65sn) — disclaimer block (Sprint 9.1 REMOVED)        */
 /* ------------------------------------------------------------------------ */
 
-/* Centred bilingual disclaimer block. Mounted at t=0 of son-ekran with
- * inline opacity:0 (set in mountFaz8Disclaimer). Lane A toggles
- * .is-visible at t=3sn (FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS) to drive
- * the fade-in to FAZ8_DISCLAIMER_OPACITY_MAX (0.9). Position is
- * absolute / centred via translate(-50%, -50%); z-index 9001 keeps it
- * above the restart hint (9000). pointer-events: none — the disclaimer
- * is read-only chrome, no interaction targets. */
-.faz8-disclaimer {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10100;
-  text-align: center;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--faz8-disclaimer-fade-in-ms, 1000ms)
-              var(--faz8-disclaimer-fade-easing, cubic-bezier(0.4, 0, 0.6, 1));
-}
-
-.faz8-disclaimer.is-visible {
-  opacity: var(--faz8-disclaimer-opacity-max, 0.9);
-}
-
-/* Cyrillic primary line — Old Standard TT preferred (Sprint 0 bundled
- * OFL Cyrillic-complete serif). PT Serif fallback covers a font-load
- * race; Georgia covers a worst-case install gap. Letter-spacing -0.5px
- * matches FAZ8_DISCLAIMER_PRIMARY_LETTER_SPACING_PX. Text-shadow per
- * FAZ8_DISCLAIMER_TEXT_SHADOW — soft black halation reads as candle-
- * light on old paper, congruent with the kirli-kâğıt palette. */
-.faz8-disclaimer-primary {
-  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
-  font-size: 64px;
-  letter-spacing: -0.5px;
-  color: #7a6a4e;
-  text-shadow: 0 0 8px rgba(10, 9, 8, 0.4);
-  margin: 0 0 24px;
-  font-weight: 400;
-  line-height: 1.1;
-}
-
-/* Turkish secondary line — PT Serif preferred (Sprint 0 bundled OFL
- * Latin-extended renders "şaka" cleanly). opacity 0.85 inside the
- * already-capped parent (effective ~0.77 total) keeps the gloss
- * subordinate to the primary line — the 64px/28px size hierarchy plus
- * the 0.85 opacity together create the "subtitle, not competing line"
- * read FAZ8_DISCLAIMER_SECONDARY_FONT_PX is designed around. */
-.faz8-disclaimer-secondary {
-  font-family: 'PT Serif', 'Old Standard TT', Georgia, serif;
-  font-size: 28px;
-  color: #7a6a4e;
-  opacity: 0.85;
-  margin: 0;
-  font-weight: 400;
-  line-height: 1.3;
-}
+/* Sprint 9.1 closure: the Sprint 6 `.faz8-disclaimer` + child
+ * selectors (Cyrillic primary "Это просто шутка." typography + Turkish
+ * subtitle "Bu sadece bir şaka." typography + fade-in transition +
+ * .is-visible end-state + the absolute-centred positioning) are all
+ * REMOVED. The Sprint 6 chrome (`chrome/faz8-disclaimer.ts`) is also
+ * deleted and faz8-son-ekran.ts no longer mounts the surface. The
+ * SSOT-bridged custom properties --faz8-disclaimer-fade-in-ms /
+ * --faz8-disclaimer-fade-easing / --faz8-disclaimer-opacity-max are
+ * orphaned in scene-destruction-constants.ts; future designer cleanup
+ * can prune them. The closing tableau now holds purely as a visual
+ * (revolver-on-table + sigara dumanı) + atmospheric (door-close audio)
+ * surface; the joke framing lives in the tableau and the TEKRAR / ÇIK
+ * button affordances, not in overt text. */
 
 /* ------------------------------------------------------------------------ */
 /* Faz 8 Son ekran — restart hint (D-2 REMOVED Sprint 7 Phase 2A)            */
@@ -1432,14 +1397,9 @@
     opacity: 0;
   }
 
-  /* Row 41: disclaimer fade-in instant. .is-visible snap-jumps to
-   * the opacity cap (no transition between opacity 0 → 0.9). */
-  .faz8-disclaimer {
-    transition: none;
-  }
-  .faz8-disclaimer.is-visible {
-    opacity: 0.9;
-  }
+  /* Row 41: disclaimer fade-in — Sprint 9.1 REMOVED post-ship.
+   * The `.faz8-disclaimer` surface is no longer rendered; the
+   * reduced-motion snap-jump rule is removed in lockstep. */
 
   /* Row 42: restart hint fade-in — D-2 REMOVED Sprint 7 Phase 2A.
    * The .faz8-restart-hint surface is no longer styled (the Sprint 7
