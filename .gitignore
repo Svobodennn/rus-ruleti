@@ -15,3 +15,12 @@ thoughts/
 # as the visual regression contract).
 playwright-report/
 test-results/
+
+# Sprint 9 — code signing cert paths (defensive; primary protection is env-var contract per build/CODE-SIGNING.md)
+*.pfx
+*.p12
+*.p8
+*.cer
+*.crt
+*.key
+csc_*

@@ -292,6 +292,36 @@ GPU), mark it as `@local-only` and skip in CI.
   T15 reduced-motion).
 - `playwright.config.ts` — Sprint 9 timeout-bumped config.
 
+## Blank baseline frames — ACCEPTED-FOR-SHIP (Sprint 9)
+
+Three of the 13 committed baselines are byte-identical blank frames:
+
+| Test | File | MD5 | Size |
+|------|------|-----|------|
+| T02 | `T02-bang-fired.png` | `cf347c3dae7353cf107cfb8a45baf7b8` | 4250 B |
+| T03 | `T03-faz0-bang.png` | `cf347c3dae7353cf107cfb8a45baf7b8` | 4250 B |
+| T10 | `T10-faz8-reveal-mid.png` | `cf347c3dae7353cf107cfb8a45baf7b8` | 4250 B |
+
+**Root cause:** Chromium swiftshader (Path A) does not render mid-flash
+/ mid-cross-fade WebGL content at the millisecond precision the
+screenshots are taken. The DOM transitions are complete but the Three.js
+canvas is a blank frame at capture time under swiftshader.
+
+**Impact on test results:** None. All 15 tests PASS via DOM assertions
+(`waitForSelector`, `expect(locator).toBeVisible()`, etc.). The
+screenshot step in these three tests captures a reference frame but the
+assertion is DOM-based, not pixel-based.
+
+**Decision:** ACCEPTED-FOR-SHIP for Sprint 9. The Path A KNOWN-LIMITED
+scope (WebGL fidelity) documented above already covers this case. The
+blank frames are a correct swiftshader artefact, not a product defect.
+
+**Post-ship options (future polish sprint):**
+- Tighten the screenshot timing window to a non-flash/non-cross-fade DOM
+  stable moment (screenshot before the animation fires, not mid-frame).
+- Migrate T02/T03/T10 to Path B (real Electron BrowserWindow with
+  hardware GPU) for pixel-accurate WebGL capture.
+
 ## Sprint 9 closure commits
 
 - **M1** `1a6c8b21` — TH-S8-01 Playwright Path A SUCCESS spec/config
