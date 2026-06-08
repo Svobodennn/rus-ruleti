@@ -12,14 +12,20 @@
  * called rather than asserting actual Electron termination.
  *
  * Test count = 14 (T01..T14). Coverage map (per directive §5):
- *   T01: mount lobby — asserts #disclaimer slot renders + Continue button
+ *   T01: mount lobby — asserts #next-screen.is-active + scene-container
+ *        (Sprint 9.1: the Sprint 0 #disclaimer Continue gate was removed;
+ *        the scene now mounts directly on bootstrap, and T01 asserts the
+ *        bootstrap-time scene-container appearance instead of disclaimer
+ *        headlines + Continue button.)
  *   T02: trigger BANG via `bang-fired` CustomEvent + assert FSM moves
  *        beyond idle (KNOWN-LIMITED: no exposed FSM getter on window;
  *        tested via destruction-takeover overlay appearance instead)
  *   T03..T09: each Faz visible at expected window via destruction
  *        overlay appearance + characteristic chrome assertions
  *   T10: Faz 8 reveal jingle screenshot midpoint
- *   T11: Faz 8 son-ekran disclaimer + buttons rendered
+ *   T11: Faz 8 son-ekran closing tableau — Sprint 9.1: the Faz 8 in-app
+ *        disclaimer chrome was removed; T11 now asserts the TEKRAR/ÇIK
+ *        buttons appear (no .faz8-disclaimer.is-visible expectation).
  *   T12: TEKRAR click → re-enter Faz 8 reveal (FSM walks back)
  *   T13: ÇIK click → window.api.quit() called (mock spy)
  *   T14: prefers-reduced-motion forces button snap-to-visible (no
@@ -136,14 +142,17 @@ async function installWindowApiMock(page: Page): Promise<void> {
 }
 
 /**
- * Click through the disclaimer Continue button so the lobby scene
- * mounts. The disclaimer hydrates from STRINGS via t() helper; the
- * Continue button is the user gesture that unsuspends the AudioContext
- * and reveals #next-screen for the scene mount.
+ * Wait for the scene mount slot to activate so destruction-sequence
+ * tests can dispatch `bang-fired` against a live scene.
+ *
+ * Sprint 9.1 — the Sprint 0 intro disclaimer Continue gate was removed.
+ * `main.ts` now mounts the scene directly into `#next-screen` on
+ * bootstrap; this helper simply waits for the `.is-active` class which
+ * main.ts toggles immediately after wiring the slot. Helper name
+ * retained for diff minimisation across the T02..T14 call sites;
+ * Sprint 10 cleanup can rename to `waitForSceneMount` if desired.
  */
 async function advancePastDisclaimer(page: Page): Promise<void> {
-  await page.waitForSelector('#disclaimer.is-revealed', { timeout: 5_000 });
-  await page.click('#disclaimer button.continue');
   await page.waitForSelector('#next-screen.is-active', { timeout: 5_000 });
 }
 
@@ -180,20 +189,25 @@ test.describe('Sprint 7 — Faz smoke (T01..T14)', (): void => {
   });
 
   // ----------------------------------------------------------------
-  // T01 — Mount lobby. The disclaimer + Continue button render
-  //       successfully, proving the Vite dev server serves the bundle
-  //       and the window.api mock satisfies the preload-bridge gate.
+  // T01 — Mount lobby. Sprint 9.1: the Sprint 0 disclaimer Continue
+  //       gate was removed; the scene now mounts directly into
+  //       #next-screen on bootstrap. T01 asserts the scene-container
+  //       slot reaches `.is-active` and contains the future canvas
+  //       host — proving the Vite dev server serves the bundle and
+  //       the window.api mock satisfies the preload-bridge gate.
   // ----------------------------------------------------------------
   test(
-    'T01 — Mount lobby: disclaimer renders + Continue button present',
+    'T01 — Mount lobby: scene-container active on bootstrap',
     async ({ page }): Promise<void> => {
-      // Wait for hydrateDisclaimer() to mount the Continue button.
-      const continueBtn = page.locator('#disclaimer button.continue');
-      await expect(continueBtn).toBeVisible({ timeout: 5_000 });
-      // RU + TR bilingual headlines visible.
-      await expect(page.locator('#disclaimer .headline-ru')).toBeVisible();
-      await expect(page.locator('#disclaimer .headline-tr')).toBeVisible();
-      // Baseline screenshot for T01 lobby.
+      // Sprint 9.1 — wait for main.ts to attach #next-screen.is-active.
+      const nextScreen = page.locator('#next-screen.is-active');
+      await expect(nextScreen).toBeVisible({ timeout: 5_000 });
+      // scene-container is created lazily by scene-mount.ts; assert it
+      // exists once the scene mount step has run.
+      await expect(page.locator('#scene-container')).toBeAttached({
+        timeout: 5_000,
+      });
+      // Baseline screenshot for T01 lobby (Sprint 9.1 baseline).
       await page.screenshot({
         path: 'tests/e2e/faz-screenshots/baseline/T01-lobby.png',
         fullPage: false,

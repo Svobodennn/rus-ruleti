@@ -1,17 +1,27 @@
 /**
  * Renderer entry.
  *
+ * Sprint 9.1 — Intro disclaimer surface REMOVED post-ship.
+ *
  * Bootstrap order:
  *   1. Assert window.api exists (preload bridge must be wired).
  *   2. Ask main for OS family, inject body class `os-mac` | `os-win`.
  *   3. Mount the ESC-hold indicator.
- *   4. Hydrate the intro disclaimer (bilingual RU + TR).
+ *   4. Mount the scene directly under #app (no Continue gate).
+ *
+ * AudioContext note: Sprint 0 used the disclaimer's Continue button click as
+ * the user-gesture ticket for `AudioContext.resume()`. With the disclaimer
+ * removed, the renderer creates the scene immediately and the AudioContext
+ * stays suspended until the first user interaction (revolver trigger click,
+ * keydown, etc.) — Chromium's autoplay policy allows the resume call to
+ * succeed silently once a real user gesture lands. The scene mount never
+ * blocks on audio readiness; the first audible cue (Faz 0 BANG) waits on
+ * the trigger gesture anyway, so no audible content is missed.
  */
 
 import type { RusRuletiApi } from '../shared/api-types';
 import { mountEscapeHatch } from './escape-hatch';
 import { activateScene, deactivateScene } from './scene-mount';
-import { t } from './i18n/strings';
 
 declare global {
   interface Window {
@@ -47,128 +57,29 @@ async function bootstrap(): Promise<void> {
     void deactivateScene();
   });
 
-  // i18n: hydrate the disclaimer placeholder with bilingual copy.
-  hydrateDisclaimer();
-}
-
-/** Build the RU primary headline and TR caption-size sibling. */
-function buildHeadline(): { ru: HTMLElement; tr: HTMLElement } {
-  const ru = document.createElement('h1');
-  ru.className = 'headline-ru';
-  ru.lang = 'ru';
-  ru.textContent = t('disclaimer.headline', 'ru');
-
-  const tr = document.createElement('p');
-  tr.className = 'headline-tr';
-  tr.lang = 'tr';
-  tr.textContent = t('disclaimer.headline', 'tr');
-
-  return { ru, tr };
-}
-
-/** Build the bilingual body block (3 lines each locale). */
-function buildBody(): HTMLElement {
-  const body = document.createElement('div');
-  body.className = 'body';
-
-  const bodyRu = document.createElement('div');
-  bodyRu.className = 'body-ru';
-  bodyRu.lang = 'ru';
-  bodyRu.textContent = [
-    t('disclaimer.bodyLine1', 'ru'),
-    t('disclaimer.bodyLine2', 'ru'),
-    t('disclaimer.bodyLine3', 'ru'),
-  ].join(' ');
-
-  const bodyTr = document.createElement('div');
-  bodyTr.className = 'body-tr';
-  bodyTr.lang = 'tr';
-  bodyTr.textContent = [
-    t('disclaimer.bodyLine1', 'tr'),
-    t('disclaimer.bodyLine2', 'tr'),
-    t('disclaimer.bodyLine3', 'tr'),
-  ].join(' ');
-
-  body.append(bodyRu, bodyTr);
-  return body;
-}
-
-/** Build the continue button with RU + TR text and click handler. */
-function buildContinueButton(onClick: () => void): HTMLButtonElement {
-  const button = document.createElement('button');
-  button.className = 'continue';
-  button.type = 'button';
-  // aria-label is the TR label only (screen-reader friendly for the operator).
-  button.setAttribute('aria-label', t('disclaimer.continueButton', 'tr'));
-
-  const ruSpan = document.createElement('span');
-  ruSpan.className = 'continue-ru';
-  ruSpan.lang = 'ru';
-  ruSpan.textContent = t('disclaimer.continueButton', 'ru');
-
-  const sep = document.createElement('span');
-  sep.className = 'continue-sep';
-  sep.setAttribute('aria-hidden', 'true');
-  sep.textContent = '/';
-
-  const trSpan = document.createElement('span');
-  trSpan.className = 'continue-tr';
-  trSpan.lang = 'tr';
-  trSpan.textContent = t('disclaimer.continueButton', 'tr');
-
-  button.append(ruSpan, sep, trSpan);
-  button.addEventListener('click', onClick);
-  return button;
+  // Sprint 9.1 — mount the scene directly. The disclaimer→Continue gate is
+  // removed; the renderer presents the lobby on launch with no intermediate
+  // surface. The scene-container under #app is created lazily by
+  // scene-mount.ts (it preserves the legacy `#next-screen` slot id so the
+  // existing CSS reveal rules in base.css continue to fire).
+  mountSceneIntoApp();
 }
 
 /**
- * Build the intro disclaimer DOM and wire the continue button.
+ * Mount the scene into a #next-screen slot under #app.
  *
- * The `<section id="disclaimer" data-i18n-slot="intro">` placeholder is
- * authored in index.html; we fill it imperatively so all visible copy stays
- * in `i18n/strings.ts` (no Cyrillic hardcoded in HTML).
+ * The `#next-screen` id is preserved from the Sprint 0 layout so the existing
+ * CSS reveal rules in `styles/base.css` (`#next-screen.is-active { display:
+ * flex }`) continue to fire and the scene-container fade-in animation
+ * remains intact. We immediately mark it `.is-active` so the section
+ * occupies the viewport without the prior disclaimer-dismiss bridge.
  *
- * After the user clicks Continue we mark the disclaimer dismissed and reveal
- * a placeholder `#next-screen` — Sprint 2 replaces this with the lobby.
+ * Errors are surfaced via document.body.dataset.sceneError (same pattern
+ * Sprint 0 used) — they go to devtools rather than throwing into the
+ * top-level event loop. Sprint 2 added a graceful WebGL-unavailable
+ * fallback inside scene-mount; Sprint 9.1 keeps that contract intact.
  */
-function hydrateDisclaimer(): void {
-  const slot = document.querySelector<HTMLElement>('#disclaimer[data-i18n-slot="intro"]');
-  if (slot === null) {
-    // Index.html is the source of truth; if the placeholder is gone we want
-    // to know about it loudly during development. In production a missing
-    // disclaimer is also a bug — log via DOM so it shows in devtools.
-    document.body.dataset.disclaimerError = 'missing-slot';
-    return;
-  }
-
-  const { ru: hRu, tr: hTr } = buildHeadline();
-  const body = buildBody();
-  const button = buildContinueButton(() => { advancePastDisclaimer(slot); });
-
-  slot.replaceChildren(hRu, hTr, body, button);
-
-  // Reveal — the CSS fades from 0 to 1.
-  // Use rAF so the browser definitely sees the class transition.
-  requestAnimationFrame(() => {
-    slot.classList.add('is-revealed');
-    // Focus the button so Enter / Space advance the user (and screen readers
-    // hear the bilingual content immediately).
-    button.focus();
-  });
-}
-
-/**
- * Advance past the intro disclaimer. Sprint 1: collapse the disclaimer,
- * reveal the scene container, and kick off the Three.js mount.
- *
- * The user-click that fires this is also the user gesture the AudioContext
- * needs to come out of suspended state — see scene/audio/audio-bed.ts.
- */
-function advancePastDisclaimer(disclaimer: HTMLElement): void {
-  disclaimer.classList.add('is-dismissed');
-
-  // Build (or reveal) the next-screen section. We create it lazily here
-  // so HTML doesn't need to know about Sprint-specific mounts.
+function mountSceneIntoApp(): void {
   let next = document.querySelector<HTMLElement>('#next-screen');
   if (next === null) {
     next = document.createElement('section');
@@ -183,12 +94,13 @@ function advancePastDisclaimer(disclaimer: HTMLElement): void {
   }
   next.classList.add('is-active');
 
-  // Breadcrumb for devtools.
+  // Breadcrumb for devtools (matches Sprint 0 main.ts contract).
   document.body.dataset.scene = 'scene';
 
   // Mount the Three.js scene. Errors are swallowed by activateScene() —
   // they go to document.body.dataset.sceneError for inspection. The promise
-  // is discarded; Sprint 2 will await this to add a loading indicator.
+  // is intentionally discarded; a future sprint can `await` this to add a
+  // first-frame loading indicator.
   void activateScene(next);
 }
 

@@ -3,9 +3,11 @@
  *
  * Why a DOM overlay in addition to the GLSL post-FX pipeline?
  *   The GLSL post-fx (kraken-shader sibling) only treats the Three.js scene.
- *   This DOM overlay covers EVERYTHING — disclaimer, future Sprint 2 HUD,
- *   future Sprint 4 OS-mimic dialogs — so the whole app reads as one CRT
- *   broadcast. Cost is essentially free (no JS, compositor handles it).
+ *   This DOM overlay covers EVERYTHING — scene, HUD, and Sprint 4
+ *   OS-mimic dialogs — so the whole app reads as one CRT broadcast. Cost
+ *   is essentially free (no JS, compositor handles it).
+ *   (Sprint 9.1 — the Sprint 0 intro #disclaimer surface is removed; the
+ *   overlay continues to treat the scene + downstream chrome uniformly.)
  *
  * Designer's tuning surface (atmosphere-direction.md §6.4):
  *   :root {
@@ -17,11 +19,11 @@
  *
  * Layering plan (z-index from low to high):
  *   0    : #scene-container (Three.js canvas)
- *   1    : #disclaimer
- *   2    : #disclaimer::before (legacy Sprint-0 placeholder scanline)
  *   10   : #esc-hold-indicator (informally — base.css does not set z; pinned
  *          by position:fixed and inserted late so it stacks above content)
  *   9999 : .crt-overlay        (this file — sits above everything DOM-side)
+ *
+ * Sprint 9.1: the Sprint 0 #disclaimer slot (z-index 1) is removed.
  *
  * The overlay is composed of three stacked layers via the element itself
  * plus ::before and ::after pseudo-elements:

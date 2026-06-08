@@ -13,10 +13,14 @@
  *
  * Web Audio autoplay policy:
  *   The AudioContext begins in 'suspended' state on Chromium. We resume it
- *   on first user gesture. mountAudioBed() is called from the disclaimer
- *   Continue button click handler (via scene/index.ts → scene-mount.ts →
- *   advancePastDisclaimer), which IS a user gesture. Callers MUST NOT
- *   invoke mountAudioBed on page load.
+ *   on first user gesture. Sprint 9.1 removed the Sprint 0 Continue
+ *   disclaimer gate; mountAudioBed() is now called from scene/index.ts at
+ *   bootstrap (no user-gesture click precedes it). The explicit
+ *   `ctx.resume()` inside this fn returns a pending promise on first
+ *   load — Chromium silently honours it once the user makes the first
+ *   real interaction (revolver trigger click, keydown, etc.). No
+ *   audible cue is missed because the first audible event (Faz 0 BANG)
+ *   waits on that same user gesture anyway.
  *
  * Sprint 2 Phase 2B (kraken-revolver) extensions:
  *   - The handle now exposes one-shot triggers for revolver SFX

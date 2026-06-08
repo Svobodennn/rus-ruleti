@@ -20,6 +20,14 @@
     <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/base.css" />
     <!--
+      Sprint 9.1 — Intro disclaimer surface REMOVED post-ship.
+      The previous Sprint 0 stylesheet at ./styles/disclaimer.css is
+      deleted; #disclaimer DOM no longer exists. The scene now mounts
+      directly into #app on bootstrap. Legal disclaimer text is preserved
+      distribution-side (LEGAL.md) — only in-app joke disclaimer
+      surfaces were removed per the user directive.
+    -->
+    <!--
       HUD styles (Sprint 2 Phase 2B — frontend-dev). Loaded AFTER base.css so
       .hud-counter / .hud-messages / .bang-overlay rules can extend the
       base.css sibling-overlay definitions. Loaded BEFORE crt.css so the CRT
@@ -46,13 +54,12 @@
   <body>
     <!--
       OS class (os-mac | os-win) is injected by main.ts on load.
-      Placeholder disclaimer div: i18n-expert + babel fill content in Phase 2.
+      Sprint 9.1 — Sprint 0 intro disclaimer DOM REMOVED post-ship.
+      The renderer now mounts the scene directly into #app on bootstrap
+      (no Continue button gate). The ESC-hold indicator stays because it
+      is the universal escape-hatch affordance, not a joke disclaimer.
     -->
     <main id="app">
-      <section id="disclaimer" data-i18n-slot="intro">
-        <!-- Phase 2 (i18n-expert): inject Cyrillic + TR disclaimer copy here. -->
-      </section>
-
       <!--
         ESC-hold progress indicator. Subtle, placeholder. designer will polish
         in a later sprint; for Sprint 0 we only need visual feedback that the
@@ -68,9 +75,9 @@
 
     <!--
       CRT scanline + grain + vignette overlay. Pinned above all DOM at
-      z-index 9999 so it treats disclaimer, scene, future HUD, and future
-      OS-mimic dialogs uniformly. pointer-events: none and aria-hidden so
-      it never blocks interaction or screen-reader traversal.
+      z-index 9999 so it treats the scene, HUD, and OS-mimic dialogs
+      uniformly. pointer-events: none and aria-hidden so it never blocks
+      interaction or screen-reader traversal.
     -->
     <div class="crt-overlay" aria-hidden="true"></div>
   </body>

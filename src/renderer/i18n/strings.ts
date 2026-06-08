@@ -14,7 +14,13 @@
  *  - TR is treated as the primary user-language fallback (the operator's locale)
  *  - RU is the in-universe diegetic language (always shown alongside TR)
  *  - Callers usually want both — they call `t(key, 'ru')` and `t(key, 'tr')`
- *    side-by-side. See `disclaimer.headline.ru` / `disclaimer.headline.tr`.
+ *    side-by-side. See e.g. `destruction.faz6.mac.panicHeadlineRu` /
+ *    `panicHeadlineTr` for the in-world dual-language presentation pattern.
+ *
+ * Sprint 9.1 — `STRINGS.{ru,tr}.disclaimer.*` subtree REMOVED post-ship.
+ * The Sprint 0 intro-disclaimer surface was removed from the in-app UI;
+ * its bilingual copy is no longer referenced from any renderer call site.
+ * Legal disclaimer text is preserved in LEGAL.md (distribution-side).
  */
 
 export type Locale = 'ru' | 'tr';
@@ -30,13 +36,6 @@ export type Locale = 'ru' | 'tr';
  */
 export const STRINGS = {
   ru: {
-    disclaimer: {
-      headline: 'ЭТО ШУТКА',
-      bodyLine1: 'Это игра.',
-      bodyLine2: 'Никаких реальных действий с системой не производится.',
-      bodyLine3: 'Все сцены — театр.',
-      continueButton: 'ПРОДОЛЖИТЬ',
-    },
     hud: {
       counterLabel: 'ШАНС',
       earlyReleaseMessage: 'Не смог решиться.',
@@ -404,13 +403,6 @@ export const STRINGS = {
     },
   },
   tr: {
-    disclaimer: {
-      headline: 'Bu bir şakadır',
-      bodyLine1: 'Bu bir oyundur.',
-      bodyLine2: 'Sisteminizde gerçek hiçbir işlem yapılmaz.',
-      bodyLine3: 'Tüm sahneler tiyatrodur.',
-      continueButton: 'DEVAM ET',
-    },
     hud: {
       counterLabel: 'ŞANS',
       earlyReleaseMessage: 'Karar veremedin.',

@@ -3,7 +3,9 @@
  *
  * Extracted from main.ts so that file stays under the ~200 line ceiling
  * (Sprint 0 retro lesson, coding-style.md). Owns the DOM coordination of
- * the disclaimer fade-out → scene container fade-in transition.
+ * the scene-container reveal — Sprint 9.1 removed the prior intro
+ * disclaimer fade-out bridge, so the reveal now fires immediately on
+ * #app bootstrap rather than after a Continue button click.
  *
  * mountScene() inside ./scene/index.ts owns the Three.js + audio bootstrap;
  * this helper only owns the DOM-side timing and lifecycle bookkeeping.
@@ -57,7 +59,9 @@ let activeHandle: SceneHandle | null = null;
 let activeRestartKeyDisposer: (() => void) | null = null;
 
 /**
- * Mount the scene under the disclaimer's old `#next-screen` slot.
+ * Mount the scene under the `#next-screen` slot (Sprint 9.1: created
+ * directly by main.ts on bootstrap; pre-Sprint-9.1 this slot was the
+ * disclaimer's dismiss target).
  *
  * Strategy:
  *   1. Find or create a `<div id="scene-container">` inside `#next-screen`.
@@ -83,9 +87,10 @@ export async function activateScene(
     activeHandle = await mountScene(container, hud, bang);
   } catch (err) {
     // Surfacing scene-mount failures: stash on DOM for devtools inspection.
-    // We do not throw — the disclaimer flow has already advanced and the
-    // user should not see a broken state. Future sprints add a graceful
-    // fallback (static image room) when WebGL is unavailable.
+    // We do not throw — Sprint 9.1 main.ts has already marked the
+    // #next-screen slot active and the user should not see a broken
+    // state. Future sprints add a graceful fallback (static image room)
+    // when WebGL is unavailable.
     document.body.dataset['sceneError'] = String(err);
     throw err;
   }

@@ -1,13 +1,16 @@
 /*
  * Sprint 0 scaffold styles — placeholder.
  * designer polishes per BUCKSHOT_ROULETTE_THEME.md in Sprint 1.
- * i18n-expert may extend with disclaimer-specific styles in Phase 2.
  *
  * babel (Phase 2) adds a <link> to ./styles/fonts.css from index.html for
  * @font-face declarations; this file references those families.
+ *
+ * Sprint 9.1 — Sprint 0 intro disclaimer surface REMOVED post-ship.
+ * The `@import './disclaimer.css'` was deleted alongside the source file;
+ * `#disclaimer` rules also removed. The scene-container + #next-screen
+ * gate remain (`#next-screen.is-active` is now toggled directly by
+ * main.ts at bootstrap rather than after a disclaimer dismissal).
  */
-
-@import './disclaimer.css';
 
 :root {
   --color-shadow: #0a0908; /* kömür siyahı */
@@ -58,12 +61,7 @@ body {
   justify-content: center;
 }
 
-#disclaimer {
-  text-align: center;
-  max-width: 720px;
-  padding: 2rem;
-  /* i18n-expert fills content; designer adds CRT scanline + sodium glow. */
-}
+/* Sprint 9.1 — #disclaimer rule REMOVED post-ship. */
 
 /* ESC-hold progress indicator — subtle bottom-right. */
 #esc-hold-indicator {
@@ -110,12 +108,24 @@ body {
  * Sprint 1 Phase 1 scene container.
  *
  * The Three.js canvas is appended into `#scene-container` by scene-mount.ts.
- * Sized to fill its parent (which is `#next-screen`, which is sized 100%
- * via disclaimer.css `.is-active` rules). The CRT scanline + grain overlay
- * is Phase 2 work — frontend-dev owns CSS additions for that, NOT base.css
- * here. Keep this block disjoint from disclaimer.css so designer and
- * frontend-dev can extend without merge conflicts.
+ * Sized to fill its parent (`#next-screen`). Sprint 9.1 moved the
+ * `#next-screen.is-active` reveal rule into THIS file (it formerly lived
+ * in disclaimer.css alongside the intro-disclaimer styles; with the
+ * disclaimer removed, the rule keeps the `#next-screen` flex-fill
+ * behaviour intact for the scene-only bootstrap path).
  */
+#next-screen {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+#next-screen.is-active {
+  display: flex;
+}
+
 #scene-container {
   position: absolute;
   inset: 0;
@@ -145,10 +155,12 @@ body {
  *     active without further CSS work).
  *   • The fade-in is also applied to `#scene-container` directly so the
  *     1.2s ease feels right today (the canvas appears with a soft reveal
- *     instead of a hard cut after the disclaimer dismisses).
+ *     on the first bootstrap frame; Sprint 9.1 removed the disclaimer
+ *     dismiss bridge, so the reveal now fires immediately at #app mount).
  *
- * z-index: 0 keeps the scene below the disclaimer (z-index: 1) and well
- * below the CRT overlay (z-index: 9999). Confirmed disclaimer.css line 19.
+ * z-index: 0 keeps the scene below any future overlays and well below the
+ * CRT overlay (z-index: 9999). Sprint 9.1 — the prior z-index: 1
+ * disclaimer slot is removed; the scene is the first interactive layer.
  */
 
 .scene-container,
