@@ -1719,6 +1719,50 @@ New open threads are added at the bottom with the next sequential
 a one-line closing summary. Do not delete closed rows — they are the audit
 trail explaining why a knob exists where it is.
 
+
+### Sprint 9 Final Disposition Pass (2026-06-08 — PROJECT SHIP)
+
+Final ship-time classification of every TH-S* thread tracked across Sprints 1–8 (this table is the canonical end-of-project audit row; the table above remains as historical record of TH-S1-* origins). Status codes:
+
+- **CLOSED** — work complete; thread resolved in-sprint
+- **DEFERRED-V2** — known limitation; carried to a hypothetical V2 (no current owner)
+- **ACCEPTED-FOR-SHIP** — known limitation; shipping as-is per cost/benefit decision
+- **DORMANT** — trigger-conditional; activates only if a future code path materialises
+- **MONITOR** — no action required today; observability only
+
+| Thread | Sprint 9 final disposition | Rationale (one line) |
+|--------|----------------------------|----------------------|
+| TH-S1-01 (pixelRatio cap + Howler deferral) | DEFERRED-V2 | Memory budget not exceeded in Sprint 8 perf audit; revisit only if 4K-display reports land |
+| TH-S1-02 (GPU timer queries) | DEFERRED-V2 | Sprint 8 wall-clock budgets ratified PASS; CPU+GPU split is V2 observability nice-to-have |
+| TH-S1-03 (OS-conditional quality default) | CLOSED (Sprint 2) | `getBuildQualityLevel()` shipped at `src/renderer/scene/quality.ts:42` |
+| TH-S1-04 (radio static noise buffer) | MONITOR | 30-50ms buffer alloc never became visible; no action required |
+| TH-S1-05 (PS1 affine-UV shader) | CLOSED (Sprint 3) | `ps1-affine-uv.glsl` active on 5 GLB meshes at `quality === 'high'` |
+| TH-S2-01 (CSP `connect-src 'self'`) | DORMANT | Trigger-conditional; activates only when first remote network call lands (none in scope) |
+| TH-S3-01 (CSP `img-src blob:`) | CLOSED (Sprint 3) | CSP amended; `data:` covers `WebGLRenderer.toDataURL` output for ApartmentBleed |
+| TH-S3-02 (SHA-256 manifest) | CLOSED (Sprint 3) | `SHA256-MANIFEST.txt` committed at `src/renderer/assets/models/`; referenced by LEGAL.md |
+| TH-S4-01 (ApartmentBleed double-fire) | ACCEPTED-FOR-SHIP | Visual-only artifact; no security impact; cost of fix > benefit for ship |
+| TH-S4-02 (`bang.ogg` asset) | ACCEPTED-FOR-SHIP | Procedural canonical decision (TH-S4-03 lineage); zero `.ogg`/`.wav` bundled |
+| TH-S4-03 (Segoe UI Variable bundle) | ACCEPTED-FOR-SHIP | C1 closure rule "NO proprietary Apple/MS font BUNDLED" honoured; system fallback acceptable |
+| TH-S4-04 (lobbySnapshot data-URL CSP) | CLOSED (Sprint 4) | CSP `img-src 'self' data: blob:` covers the surface |
+| TH-S4-05 (Sprint 5 carry-forward gate) | CLOSED (Sprint 5) | Sprint 5 closure gate satisfied |
+| TH-S5-01 (worktree path discipline) | CLOSED (Sprint 5+) | Protocol locked into every subsequent lane prompt |
+| TH-S5-02 (per-milestone commits) | CLOSED (Sprint 5+) | Standard discipline Sprint 6–9; salvage protocol depends on it |
+| TH-S5-03 (runtime owner enforcement) | CLOSED (Sprint 5–8 transitive) | Sprint 7 chrome retrofit + Sprint 8 ambient-synth retrofit completed |
+| TH-S5-04 (ChromeHandle.kind discriminator) | CLOSED (Sprint 5) | Zero `as <Type>` casts across all Sprint 4–9 chrome surfaces |
+| TH-S5-05 (i18n sequence-lock) | CLOSED (Sprint 5+) | Lane 0 i18n-expert first; zero hardcoded English in implementation lanes |
+| TH-S5-06 (designer file-size cap) | CLOSED (Sprint 5+) | Progressive cap 940L → 240L (Sprint 9) demonstrated discipline |
+| TH-S6-01 (Playwright harness scaffold) | CLOSED (Sprint 9) | Path A SUCCESS — 15/15 tests + 13 baselines committed |
+| TH-S6-04 (caller-equality across factories) | CLOSED (Sprint 7 + Sprint 8) | Retroactive expansion to chrome + ambient-synth completed |
+| TH-S7-01 (Playwright local exec) | CLOSED (Sprint 9) | Path A SUCCESS via Vite renderer-only on `http://localhost:5173` |
+| TH-S8-01 (Playwright local exec — Path A) | CLOSED (Sprint 9) | Same as TH-S7-01; chain CLOSED |
+| TH-S8-02 (Phase 3 staggered dispatch) | CLOSED (Sprint 9) | Wave 1 verifier → Wave 2 paralel → Wave 3 qa; zero cascades |
+| TH-S8-03 (salvage protocol) | CLOSED (Sprint 5 + Sprint 8) | Pattern validated twice (Sprint 5 Lane B retry + Sprint 8 Lane A M2 salvage) |
+| TH-S8-04 (file-size precheck) | CLOSED (Sprint 9) | Lane A reference document committed (`tests/file-size-precheck-sprint9.md`) |
+| Sentry / V2 observability hooks | DEFERRED-V2 | Out of project scope; no current owner |
+| QR URL stability (`https://www.windows.com/stopcode`) | ACCEPTED-FOR-SHIP | Per directive §2 + LEGAL.md:208 — graceful in-joke degradation if URL retires |
+
+**No thread remains in OPEN status at project ship.** Every cross-sprint carry-forward has a final disposition. Threads CLOSED across Sprints 2–9 stand as audit history. DEFERRED-V2 + ACCEPTED-FOR-SHIP + DORMANT + MONITOR threads document known limitations the maintainer can revisit, but none block the ship declaration at HEAD `4c3e858`.
+
 ---
 
 ## Sprint 4 Security Audit
