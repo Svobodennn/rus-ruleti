@@ -328,7 +328,11 @@ export const STRINGS = {
           hint: 'Нажмите R для перезапуска',
         },
         'son-ekran': {
-          'aria-label': 'Шутка закончена. Револьвер лежит на столе.',
+          // Sprint 9.1 — "Шутка закончена." prefix DROPPED post-ship in
+          // lockstep with the in-app disclaimer-text removal. The aria-
+          // label is now a single descriptive sentence about the still-
+          // life tableau (no joke-frame reference).
+          'aria-label': 'Револьвер лежит на столе.',
         },
         /**
          * Sprint 7 Phase 2B Lane 0 — Faz 8 TEKRAR / ÇIK action buttons.
@@ -563,7 +567,11 @@ export const STRINGS = {
           hint: "Yeniden başlatmak için R'ye basın",
         },
         'son-ekran': {
-          'aria-label': 'Şaka bitti. Tabanca masada duruyor.',
+          // Sprint 9.1 — "Şaka bitti." prefix DROPPED post-ship in lockstep
+          // with the in-app disclaimer-text removal. The aria-label is now
+          // a single descriptive sentence about the still-life tableau
+          // (no joke-frame reference).
+          'aria-label': 'Tabanca masada duruyor.',
         },
         /**
          * Mirror of `STRINGS.ru.destruction.faz8.button`. Turkish phrasing
