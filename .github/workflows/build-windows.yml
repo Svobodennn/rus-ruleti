@@ -1,0 +1,53 @@
+name: Build Windows EXE (portable)
+
+# Builds the unsigned single-file portable Windows .exe natively on a
+# windows-latest runner — no Wine/QEMU emulation (which crashes rcedit on
+# Apple Silicon). Produces `dist/Rus Ruleti <version>.exe` as a downloadable
+# artifact for informal "send to friends" distribution.
+#
+# Trigger:
+#   - Manually via the Actions tab ("Run workflow"), or
+#   - Automatically on pushing a version tag (v1.0.0, v1.0.1, ...).
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows portable exe
+        run: npm run build:win
+        # No CSC_* / WIN_CSC_* env vars are set, so electron-builder emits an
+        # UNSIGNED portable .exe. Friends bypass SmartScreen via
+        # "More info -> Run anyway" on first launch (see build/CODE-SIGNING.md §5).
+
+      - name: List build output
+        shell: bash
+        run: ls -lh dist/
+
+      - name: Upload portable exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: RusRuleti-windows-portable
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30

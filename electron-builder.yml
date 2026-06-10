@@ -129,15 +129,14 @@ dmg:
 # Windows
 # -----------------------------------------------------------------------------
 win:
-  # Sprint 9 extension: ADD msi target alongside NSIS. NSIS retained as fallback
-  # installer for users blocked by MSI corporate policy (some IT environments
-  # whitelist MSI only; others whitelist signed NSIS only — shipping both
-  # maximizes deployability for the joke-app's distribution surface).
+  # Post-ship (friends distribution): PORTABLE single-exe target. No installer
+  # ceremony — the friend double-clicks the .exe and the app launches directly
+  # in fullscreen (window-manager.ts `fullscreen: !isDev`). The Sprint 9 NSIS
+  # installer + MSI targets were dropped for the informal "send to friends" use
+  # case; the `nsis:` config block below is retained (harmless/unused) so an
+  # installer can be re-enabled by re-listing `nsis` here.
   target:
-    - target: nsis
-      arch:
-        - x64
-    - target: msi
+    - target: portable
       arch:
         - x64
   # Sprint 9: SHA-256 only (SHA-1 deprecated for code signing). Cert env vars
