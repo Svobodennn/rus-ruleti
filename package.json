@@ -1,6 +1,6 @@
 {
   "name": "rus-ruleti",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Rus Ruleti — Sovyet brutalizmi atmosferinde tek-oda rus ruleti (Electron + Three.js + TypeScript).",
   "private": true,
   "main": "out/main/index.js",

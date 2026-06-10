@@ -28,17 +28,19 @@
  */
 
 import {
+  Box3,
   Group,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  Vector3,
 } from 'three';
 import {
   MATERIAL_COLOR_OVERRIDE_BY_KEY,
   MODEL_REVOLVER_BODY_PIVOT_KEY,
   MODEL_REVOLVER_CYLINDER_PIVOT_KEY,
   MODEL_REVOLVER_HAMMER_PIVOT_KEY,
-  MODEL_ROTATION_REVOLVER,
   MODEL_SCALE_REVOLVER,
 } from '../../../shared/scene-model-constants';
 import type { LoadedModelHandle } from '../../loader';
@@ -47,7 +49,6 @@ import type { RevolverMeshHandle } from './revolver-mount';
 import {
   REVOLVER_MESH_NAME,
   REVOLVER_PART_NAMES,
-  REVOLVER_TILT_Y_RAD,
   positionOnTable,
 } from './revolver-mount';
 
@@ -63,7 +64,9 @@ export function mountRevolverMeshFromGlb(
   const instance = handle.scene.clone(true);
   applyRevolverGlbMaterial(instance);
   const group = wrapGlbForAnimation(instance);
+  recenterCylinderForSpin(group);
   positionOnTable(group, room);
+  restOnTableSurface(group);
   const animation = mountAnimation(group);
 
   const dispose = (): void => {
@@ -107,12 +110,63 @@ function wrapGlbForAnimation(instance: Group): Group {
   return group;
 }
 
-/** Apply tilt + designer-authored revolver scale/rotation to the wrapper group. */
+/**
+ * Orient + scale the wrapper group for the austincford Magnum's table pose.
+ *
+ * Orientation via a basis matrix (NOT Euler — the Euler composition was too
+ * error-prone): map the model-local axes so the muzzle (model -Z) points toward
+ * the camera (+Z) and the gun lies on its side (model +Y top -> world +X).
+ * makeBasis columns = where local X,Y,Z land: X -> +Y, Y -> +X, Z -> -Z
+ * (right-handed). Verified against an offscreen Three.js/Playwright render of
+ * the scene camera + table. Scale per MODEL_SCALE_REVOLVER (6.14, effective-bbox
+ * matched to the prior on-table footprint).
+ */
 function applyRevolverGroupTransform(group: Group): void {
-  group.rotation.y = REVOLVER_TILT_Y_RAD + MODEL_ROTATION_REVOLVER[1];
-  group.rotation.x = MODEL_ROTATION_REVOLVER[0];
-  group.rotation.z = MODEL_ROTATION_REVOLVER[2];
+  const basis = new Matrix4().makeBasis(
+    new Vector3(0, 1, 0),
+    new Vector3(1, 0, 0),
+    new Vector3(0, 0, -1),
+  );
+  group.quaternion.setFromRotationMatrix(basis);
   group.scale.setScalar(MODEL_SCALE_REVOLVER);
+}
+
+/**
+ * Re-pivot the cylinder so the spin clip rotates it IN PLACE. The Magnum's
+ * Revolving_Cylinder node origin sits off the drum centre, so a naive local
+ * rotation orbits the drum off the gun (and into the table). Compute the drum's
+ * world centre, create a Group there named REVOLVER_PART_NAMES.CYLINDER (the
+ * spin clip's lookup target), and `attach()` the original cylinder node into it
+ * — attach() preserves the node's world transform, so the drum + its children
+ * (bullets, extractor) stay put at rest and now rotate about their own centre.
+ * The original node is renamed so getObjectByName resolves the PIVOT.
+ */
+function recenterCylinderForSpin(group: Group): void {
+  group.updateMatrixWorld(true);
+  const cyl = group.getObjectByName(REVOLVER_PART_NAMES.CYLINDER);
+  if (cyl === undefined || cyl.parent === null) {
+    return;
+  }
+  const parent = cyl.parent;
+  const center = new Box3().setFromObject(cyl).getCenter(new Vector3());
+  cyl.name = `${REVOLVER_PART_NAMES.CYLINDER}-inner`;
+  const pivot = new Group();
+  pivot.name = REVOLVER_PART_NAMES.CYLINDER;
+  parent.add(pivot);
+  pivot.position.copy(parent.worldToLocal(center.clone()));
+  pivot.attach(cyl);
+}
+
+/**
+ * Lift the group so the gun's lowest point rests ON the table surface instead
+ * of sinking through it (positionOnTable anchors the group ORIGIN at the table
+ * top, but the gun geometry extends below the origin).
+ */
+function restOnTableSurface(group: Group): void {
+  const anchorY = group.position.y;
+  group.updateMatrixWorld(true);
+  const minY = new Box3().setFromObject(group).min.y;
+  group.position.y = anchorY + (anchorY - minY);
 }
 
 /**
