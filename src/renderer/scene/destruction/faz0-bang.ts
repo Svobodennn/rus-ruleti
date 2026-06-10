@@ -110,6 +110,11 @@ function scheduleFaz0Cues(
  */
 function fireInstantCues(args: Faz0RunArgs, reducedMotion: boolean): void {
   args.destructionAudio.playBang();
+  // Post-ship: the shot ends the lobby — fade the whole ambient bed (drone +
+  // bulb-hum + radio) to silence so the background music does not keep playing
+  // through the destruction. The radio-static keeps its designed fade duration
+  // via the explicit setLayerVolume below (last-write-wins on that layer).
+  args.audio.fadeOutAmbient();
   args.audio.setLayerVolume('radio-static', 0, RADIO_FADE_DURATION_MS);
   triggerCameraShake(args.camera, BANG_CAMERA_SHAKE_DEG, BANG_CAMERA_SHAKE_DURATION_MS);
   const bulbDuration = reducedMotion

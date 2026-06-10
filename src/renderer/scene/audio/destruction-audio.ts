@@ -66,6 +66,16 @@ const LOW_PASS_INITIAL_CUTOFF_HZ = 22000;
 const LOW_PASS_RAMP_MS = 300;
 /** Tinnitus fade-in duration (designer §7). */
 const TINNITUS_FADE_IN_MS = 100;
+/**
+ * Post-ship: the tinnitus is the post-gunshot ear-ring after-effect — it must
+ * SUBSIDE, not drone at full level for the whole ~65s sequence (user report:
+ * "çınlama gelmeye devam ediyor, kesilsin"). After the fade-in it holds for
+ * TINNITUS_SUSTAIN_MS, then ramps to silence over TINNITUS_FADE_OUT_MS. The
+ * oscillator keeps running at gain 0 (negligible cost) until dispose() stops
+ * it — no extra scheduling / voice-counter bookkeeping.
+ */
+const TINNITUS_SUSTAIN_MS = 1200;
+const TINNITUS_FADE_OUT_MS = 1800;
 /** Native chord ADSR — see destruction-direction.md §7. */
 const CHORD_ATTACK_MS = 50;
 const CHORD_DECAY_MS = 200;
@@ -277,8 +287,14 @@ function buildTinnitusBranch(
       // Sprint 8 M2 — voice-counter increment after start (Pattern B).
       try { incrementVoiceCount(); } catch { /* defensive — never breaks audio */ }
       const now = ctx.currentTime;
+      const fadeInEndSec = now + TINNITUS_FADE_IN_MS / 1000;
+      const fadeOutStartSec = fadeInEndSec + TINNITUS_SUSTAIN_MS / 1000;
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(target, now + TINNITUS_FADE_IN_MS / 1000);
+      gain.gain.linearRampToValueAtTime(target, fadeInEndSec);
+      // Post-ship: hold briefly, then fade the ring to silence — it must
+      // subside, not drone for the whole sequence. Osc idles at 0 til dispose.
+      gain.gain.setValueAtTime(target, fadeOutStartSec);
+      gain.gain.linearRampToValueAtTime(0, fadeOutStartSec + TINNITUS_FADE_OUT_MS / 1000);
     },
     stop: (): void => {
       if (stopped) return;

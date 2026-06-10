@@ -948,14 +948,15 @@ export const FAZ8_REVEAL_AMBIENT_RAMP_MS = 3000;
 export const FAZ8_REVEAL_CAMERA_DOLLY_DEGREES = 10;
 
 /**
- * Faz 8 son-ekran duration. 10 second window (55-65sn absolute /
- * 0-10sn within son-ekran). The user holds on the closing tableau
- * (revolver-on-table + disclaimer + optional smoke + optional
- * restart-hint) for the full window. R-key short-circuits via
- * `destructionDirector.requestRestart()` (Sprint 6 Phase 1 scaffolds
- * the binding; Sprint 7+ adds UI buttons).
+ * Faz 8 son-ekran duration. Post-ship: reduced 10s → 5s. The closing tableau
+ * used to idle on a near-black screen for the full 10s window, which read as
+ * "too long" before the ending fired. 5s still lets the TEKRAR/ÇIK buttons
+ * (fade-in at FAZ8_BUTTON_FADEIN_START_OFFSET_MS 2.5s + 0.6s) appear with a
+ * short interaction window. On NATURAL completion (no TEKRAR) the director
+ * triggers the finale (video + quit; see faz8-exit.ts). R-key / TEKRAR
+ * short-circuits via `destructionDirector.requestRestart()`.
  */
-export const FAZ8_SON_EKRAN_DURATION_MS = 10000;
+export const FAZ8_SON_EKRAN_DURATION_MS = 5000;
 
 /**
  * Door-close audio accent offset within son-ekran. 2 seconds — the
