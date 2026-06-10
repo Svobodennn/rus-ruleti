@@ -181,10 +181,12 @@ function buildCockClip(root: Object3D): AnimationClip {
  */
 function buildSpinClip(root: Object3D): AnimationClip {
   const cyl = root.getObjectByName(REVOLVER_PART_NAMES.CYLINDER);
-  // Post-ship (austincford Magnum rig): the cylinder spins about its local +Z
-  // (the barrel axis — Z is the model's longest dimension, ~0.29, verified via
-  // an offscreen render). If it reads as a tumble/orbit on Windows, the cylinder
-  // node origin is off-axis → wrap it in a pivot at the cylinder centre.
+  // Post-ship (austincford Magnum rig): the spin target is the INNER cylinder
+  // pivot built by recenterCylinderForSpin, whose parent (outerPivot) is
+  // oriented so local +Z = the drum's real cylindrical axis (derived from the 6
+  // chamber centres). innerPivot starts at zero rotation, so this absolute
+  // `.rotation[z]` track is a CLEAN spin about the drum axis (parallel to the
+  // barrel) — no flat lazy-susan tumble, regardless of the gun's table pose.
   const targetPath = cyl === undefined
     ? `${REVOLVER_PART_NAMES.CYLINDER}.rotation[z]`
     : `${cyl.name}.rotation[z]`;

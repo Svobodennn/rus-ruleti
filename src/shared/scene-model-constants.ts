@@ -116,12 +116,23 @@ export const MODEL_POSITION_LIGHTBULB:readonly [number, number, number] = [0, 2.
  * that file owns animation pivots, not asset orientation).
  */
 /**
- * austincford Magnum: native pose is "presentation" (angled). A +π/2 roll about
- * Z lays it flat on the table (barrel horizontal) — picked from an offscreen
- * render grid of 6 candidate orientations. The mount adds REVOLVER_TILT_Y_RAD
- * (15° on Y) for camera visibility. Barrel runs along the model's local +Z.
+ * austincford Magnum table pose, applied as a FINAL Euler (no extra tilt). Lays
+ * the gun flat on its side with the barrel pointing right + slightly toward the
+ * camera, grip to the lower-left — matched 1:1 against the ORIGINAL Quaternius
+ * revolver's pose in an offscreen Three.js render (user: "keep it the same as
+ * the untouched revolver"). z=-π/2 lays the native barrel (+Y) onto the side;
+ * y=-π/2 aims the barrel like the old model did (its [0,-75°,0] Y-rotation).
  */
-export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [0, 0, Math.PI / 2];
+export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [-1.8, 2, 1.8];
+/**
+ * "Barrel direction" knob — a CLEAN turntable spin about the WORLD vertical
+ * axis, applied AFTER MODEL_ROTATION_REVOLVER lays the gun flat. The base Euler
+ * above is coupled (its middle/Y number tips the gun upright instead of turning
+ * it), so use THIS to aim the muzzle: a world-Y rotation keeps the gun flat on
+ * the table and just spins it like a lazy susan. Radians, 0..~6.283 = full
+ * circle. Dial until the barrel tip points at the camera.
+ */
+export const MODEL_REVOLVER_AZIMUTH_RAD = 1.67;
 /** 15° (π/12) counterclockwise — chair pushed back at an angle; humanises the seat. */
 export const MODEL_ROTATION_CHAIR:    readonly [number, number, number] = [0, Math.PI / 12, 0];
 /** 22.5° (-π/8) turned toward camera so dial face is visible from sabit camera. */

@@ -30,17 +30,19 @@
 import {
   Box3,
   Group,
-  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  Quaternion,
   Vector3,
 } from 'three';
 import {
   MATERIAL_COLOR_OVERRIDE_BY_KEY,
+  MODEL_REVOLVER_AZIMUTH_RAD,
   MODEL_REVOLVER_BODY_PIVOT_KEY,
   MODEL_REVOLVER_CYLINDER_PIVOT_KEY,
   MODEL_REVOLVER_HAMMER_PIVOT_KEY,
+  MODEL_ROTATION_REVOLVER,
   MODEL_SCALE_REVOLVER,
 } from '../../../shared/scene-model-constants';
 import type { LoadedModelHandle } from '../../loader';
@@ -113,33 +115,46 @@ function wrapGlbForAnimation(instance: Group): Group {
 /**
  * Orient + scale the wrapper group for the austincford Magnum's table pose.
  *
- * Orientation via a basis matrix (NOT Euler — the Euler composition was too
- * error-prone): map the model-local axes so the muzzle (model -Z) points toward
- * the camera (+Z) and the gun lies on its side (model +Y top -> world +X).
- * makeBasis columns = where local X,Y,Z land: X -> +Y, Y -> +X, Z -> -Z
- * (right-handed). Verified against an offscreen Three.js/Playwright render of
- * the scene camera + table. Scale per MODEL_SCALE_REVOLVER (6.14, effective-bbox
- * matched to the prior on-table footprint).
+ * MODEL_ROTATION_REVOLVER is the FINAL Euler (no extra tilt added) — matched
+ * 1:1 against the original Quaternius revolver's pose via an offscreen render
+ * (gun flat on its side, barrel right + slightly toward camera, grip lower-left).
+ * Scale per MODEL_SCALE_REVOLVER (6.14, effective-bbox matched to the prior
+ * on-table footprint).
  */
 function applyRevolverGroupTransform(group: Group): void {
-  const basis = new Matrix4().makeBasis(
-    new Vector3(0, 1, 0),
-    new Vector3(1, 0, 0),
-    new Vector3(0, 0, -1),
+  group.rotation.set(
+    MODEL_ROTATION_REVOLVER[0],
+    MODEL_ROTATION_REVOLVER[1],
+    MODEL_ROTATION_REVOLVER[2],
   );
-  group.quaternion.setFromRotationMatrix(basis);
+  // Clean turntable spin (world vertical axis) applied AFTER the flat-lay Euler
+  // above, so the muzzle can be aimed without tipping the gun upright. 0 = no
+  // change (current pose). See MODEL_REVOLVER_AZIMUTH_RAD JSDoc.
+  group.rotateOnWorldAxis(new Vector3(0, 1, 0), MODEL_REVOLVER_AZIMUTH_RAD);
   group.scale.setScalar(MODEL_SCALE_REVOLVER);
 }
 
 /**
- * Re-pivot the cylinder so the spin clip rotates it IN PLACE. The Magnum's
- * Revolving_Cylinder node origin sits off the drum centre, so a naive local
- * rotation orbits the drum off the gun (and into the table). Compute the drum's
- * world centre, create a Group there named REVOLVER_PART_NAMES.CYLINDER (the
- * spin clip's lookup target), and `attach()` the original cylinder node into it
- * — attach() preserves the node's world transform, so the drum + its children
- * (bullets, extractor) stay put at rest and now rotate about their own centre.
- * The original node is renamed so getObjectByName resolves the PIVOT.
+ * Re-pivot the cylinder so the spin clip rotates it IN PLACE and ABOUT THE
+ * DRUM'S TRUE AXIS (parallel to the barrel — not a flat "lazy-susan" tumble).
+ *
+ * The Magnum's Revolving_Cylinder node origin sits off the drum centre AND its
+ * local axes don't line up with the gun's final table pose, so a naive
+ * `.rotation[z]` spin reads as the drum turning on a tray. Two nested pivots
+ * decouple ORIENTATION from SPIN:
+ *
+ *   - **outerPivot** — placed at the drum's world centre and oriented so its
+ *     local +Z points along the drum's real cylindrical axis (derived from the
+ *     6 chamber centres, which lie on a plane ⟂ to that axis). NOT animated, so
+ *     the orientation it bakes in is never clobbered.
+ *   - **innerPivot** (named REVOLVER_PART_NAMES.CYLINDER, the spin clip's
+ *     target) — zero initial rotation, so the clip's absolute `.rotation[z]`
+ *     keyframes are a CLEAN spin about outerPivot's +Z = the drum axis (no
+ *     Euler coupling from a tilted x/y).
+ *
+ * The original cylinder node is `attach()`-ed into innerPivot (attach preserves
+ * its world transform, so the drum + bullets + extractor stay put at rest) and
+ * renamed so getObjectByName resolves the SPIN pivot.
  */
 function recenterCylinderForSpin(group: Group): void {
   group.updateMatrixWorld(true);
@@ -148,13 +163,59 @@ function recenterCylinderForSpin(group: Group): void {
     return;
   }
   const parent = cyl.parent;
-  const center = new Box3().setFromObject(cyl).getCenter(new Vector3());
+  const drum = computeDrumGeometryWorld(cyl);
+  const center = drum?.center ?? new Box3().setFromObject(cyl).getCenter(new Vector3());
+  const drumAxis = drum?.axis ?? null;
+
+  const outerPivot = new Group();
+  parent.add(outerPivot);
+  outerPivot.position.copy(parent.worldToLocal(center.clone()));
+  if (drumAxis !== null) {
+    parent.updateMatrixWorld(true);
+    const parentWorldQuat = parent.getWorldQuaternion(new Quaternion());
+    const worldQuat = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), drumAxis);
+    outerPivot.quaternion.copy(parentWorldQuat.invert().multiply(worldQuat));
+  }
+
   cyl.name = `${REVOLVER_PART_NAMES.CYLINDER}-inner`;
-  const pivot = new Group();
-  pivot.name = REVOLVER_PART_NAMES.CYLINDER;
-  parent.add(pivot);
-  pivot.position.copy(parent.worldToLocal(center.clone()));
-  pivot.attach(cyl);
+  const innerPivot = new Group();
+  innerPivot.name = REVOLVER_PART_NAMES.CYLINDER;
+  outerPivot.add(innerPivot);
+  innerPivot.attach(cyl);
+}
+
+/**
+ * Derive the drum's spin axis AND its radial rotation centre (both world space)
+ * from the 6 chamber centres:
+ *   - **center**: the centroid of the symmetric chamber ring lies ON the drum
+ *     axis, so it is the radially-centred pivot point — the drum spins in place
+ *     instead of orbiting (the world-aligned AABB centre is skewed off-axis by
+ *     the tilted cylinder + the extractor rod, which made it wobble).
+ *   - **axis**: the chambers ring a plane ⟂ to the cylindrical axis, so the
+ *     plane normal (from three well-spread chamber centres) IS that axis.
+ * Falls back to null if the bullet nodes are absent (caller keeps the AABB
+ * centre + parent frame).
+ */
+function computeDrumGeometryWorld(cyl: Object3D): { axis: Vector3; center: Vector3 } | null {
+  const centers: Vector3[] = [];
+  for (let i = 1; i <= 6; i += 1) {
+    const bullet = cyl.getObjectByName(`Bullet${i}`);
+    if (bullet !== undefined) {
+      centers.push(new Box3().setFromObject(bullet).getCenter(new Vector3()));
+    }
+  }
+  if (centers.length < 3) {
+    return null;
+  }
+  const center = centers
+    .reduce((acc, c): Vector3 => acc.add(c), new Vector3())
+    .divideScalar(centers.length);
+  const step = Math.floor(centers.length / 3);
+  const origin = centers[0] as Vector3;
+  const spanA = (centers[step] as Vector3).clone().sub(origin);
+  const spanB = (centers[step * 2] as Vector3).clone().sub(origin);
+  const normal = spanA.cross(spanB);
+  return normal.lengthSq() === 0 ? null : { axis: normal.normalize(), center };
 }
 
 /**

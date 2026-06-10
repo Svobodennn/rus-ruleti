@@ -226,7 +226,7 @@ function computeTableTopAnchor(
   return new Vector3(
     (box.min.x + box.max.x) / 2,
     box.max.y + 0.02,
-    (box.min.z + box.max.z) / 2 + 0.1,
+    (box.min.z + box.max.z) / 2 + 1,
   );
 }
 
