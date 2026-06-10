@@ -15,8 +15,10 @@ on:
     tags:
       - 'v*'
 
+# contents: write — the release step (on a version tag) publishes the built
+# .exe straight onto a GitHub Release so no manual artifact download is needed.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -51,3 +53,24 @@ jobs:
           path: dist/*.exe
           if-no-files-found: error
           retention-days: 30
+
+      # On a version tag, publish a GitHub Release with the .exe attached so it
+      # can be downloaded directly (manual via the Actions tab still just yields
+      # the artifact above — no release).
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Rus Ruleti ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          files: dist/*.exe
+          fail_on_unmatched_files: true
+          body: |
+            **Rus Ruleti ${{ github.ref_name }}** — Windows (portable)
+
+            ### Kurulum
+            1. `Rus Ruleti ...exe` dosyasını indir.
+            2. Çift tıkla. Windows SmartScreen uyarısı çıkarsa: **More info → Run anyway**.
+            3. Tam ekran açılır. Çıkmak için ESC'yi basılı tut.
+
+            Kurulum gerektirmez, tek dosya. Yönetici izni istemez.
