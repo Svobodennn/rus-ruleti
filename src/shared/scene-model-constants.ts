@@ -44,8 +44,12 @@
  * camera at y=1.6 (CAMERA.posY). Designer tunes each scale so the object
  * reads at the intended visual size from the static camera angle.
  */
-/** Quaternius revolver ~28cm long → 0.9 brings barrel to ~25cm Nagant feel. */
-export const MODEL_SCALE_REVOLVER = 0.9;
+/**
+ * austincford Magnum revolver (rigged, separate Revolving_Cylinder). Native
+ * bbox ~29 units long, so ~0.0006 matches the prior ~0.018 world footprint.
+ * POST-SHIP TUNING (host=macOS, cannot render): verify size on Windows.
+ */
+export const MODEL_SCALE_REVOLVER = 0.0006;
 /** Quaternius chair ~0.9m tall — matches Sprint 1 placeholder height 1:1. */
 export const MODEL_SCALE_CHAIR = 1.0;
 /** Quaternius radio ~0.4m wide → 0.85 brings to ~0.34m, matches placeholder. */
@@ -106,8 +110,12 @@ export const MODEL_POSITION_LIGHTBULB:readonly [number, number, number] = [0, 2.
  * rotation here is the place to flip it (NOT inside revolver-mount.ts —
  * that file owns animation pivots, not asset orientation).
  */
-/** Barrel pointing left (-π/2 around y) — grip faces chair; "muzzle pointed away" narrative. */
-export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [0, -Math.PI / 2, 0];
+/**
+ * austincford Magnum's barrel runs along local +Y; lay it flat on the table.
+ * POST-SHIP TUNING: first guess (host=macOS, cannot render) — adjust the
+ * [x,y,z] radians after seeing it on Windows (orientation is the #1 tuning).
+ */
+export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [-Math.PI / 2, 0, 0];
 /** 15° (π/12) counterclockwise — chair pushed back at an angle; humanises the seat. */
 export const MODEL_ROTATION_CHAIR:    readonly [number, number, number] = [0, Math.PI / 12, 0];
 /** 22.5° (-π/8) turned toward camera so dial face is visible from sabit camera. */
@@ -217,9 +225,12 @@ export const MATERIAL_COLOR_OVERRIDE_BY_KEY = Object.freeze({
  * name). Phase 2B kraken-revolver may discover the actual mesh names
  * differ in the vendored file; if so, update these constants and rebuild.
  */
+// Post-ship model swap: austincford Magnum (rigged) exposes these node names.
+// The named-pivots path (revolver-mount-glb.ts) finds + aliases them so the
+// spin clip rotates ONLY the cylinder (bullets are its children → spin too).
 export const MODEL_REVOLVER_HAMMER_PIVOT_KEY = 'Hammer';
-export const MODEL_REVOLVER_CYLINDER_PIVOT_KEY = 'Cylinder';
-export const MODEL_REVOLVER_BODY_PIVOT_KEY = 'Body';
+export const MODEL_REVOLVER_CYLINDER_PIVOT_KEY = 'Revolving_Cylinder';
+export const MODEL_REVOLVER_BODY_PIVOT_KEY = 'Frame';
 
 /* ------------------------------------------------------------------------ */
 /* Smoke particle — kraken-particles Phase 2B fills                         */

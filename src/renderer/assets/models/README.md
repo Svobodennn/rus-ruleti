@@ -6,7 +6,7 @@
 
 | File | Source | Author | License | Tris | Notes |
 |------|--------|--------|---------|------|-------|
-| `revolver.glb` | [Poly Pizza](https://poly.pizza/m/E7IaG9TptR) | Quaternius | **CC0** | ~500 | Generic low-poly revolver; chamber opaque (RNG visibility safe per designer §6) |
+| `revolver.glb` | [Poly Pizza](https://poly.pizza/m/AnsEmKwuu7) | austincford | **CC-BY 4.0** | ~3-5k | Post-ship swap: rigged Magnum — separate `Revolving_Cylinder` node (bullets are its children) so the spin rotates ONLY the cylinder. Replaced the monolithic Quaternius CC0 model (whole-gun-spin bug). Attribution required |
 | `chair.glb` | [Poly Pizza](https://poly.pizza/m/iMNqRzPwwe) | Quaternius | **CC0** | ~400 | Generic wooden chair |
 | `radio.glb` | [Poly Pizza](https://poly.pizza/m/TPqvwkyWdV) | Quaternius | **CC0** | ~300 | Generic vintage radio (NOT Soviet-branded — see `incoming/` for VEF/Rekord upgrade) |
 | `bottle.glb` | [Poly Pizza](https://poly.pizza/m/FAHsHFXfTf) | Quaternius | **CC0** | ~200 | Generic spirit bottle (label can be texture-painted in renderer) |
@@ -18,7 +18,7 @@
 
 ## Attribution requirements (CC-BY)
 
-For the 3 CC-BY models, the following attribution must appear in:
+For the 4 CC-BY models, the following attribution must appear in:
 1. App About screen (Sprint 6 reveal-lite)
 2. `LEGAL.md` / `LICENSES.md` (Sprint 9 release prep)
 3. README.md (this file)
@@ -28,9 +28,10 @@ For the 3 CC-BY models, the following attribution must appear in:
 - "Table" by dook — Licensed under CC BY 4.0 — https://poly.pizza/m/7qAyGZnerYt
 - "Ashtray" by dook — Licensed under CC BY 4.0 — https://poly.pizza/m/aHmJIWIr1vI
 - "Light bulb" by Jason Toff — Licensed under CC BY 4.0 — https://poly.pizza/m/4TkYCZMlbS6
+- "Revolver" by austincford — Licensed under CC BY 4.0 — https://poly.pizza/m/AnsEmKwuu7
 ```
 
-CC0 models (revolver, chair, radio, bottle by Quaternius) do not require attribution but are credited above as good practice.
+CC0 models (chair, radio, bottle by Quaternius) do not require attribution but are credited above as good practice.
 
 ## Sketchfab Soviet-authentic upgrades (user-vendored)
 

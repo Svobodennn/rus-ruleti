@@ -5,7 +5,7 @@
  *   - `idle`  — subtle bob (revolver-placeholder.position.y ±0.005), loops
  *               at ~0.27Hz to sync with the bulb's Lissajous sway.
  *   - `cock`  — hammer.rotation.z 0 → -COCK_ANGLE_DEG. NO easing (snap).
- *   - `spin`  — cylinder.rotation.x 0 → SPIN_TURNS·2π. Cubic-out easing.
+ *   - `spin`  — cylinder.rotation.y 0 → SPIN_TURNS·2π. Cubic-out easing.
  *               **Always ends at the same visual angle** (modulo 2π) —
  *               designer revolver-direction.md §6 anti-cause-and-effect.
  *   - `fall`  — hammer.rotation.z snaps back to 0 (single-frame transition).
@@ -181,9 +181,12 @@ function buildCockClip(root: Object3D): AnimationClip {
  */
 function buildSpinClip(root: Object3D): AnimationClip {
   const cyl = root.getObjectByName(REVOLVER_PART_NAMES.CYLINDER);
+  // Post-ship (austincford Magnum rig): the cylinder spins about its local +Y
+  // (barrel axis), not X like the old monolithic wrap. POST-SHIP TUNING: if the
+  // spin reads as a tumble/orbit on Windows, try [z] or a cylinder pivot offset.
   const targetPath = cyl === undefined
-    ? `${REVOLVER_PART_NAMES.CYLINDER}.rotation[x]`
-    : `${cyl.name}.rotation[x]`;
+    ? `${REVOLVER_PART_NAMES.CYLINDER}.rotation[y]`
+    : `${cyl.name}.rotation[y]`;
   const durationSec = SPIN_DURATION_MS / 1000;
   const totalRot = SPIN_TURNS * 2 * Math.PI;
   const { times, values } = sampleCubicOut(durationSec, totalRot);

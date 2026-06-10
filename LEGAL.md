@@ -22,7 +22,6 @@ inventory + author URLs live in
 
 | File           | Source URL                                  | Author     |
 |----------------|---------------------------------------------|------------|
-| `revolver.glb` | https://poly.pizza/m/E7IaG9TptR             | Quaternius |
 | `chair.glb`    | https://poly.pizza/m/iMNqRzPwwe             | Quaternius |
 | `radio.glb`    | https://poly.pizza/m/TPqvwkyWdV             | Quaternius |
 | `bottle.glb`   | https://poly.pizza/m/FAHsHFXfTf             | Quaternius |
@@ -33,7 +32,8 @@ inventory + author URLs live in
 |------------------|-------------------------------------|------------|
 | `table.glb`      | https://poly.pizza/m/7qAyGZnerYt    | dook       |
 | `ashtray.glb`    | https://poly.pizza/m/aHmJIWIr1vI    | dook       |
-| `lightbulb.glb`  | https://poly.pizza/m/4TkYCZMlbS6    | Jason Toff |
+| `lightbulb.glb`  | https://poly.pizza/m/4TkYCZMlbS6    | Jason Toff  |
+| `revolver.glb`   | https://poly.pizza/m/AnsEmKwuu7     | austincford |
 
 Required attribution text:
 
@@ -42,7 +42,13 @@ Required attribution text:
 - "Table" by dook — Licensed under CC BY 4.0 — https://poly.pizza/m/7qAyGZnerYt
 - "Ashtray" by dook — Licensed under CC BY 4.0 — https://poly.pizza/m/aHmJIWIr1vI
 - "Light bulb" by Jason Toff — Licensed under CC BY 4.0 — https://poly.pizza/m/4TkYCZMlbS6
+- "Revolver" by austincford — Licensed under CC BY 4.0 — https://poly.pizza/m/AnsEmKwuu7
 ```
+
+> Post-ship model swap: the original CC0 Quaternius revolver was monolithic
+> (single fused mesh), so the spin animation rotated the whole gun. Replaced
+> with austincford's rigged Magnum (CC-BY) — a separate `Revolving_Cylinder`
+> node (bullets are its children) lets the spin rotate ONLY the cylinder.
 
 ### User-vendored Sketchfab assets (`incoming/`)
 
@@ -97,7 +103,7 @@ baf3129379324bf0ef323cb2d325459ec5bd603818a1129877d76c8c4391c5e7  ashtray.glb
 bdc6aeeb64524bbdccba2f079e6485e2a372aed1c428d976d5da67aadcf18b7a  chair.glb
 6992c610325bb10e91c3d5ff8abb77b473ab0b38167ed8bad8bb98905cea3e11  lightbulb.glb
 9e5c7934f44ee538446e6f54cbe9c09d4e49a7e78ee2e7f16d4cc7483c43e710  radio.glb
-d1260ba6e241d589f7a48d88b0350d4c3bb7000b0d81b8b3dadc45d790b7b141  revolver.glb
+fe750e2d1102cf3a677fd1111528500345e94e16d70a334bfb819d787e3c54e0  revolver.glb
 c2c626948581e2bff027488e020815e57a4380837a1a1a3731e71fce49e6c203  table.glb
 ```
 
