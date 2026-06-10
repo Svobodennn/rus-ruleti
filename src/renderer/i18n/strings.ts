@@ -43,6 +43,16 @@ export const STRINGS = {
       revealLiteMessage: 'Не следовало этого делать.',
     },
     /**
+     * Post-ship main-menu entry screen. Title + Start + Quit. Carries NO
+     * joke/disclaimer copy — the Sprint 9.1 intro disclaimer surface was
+     * removed; this is a clean game-menu gate that arms the scene on Start.
+     */
+    menu: {
+      title: 'РУССКАЯ РУЛЕТКА',
+      start: 'НАЧАТЬ',
+      quit: 'ВЫХОД',
+    },
+    /**
      * Sprint 4 destruction sequence — OS dialog + toast + terminal copy.
      *
      * Schema authority: `destruction-direction.md` §1185-1200 (Lane E
@@ -387,6 +397,11 @@ export const STRINGS = {
       earlyReleaseMessage: 'Karar veremedin.',
       bangMessage: 'ATEŞ',
       revealLiteMessage: 'Bunu yapmamalıydın.',
+    },
+    menu: {
+      title: 'RUS RULETİ',
+      start: 'BAŞLA',
+      quit: 'ÇIKIŞ',
     },
     /**
      * Mirror of `STRINGS.ru.destruction`. EVERY leaf path under

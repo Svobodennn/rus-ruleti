@@ -1,26 +1,28 @@
 /**
  * Renderer entry.
  *
- * Sprint 9.1 — Intro disclaimer surface REMOVED post-ship.
+ * Sprint 9.1 removed the intro disclaimer surface; the scene then mounted
+ * directly on bootstrap. Post-ship restore adds a clean main-menu entry
+ * screen (title + BAŞLA + ÇIKIŞ, NO joke/disclaimer copy — see main-menu.ts).
  *
  * Bootstrap order:
  *   1. Assert window.api exists (preload bridge must be wired).
  *   2. Ask main for OS family, inject body class `os-mac` | `os-win`.
  *   3. Mount the ESC-hold indicator.
- *   4. Mount the scene directly under #app (no Continue gate).
+ *   4. Mount the scene under #app (dim lobby), then overlay the main menu.
+ *   5. BAŞLA dismisses the menu → scene interactive; ÇIKIŞ → api.quit().
  *
  * AudioContext note: Sprint 0 used the disclaimer's Continue button click as
- * the user-gesture ticket for `AudioContext.resume()`. With the disclaimer
- * removed, the renderer creates the scene immediately and the AudioContext
- * stays suspended until the first user interaction (revolver trigger click,
- * keydown, etc.) — Chromium's autoplay policy allows the resume call to
- * succeed silently once a real user gesture lands. The scene mount never
- * blocks on audio readiness; the first audible cue (Faz 0 BANG) waits on
- * the trigger gesture anyway, so no audible content is missed.
+ * the user-gesture ticket for `AudioContext.resume()`. The main menu restores
+ * that contract — the BAŞLA click is the gesture that unlocks audio. Until
+ * then the AudioContext stays suspended (Chromium autoplay policy); the scene
+ * mounts behind the menu but produces no audible content before BAŞLA, and the
+ * first cue (Faz 0 BANG) waits on the revolver trigger gesture anyway.
  */
 
 import type { RusRuletiApi } from '../shared/api-types';
 import { mountEscapeHatch } from './escape-hatch';
+import { mountMainMenu } from './main-menu';
 import { activateScene, deactivateScene } from './scene-mount';
 
 declare global {
@@ -50,19 +52,33 @@ async function bootstrap(): Promise<void> {
   // dev HMR doesn't accumulate keyboard listeners across reloads.
   const disposeEscapeHatch = mountEscapeHatch(api);
 
-  // Wire scene + escape-hatch teardown to beforeunload so dev HMR / window
-  // close doesn't leak WebGL contexts, audio nodes, or keyboard listeners.
+  // Post-ship restore: mount the scene first (the dim lobby renders behind),
+  // then overlay the main menu. The menu covers the viewport (pointer-events)
+  // until the user clicks BAŞLA — at which point it fades out and the scene
+  // (revolver) becomes interactive. The BAŞLA click is also the AudioContext
+  // user-gesture, so the ambient bed / cues unlock then. The scene-container
+  // under #app keeps the legacy `#next-screen` slot id so the base.css reveal
+  // rules continue to fire; the menu is a separate sibling overlay so it never
+  // alters the scene DOM the destruction sequence / e2e selectors rely on.
+  const appHost = document.querySelector<HTMLElement>('#app') ?? document.body;
+  mountSceneIntoApp();
+  const menu = mountMainMenu({
+    api,
+    host: appHost,
+    onStart: (): void => {
+      // Menu dismissed; the scene canvas is now interactive. Breadcrumb for
+      // devtools (mirrors the document.body.dataset.scene contract).
+      document.body.dataset.menu = 'dismissed';
+    },
+  });
+
+  // Wire scene + escape-hatch + menu teardown to beforeunload so dev HMR /
+  // window close doesn't leak WebGL contexts, audio nodes, or listeners.
   window.addEventListener('beforeunload', () => {
+    menu.dispose();
     disposeEscapeHatch();
     void deactivateScene();
   });
-
-  // Sprint 9.1 — mount the scene directly. The disclaimer→Continue gate is
-  // removed; the renderer presents the lobby on launch with no intermediate
-  // surface. The scene-container under #app is created lazily by
-  // scene-mount.ts (it preserves the legacy `#next-screen` slot id so the
-  // existing CSS reveal rules in base.css continue to fire).
-  mountSceneIntoApp();
 }
 
 /**

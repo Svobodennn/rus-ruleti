@@ -20,13 +20,14 @@
     <link rel="stylesheet" href="./styles/fonts.css" />
     <link rel="stylesheet" href="./styles/base.css" />
     <!--
-      Sprint 9.1 — Intro disclaimer surface REMOVED post-ship.
-      The previous Sprint 0 stylesheet at ./styles/disclaimer.css is
-      deleted; #disclaimer DOM no longer exists. The scene now mounts
-      directly into #app on bootstrap. Legal disclaimer text is preserved
-      distribution-side (LEGAL.md) — only in-app joke disclaimer
-      surfaces were removed per the user directive.
+      Main-menu entry screen (post-ship restore). Loaded AFTER base.css so
+      #main-menu rules win on the cascade and BEFORE crt.css so the CRT
+      scanline composites over the menu (consistent with HUD/scene). This
+      REPLACES the removed Sprint 0 intro disclaimer surface (./styles/
+      disclaimer.css, deleted Sprint 9.1) — the menu carries no joke /
+      disclaimer copy; legal text stays distribution-side (LEGAL.md).
     -->
+    <link rel="stylesheet" href="./styles/main-menu.css" />
     <!--
       HUD styles (Sprint 2 Phase 2B — frontend-dev). Loaded AFTER base.css so
       .hud-counter / .hud-messages / .bang-overlay rules can extend the

@@ -2,16 +2,26 @@
  * Faz 2 — Fullscreen Takeover (7-12sn). Phase 2B (kraken-faz2-3).
  *
  *   1. Mount destruction-overlay (z-index 9100).
- *   2. Activate kiosk via window.api.toggleKiosk() (Sprint 0 reuse).
- *   3. Render procedural wallpaper (Mac/Win variant) and insert as
+ *   2. Render procedural wallpaper (Mac/Win variant) and insert as
  *      background layer of the overlay.
- *   4. Mount mac-menubar OR win-taskbar (live clock).
- *   5. Spawn desktop icons grid + start sequential fade-out at +1000ms.
- *   6. Spawn notification toasts via setInterval at TOAST_SPAWN_INTERVAL_MS
+ *   3. Mount mac-menubar OR win-taskbar (live clock).
+ *   4. Spawn desktop icons grid + start sequential fade-out at +1000ms.
+ *   5. Spawn notification toasts via setInterval at TOAST_SPAWN_INTERVAL_MS
  *      cadence (5 mac / 3 win).
- *   7. Trigger ApartmentBleed #1 at APARTMENT_BLEED_1_TRIGGER_MS (relative
+ *   6. Trigger ApartmentBleed #1 at APARTMENT_BLEED_1_TRIGGER_MS (relative
  *      to bang) — passed via args.signal-bound clock so director may abort.
- *   8. Resolve at FAZ_2_TAKEOVER_DURATION_MS=5000ms or on signal.aborted.
+ *   7. Resolve at FAZ_2_TAKEOVER_DURATION_MS=5000ms or on signal.aborted.
+ *
+ * NOTE (post-ship fullscreen fix): the window is created `fullscreen: true`
+ * (window-manager.ts) and this overlay covers the viewport, so the "OS
+ * takeover" already reads full-screen. The Sprint 0 kiosk activation
+ * (`window.api.toggleKiosk()`) was REMOVED here: on Windows (Electron 30.5.1)
+ * `setKiosk(true)` on the already-fullscreen frameless window DROPPED
+ * fullscreen at this takeover. faz2 runs exactly once per sequence — the
+ * TEKRAR restart loop re-enters at faz8-reveal, NOT faz0-2 (see
+ * destruction-director.ts requestRestart) — so this was a one-time fullscreen
+ * drop, not a cycle. Nothing in the destruction path mutates window state now,
+ * so fullscreen is preserved end-to-end.
  *
  * The takeover overlay sits ABOVE the bang overlay 9000 and BELOW the
  * apartment-bleed 9500 so the bleed winks through the takeover for its
@@ -62,8 +72,6 @@ export async function runFaz2(args: Faz2RunArgs): Promise<void> {
   const overlay = createOverlay();
   args.container.appendChild(overlay);
 
-  await tryActivateKiosk();
-
   const wallpaper = renderWallpaper(args.os);
   overlay.appendChild(wallpaper);
 
@@ -103,16 +111,6 @@ function createOverlay(): HTMLDivElement {
   overlay.classList.add('destruction-overlay');
   overlay.dataset['phase'] = 'faz2';
   return overlay;
-}
-
-async function tryActivateKiosk(): Promise<void> {
-  try {
-    await window.api?.toggleKiosk?.();
-  } catch {
-    /* Kiosk toggle failure is non-fatal — the overlay still covers the
-     * viewport. Logged silently because the destruction must not bail
-     * over an IPC failure. */
-  }
 }
 
 function mountChromeBar(os: OsVariant, overlay: HTMLElement): ChromeHandle {

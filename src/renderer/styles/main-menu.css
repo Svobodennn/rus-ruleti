@@ -1,0 +1,139 @@
+/*
+ * Main menu — entry screen (post-ship restore).
+ *
+ * Overlays the dim lobby scene with a clean game menu (title + BAŞLA + ÇIKIŞ).
+ * Aesthetic matches the room voice: Old Standard TT / PT Serif serif, sodium
+ * yellow (#c89b3c) headline, kirli-kâğıt (#7a6a4e) caption, warm-black scrim.
+ *
+ * z-index 9700 sits ABOVE the scene canvas + destruction overlays (9000-9500)
+ * but BELOW the CRT overlay (9999), so the scanline + grain composite over the
+ * menu the same way they treat every other surface. The menu is always
+ * dismissed before any destruction phase begins, so the overlay ranges do not
+ * actually co-exist on screen.
+ */
+
+#main-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 9700;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.75rem;
+
+  /* Dim the lobby behind: warm sodium glow from upper-centre into a
+     warm-black scrim so the room reads through but the menu text wins. */
+  background:
+    radial-gradient(
+      ellipse at center 35%,
+      rgba(200, 155, 60, 0.08) 0%,
+      rgba(10, 9, 8, 0) 55%
+    ),
+    rgba(10, 9, 8, 0.62);
+
+  opacity: 1;
+  transition: opacity 320ms ease;
+
+  font-family: 'Old Standard TT', 'PT Serif', Georgia, serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * BAŞLA fade-out: main-menu.ts adds .is-leaving, then dispose() removes the
+ * node after FADE_OUT_MS. Opacity ONLY — pointer-events stays `auto` so the
+ * invisible-but-present menu keeps blocking the scene during the fade. Setting
+ * pointer-events:none here would open a ~320ms window where a fast second
+ * click falls through to the revolver and fires the bang prematurely.
+ */
+#main-menu.is-leaving {
+  opacity: 0;
+}
+
+.main-menu__title {
+  text-align: center;
+}
+
+.main-menu__title-primary {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  letter-spacing: 0.18em;
+  /* Compensate the right-shift the tracking introduces so the block stays
+     optically centred. */
+  padding-left: 0.18em;
+  color: #c89b3c; /* sodyum sarısı */
+  text-transform: uppercase;
+  line-height: 1.05;
+  text-shadow:
+    0 0 8px rgba(200, 155, 60, 0.35),
+    0 0 28px rgba(200, 155, 60, 0.18);
+}
+
+.main-menu__title-caption {
+  margin: 0.45rem 0 0;
+  font-weight: 400;
+  font-style: italic;
+  font-size: clamp(0.9rem, 1.8vw, 1.3rem);
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: #7a6a4e; /* kirli kâğıt */
+  text-transform: uppercase;
+}
+
+.main-menu__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 16rem;
+}
+
+.main-menu__btn {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  letter-spacing: 0.22em;
+  padding: 0.85rem 1.5rem 0.8rem;
+  text-transform: uppercase;
+  color: #d8c79f;
+  background: rgba(20, 17, 13, 0.55);
+  border: 1px solid rgba(200, 155, 60, 0.35);
+  border-radius: 2px;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.main-menu__btn:hover,
+.main-menu__btn:focus-visible {
+  color: #f1e4c2;
+  border-color: rgba(200, 155, 60, 0.85);
+  background: rgba(40, 31, 16, 0.7);
+  box-shadow: 0 0 14px rgba(200, 155, 60, 0.25);
+  outline: none;
+}
+
+/* ÇIKIŞ reads cooler/sterner — a dim ember instead of the sodium invite. */
+.main-menu__btn--quit {
+  border-color: rgba(122, 106, 78, 0.45);
+  color: #b6a884;
+}
+
+.main-menu__btn--quit:hover,
+.main-menu__btn--quit:focus-visible {
+  border-color: rgba(168, 90, 70, 0.7);
+  color: #e4cdbf;
+  box-shadow: 0 0 14px rgba(120, 50, 40, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #main-menu,
+  .main-menu__btn {
+    transition: none;
+  }
+}
