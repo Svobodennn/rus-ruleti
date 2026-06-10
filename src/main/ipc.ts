@@ -10,7 +10,7 @@
  * together. No new channel may be added without updating both.
  */
 
-import { app, ipcMain } from 'electron';
+import { app, ipcMain, shell } from 'electron';
 import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import * as os from 'os';
 import {
@@ -23,6 +23,15 @@ import { logger } from './logger';
 
 /** Returned when os.userInfo() throws (e.g. headless / unusual sandbox). */
 const UNKNOWN_USERNAME = 'unknown';
+
+/**
+ * Post-ship finale video. Opened in the default browser (shell.openExternal)
+ * when the destruction sequence reaches its natural end, replacing the old
+ * dark "black screen" idle. Hardcoded HERE in main — the renderer never passes
+ * a URL, so the renderer has NO arbitrary-openExternal surface. MUST be https
+ * (guarded in finaleHandler before the open).
+ */
+const FINALE_VIDEO_URL = 'https://www.youtube.com/watch?v=xnMSySs7HSA';
 
 /** Returns 'mac' for darwin, 'win' for win32. Other platforms reject. */
 function getOsFamily(): OsFamily {
@@ -103,6 +112,12 @@ export function registerIpcHandlers(): void {
   // renderer has to this data is through this whitelisted IPC channel.
   ipcMain.handle(IPC_CHANNELS.OS_GET_USERNAME, getUsernameHandler);
 
+  // app:finale — post-ship. Fired by destruction-director on natural son-ekran
+  // completion: open the finale video in the default browser, then quit.
+  // Extracted into finaleHandler so registerIpcHandlers stays under the
+  // 50-line lint cap (mirrors getUsernameHandler).
+  ipcMain.on(IPC_CHANNELS.APP_FINALE, finaleHandler);
+
   // frame:stats — one-way. Renderer flushes a frame-time summary every
   // FRAME_LOG_FLUSH_INTERVAL_MS so a packaged build leaves a per-session
   // perf record on disk (S1 risk telemetry). Payload shape is validated
@@ -134,6 +149,32 @@ export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler(IPC_CHANNELS.KIOSK_TOGGLE);
   ipcMain.removeAllListeners(IPC_CHANNELS.FRAME_STATS);
   ipcMain.removeHandler(IPC_CHANNELS.OS_GET_USERNAME);
+  ipcMain.removeAllListeners(IPC_CHANNELS.APP_FINALE);
+}
+
+/**
+ * Handler for `app:finale` (post-ship). Open the finale video in the default
+ * browser, then quit. The URL is the FINALE_VIDEO_URL constant (renderer
+ * passes nothing); we still guard it is https before handing it to the OS
+ * shell. Fire-and-forget — app.quit() runs whether openExternal resolves or
+ * rejects, so a missing/odd default browser never leaves the app hung on a
+ * black screen.
+ */
+function finaleHandler(event: IpcMainEvent): void {
+  if (!isAllowedSender(event)) {
+    logger.warn('app:finale rejected — sender check failed');
+    return;
+  }
+  if (!FINALE_VIDEO_URL.startsWith('https://')) {
+    logger.warn('app:finale — finale URL not https; quitting without open');
+    app.quit();
+    return;
+  }
+  logger.info('app:finale received — opening finale video then quitting');
+  void shell
+    .openExternal(FINALE_VIDEO_URL)
+    .catch((err: unknown) => logger.warn('shell.openExternal failed', { err }))
+    .finally(() => app.quit());
 }
 
 /**

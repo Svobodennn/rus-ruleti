@@ -36,6 +36,13 @@ export interface RusRuletiApi {
   /** Quits the app via IPC 'app:quit'. */
   quit: () => void;
   /**
+   * Post-ship finale: open the finale video in the default browser (main
+   * process, shell.openExternal) and quit. Fired by destruction-director on
+   * natural son-ekran completion — replaces the old dark idle "black screen".
+   * The URL is a main-process constant; the renderer passes nothing.
+   */
+  finale: () => void;
+  /**
    * Subscribe to the ESC-hold timer. onProgress fires 0..1 on each rAF tick.
    * onComplete fires once progress reaches 1.0 (preload also fires IPC quit).
    * Returns a dispose function.

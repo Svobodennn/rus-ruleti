@@ -90,6 +90,7 @@ import { startFaz6Bsod } from './faz6-bsod.js';
 import { startFaz7Bootloop } from './faz7-bootloop.js';
 import { startFaz8Reveal } from './faz8-reveal.js';
 import { startFaz8SonEkran } from './faz8-son-ekran.js';
+import { quitAppFromButton, triggerFinale } from './faz8-exit.js';
 import { mountApartmentBleedOverlay } from './apartment-bleed.js';
 import {
   runFaz6ToFaz7Transition,
@@ -568,13 +569,12 @@ async function runOneFaz8Cycle(
   });
   runtime.sonEkranAbortCtrl = null;
   if (outerSignal.aborted) return;
-  if (runtime.fsmState.kind === 'faz8-son-ekran') runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
-}
-
-/** Sprint 7 — ÇIK button handler. S10 Path A: window.api.quit() (Sprint 0 IPC). */
-function quitAppFromButton(): void {
-  log.info('destruction-director: ÇIK → window.api.quit()');
-  if (typeof window !== 'undefined' && window.api !== undefined) window.api.quit();
+  if (runtime.fsmState.kind !== 'faz8-son-ekran') return;
+  // Post-ship: natural end → finale video + quit (TEKRAR loops back to
+  // faz8-reveal so this branch is skipped; ESC-hold returns above + quits via
+  // preload). quitAppFromButton + triggerFinale live in faz8-exit.ts.
+  runtime.fsmState = onFaz8SonEkranComplete(runtime.fsmState);
+  triggerFinale();
 }
 
 /* ------------------------------------------------------------------------ */

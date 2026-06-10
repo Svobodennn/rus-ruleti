@@ -23,6 +23,14 @@
  *                      PLAN §12 S2 risk (no hardcoded "USER" in Faz 3
  *                      terminal). Preload bridge exposes only the string —
  *                      no homedir, no hostname, no other os.userInfo fields.
+ *
+ * Post-ship addition:
+ *   - app:finale     renderer (destruction-director, natural son-ekran
+ *                    completion) asks main to open the finale video in the
+ *                    default browser (shell.openExternal) then app.quit().
+ *                    Replaces the old dark "black screen" idle ending. The URL
+ *                    is a main-process constant — the renderer passes NO URL,
+ *                    so there is no arbitrary-openExternal surface.
  */
 
 export const IPC_CHANNELS = {
@@ -31,6 +39,7 @@ export const IPC_CHANNELS = {
   KIOSK_TOGGLE: 'kiosk:toggle',
   FRAME_STATS: 'frame:stats',
   OS_GET_USERNAME: 'os:get-username',
+  APP_FINALE: 'app:finale',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
@@ -42,6 +51,7 @@ export const ALLOWED_IPC_CHANNELS: ReadonlyArray<IpcChannel> = [
   IPC_CHANNELS.KIOSK_TOGGLE,
   IPC_CHANNELS.FRAME_STATS,
   IPC_CHANNELS.OS_GET_USERNAME,
+  IPC_CHANNELS.APP_FINALE,
 ];
 
 export type OsFamily = 'mac' | 'win';

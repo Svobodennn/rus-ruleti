@@ -142,6 +142,9 @@ const api: RusRuletiApi = {
   quit: (): void => {
     ipcRenderer.send(IPC_CHANNELS.APP_QUIT);
   },
+  finale: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.APP_FINALE);
+  },
   onEscapeHold: (
     onProgress: EscapeHoldProgressCallback,
     onComplete: EscapeHoldCompleteCallback,
