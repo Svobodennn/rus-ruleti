@@ -45,11 +45,13 @@
  * reads at the intended visual size from the static camera angle.
  */
 /**
- * austincford Magnum revolver (rigged, separate Revolving_Cylinder). Native
- * bbox ~29 units long, so ~0.0006 matches the prior ~0.018 world footprint.
- * POST-SHIP TUNING (host=macOS, cannot render): verify size on Windows.
+ * austincford Magnum revolver (rigged, separate Revolving_Cylinder). The GLB's
+ * NODE transforms shrink the raw ~29-unit accessor bbox to ~0.29 actual size
+ * (verified via an offscreen Three.js/Playwright render), so ~0.06 matches the
+ * prior ~0.018 world footprint. (The first guess of 0.0006 was 100× too small
+ * → the gun was microscopic / invisible.)
  */
-export const MODEL_SCALE_REVOLVER = 0.0006;
+export const MODEL_SCALE_REVOLVER = 0.06;
 /** Quaternius chair ~0.9m tall — matches Sprint 1 placeholder height 1:1. */
 export const MODEL_SCALE_CHAIR = 1.0;
 /** Quaternius radio ~0.4m wide → 0.85 brings to ~0.34m, matches placeholder. */
@@ -111,11 +113,12 @@ export const MODEL_POSITION_LIGHTBULB:readonly [number, number, number] = [0, 2.
  * that file owns animation pivots, not asset orientation).
  */
 /**
- * austincford Magnum's barrel runs along local +Y; lay it flat on the table.
- * POST-SHIP TUNING: first guess (host=macOS, cannot render) — adjust the
- * [x,y,z] radians after seeing it on Windows (orientation is the #1 tuning).
+ * austincford Magnum: native pose is "presentation" (angled). A +π/2 roll about
+ * Z lays it flat on the table (barrel horizontal) — picked from an offscreen
+ * render grid of 6 candidate orientations. The mount adds REVOLVER_TILT_Y_RAD
+ * (15° on Y) for camera visibility. Barrel runs along the model's local +Z.
  */
-export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [-Math.PI / 2, 0, 0];
+export const MODEL_ROTATION_REVOLVER: readonly [number, number, number] = [0, 0, Math.PI / 2];
 /** 15° (π/12) counterclockwise — chair pushed back at an angle; humanises the seat. */
 export const MODEL_ROTATION_CHAIR:    readonly [number, number, number] = [0, Math.PI / 12, 0];
 /** 22.5° (-π/8) turned toward camera so dial face is visible from sabit camera. */
