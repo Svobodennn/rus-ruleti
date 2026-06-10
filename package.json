@@ -1,7 +1,7 @@
 {
   "name": "rus-ruleti",
   "version": "1.0.3",
-  "description": "Rus Ruleti — Şaka oyunu (Electron). Joke app: simulates OS destruction with zero real system operations.",
+  "description": "Rus Ruleti — Sovyet brutalizmi atmosferinde tek-oda rus ruleti (Electron + Three.js + TypeScript).",
   "private": true,
   "main": "out/main/index.js",
   "author": "famelink",
