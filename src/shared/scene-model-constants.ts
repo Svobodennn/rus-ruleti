@@ -45,13 +45,16 @@
  * reads at the intended visual size from the static camera angle.
  */
 /**
- * austincford Magnum revolver (rigged, separate Revolving_Cylinder). The GLB's
- * NODE transforms shrink the raw ~29-unit accessor bbox to ~0.29 actual size
- * (verified via an offscreen Three.js/Playwright render), so ~0.06 matches the
- * prior ~0.018 world footprint. (The first guess of 0.0006 was 100× too small
- * → the gun was microscopic / invisible.)
+ * austincford Magnum revolver (rigged, separate Revolving_Cylinder). Scale must
+ * be compared on NODE-TRANSFORMED (effective) bboxes, NOT raw accessor min/max
+ * — both the old Quaternius model (accessor 0.0198 but node-scaled UP to ~1.98)
+ * and the new Magnum (accessor ~29 but node-scaled DOWN to ~0.29) carry node
+ * scales. Old world footprint = 1.98 × 0.9 ≈ 1.78; new effective = 0.29, so
+ * 1.78 / 0.29 ≈ 6.14 reproduces the prior on-table size. (Earlier guesses
+ * 0.0006 / 0.06 used the wrong baseline → gun was a microscopic speck = invisible.)
+ * Verified vs a 1-unit reference cube in an offscreen Three.js/Playwright render.
  */
-export const MODEL_SCALE_REVOLVER = 0.06;
+export const MODEL_SCALE_REVOLVER = 6.14;
 /** Quaternius chair ~0.9m tall — matches Sprint 1 placeholder height 1:1. */
 export const MODEL_SCALE_CHAIR = 1.0;
 /** Quaternius radio ~0.4m wide → 0.85 brings to ~0.34m, matches placeholder. */
