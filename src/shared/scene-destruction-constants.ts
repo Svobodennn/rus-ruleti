@@ -958,22 +958,6 @@ export const FAZ8_REVEAL_CAMERA_DOLLY_DEGREES = 10;
 export const FAZ8_SON_EKRAN_DURATION_MS = 10000;
 
 /**
- * Disclaimer mount offset within son-ekran. 3 seconds — gives the
- * revolver-on-table composite the first 3 seconds of son-ekran to
- * BREATHE before the disclaimer fades in. Designer §6: "the
- * disclaimer should read AFTER the player notices the silence" —
- * the 3-second delay enforces that sequence.
- */
-export const FAZ8_SON_EKRAN_DISCLAIMER_ENTER_MS = 3000;
-
-/**
- * Disclaimer fade-in duration. 1 second — long enough to feel
- * deliberate, short enough that the text doesn't read as a fancy
- * animation. Linear opacity ramp 0 → FAZ8_DISCLAIMER_OPACITY_MAX.
- */
-export const FAZ8_SON_EKRAN_DISCLAIMER_FADE_IN_MS = 1000;
-
-/**
  * Door-close audio accent offset within son-ekran. 2 seconds — the
  * door-close lands BEFORE the disclaimer enters (so the audio
  * accent reads as "something just settled" rather than "the
@@ -992,20 +976,11 @@ export const FAZ8_SON_EKRAN_RESTART_HINT_ENTER_MS = 7000;
 
 /**
  * Restart-hint final opacity ceiling. 0.4 — the hint is a whisper,
- * not a UI call-to-action. Lower than FAZ8_DISCLAIMER_OPACITY_MAX
- * (0.9) so the disclaimer reads as the primary text and the hint
- * reads as a footer. Reduced-motion gate keeps this value.
+ * not a UI call-to-action. The low ceiling keeps the hint reading as
+ * a quiet footer rather than primary text. Reduced-motion gate keeps
+ * this value.
  */
 export const FAZ8_SON_EKRAN_RESTART_HINT_OPACITY = 0.4;
-
-/**
- * Disclaimer final opacity ceiling. 0.9 — fades into 90% opacity so
- * the lobby read remains the primary visual; the disclaimer is the
- * WHISPER atop the composition, not an opaque overlay block. The
- * 0.1 transparency keeps the revolver-on-table visible through the
- * text edges (subtle aesthetic accent for the closing tableau).
- */
-export const FAZ8_DISCLAIMER_OPACITY_MAX = 0.9;
 
 /* ------------------------------------------------------------------------ */
 /* Sprint 6 Faz 8 OWNER decrees (TH-S5-03 runtime enforcement from inception) */
@@ -1034,13 +1009,6 @@ export const AMBIENT_RECOVERY_AUDIO_OWNER = 'faz8-reveal' as const;
  * synth per Sprint 4 Lesson 3 — NO .ogg / .wav vendoring.
  */
 export const DOOR_CLOSE_AUDIO_OWNER = 'faz8-son-ekran' as const;
-
-/**
- * Faz 8 disclaimer chrome owner — Faz 8 son-ekran phase. The
- * Cyrillic-primary + Turkish-secondary disclaimer block is mounted
- * once via mountFaz8Disclaimer; lifecycle owned by son-ekran.
- */
-export const FAZ8_DISCLAIMER_OWNER = 'faz8-son-ekran' as const;
 
 /**
  * Faz 8 restart-hint chrome owner — Faz 8 son-ekran phase. Optional
@@ -1159,98 +1127,6 @@ export const FAZ8_BULB_PULSE_RESTING_HZ = 0.4;
 export const FAZ8_BULB_PULSE_RESTING_AMPLITUDE = 0.05;
 
 /* ------------------------------------------------------------------------ */
-/* Sprint 6 Faz 8 disclaimer typography + color                              */
-/* ------------------------------------------------------------------------ */
-
-/**
- * Disclaimer primary line font size (px). 64px — large enough to read as
- * a STATEMENT (the punchline of the entire 65sn arc), small enough not
- * to dominate the revolver-on-table composition. Designer rationale: at
- * 1920×1080 native, 64px = 3.3% of viewport height, large enough to be
- * THE thing on screen, small enough that 40+ year-old eyes don't read
- * it as "shouting". Reference string: "Это просто шутка." (4 Cyrillic
- * words + period, ~16 glyphs depending on letter widths).
- *
- * Font-family: Old Standard TT (Sprint 0 bundled, OFL, Cyrillic-complete).
- * The serif treatment reads as "considered statement" — sans-serif would
- * read as "system message" which is the OPPOSITE of the joke reveal.
- */
-export const FAZ8_DISCLAIMER_PRIMARY_FONT_PX = 64;
-
-/**
- * Disclaimer primary line letter-spacing (px). -0.5px — slight negative
- * tracking. Old Standard TT at 64px reads slightly loose at default
- * tracking; -0.5px tightens the words without making the text look
- * "compressed". Reference: typographer's default "tight headline" at
- * 60-72px display size.
- */
-export const FAZ8_DISCLAIMER_PRIMARY_LETTER_SPACING_PX = -0.5;
-
-/**
- * Disclaimer secondary line font size (px). 28px — roughly 44% of the
- * primary (64px) size. This ratio (0.44) sits between "subtitle"
- * (0.5-0.6 = sibling read) and "footer" (0.25-0.3 = subordinate read).
- * 0.44 = "subordinate but legible" — the TR translation reads as the
- * gloss-on-the-original, not as a competing line.
- *
- * Font-family: PT Serif Regular (Sprint 0 bundled, OFL, full Cyrillic +
- * Latin diacritics for Turkish — though TR text doesn't need Cyrillic
- * glyphs, PT Serif's Latin-extended is what makes "şaka" render cleanly).
- */
-export const FAZ8_DISCLAIMER_SECONDARY_FONT_PX = 28;
-
-/**
- * Vertical gap between primary + secondary lines (px). 24px — comfortable
- * "sibling text" spacing. Less (12-16px) would read as one paragraph;
- * more (32-40px) would read as two unrelated lines. 24px sits in the
- * "obviously paired" sweet spot — visually-grouped but textually-
- * distinguished.
- */
-export const FAZ8_DISCLAIMER_GAP_PX = 24;
-
-/**
- * Disclaimer text color (kirli kâğıt). #7a6a4e — PLAN §2 line 48 palette
- * entry. The same color the intro disclaimer (Sprint 0 disclaimer.css
- * line 69, 96) uses for the TR text. Using the SAME color closes the
- * narrative loop: intro disclaimer → 65sn destruction journey →
- * son-ekran disclaimer. The "kirli kâğıt" palette is the room's voice;
- * the destruction palette (white modal text, blue BSOD, etc.) belongs
- * to the systems being mocked. Returning to kirli kâğıt = returning to
- * the room = the system was lying, the room was always there.
- */
-export const FAZ8_DISCLAIMER_COLOR = '#7a6a4e' as const;
-
-/**
- * Disclaimer text-shadow. 0 0 8px rgba(10, 9, 8, 0.4) — soft black
- * halation around the glyphs. Reads as "candlelight illumination" on
- * an old paper document — congruent with the kirli-kâğıt palette and
- * with the room's tungsten bulb (the bulb is the only light source by
- * son-ekran). NOTE: 10/9/8 is the lobby base background hex split —
- * very dark warm-brown-black. The 0.4 alpha keeps the shadow from
- * reading as "glow" (which would feel UI-like) and instead as
- * "depth" (which feels object-like).
- */
-export const FAZ8_DISCLAIMER_TEXT_SHADOW = '0 0 8px rgba(10, 9, 8, 0.4)' as const;
-
-/**
- * Disclaimer secondary line stagger delay (ms). 200ms after the primary
- * fade-in begins. The stagger reinforces the reading order: Russian
- * first (the bolder, larger line — the joke), Turkish second (the
- * subtitle — the gloss). 200ms is enough for the eye to land on the
- * Russian glyphs before the Turkish appears (saccade time + initial
- * letter-recognition is ~180-220ms in casual reading).
- */
-export const FAZ8_DISCLAIMER_SECONDARY_STAGGER_MS = 200;
-
-/**
- * Disclaimer fade-in easing curve. cubic-bezier(0.4, 0, 0.6, 1) =
- * "ease-in-out-sine" — symmetric, gentle, no "snap" character. The
- * disclaimer must APPEAR, not "animate in" — easing should be felt
- * but not seen.
- */
-export const FAZ8_DISCLAIMER_FADE_EASING = 'cubic-bezier(0.4, 0, 0.6, 1)' as const;
-
-/* ------------------------------------------------------------------------ */
 /* Sprint 6 Faz 8 restart-hint typography + color                            */
 /* ------------------------------------------------------------------------ */
 
@@ -1268,11 +1144,10 @@ export const FAZ8_DISCLAIMER_FADE_EASING = 'cubic-bezier(0.4, 0, 0.6, 1)' as con
 export const FAZ8_RESTART_HINT_FONT_PX = 14;
 
 /**
- * Restart-hint text color. Same kirli-kâğıt #7a6a4e as the disclaimer.
- * Visual unity — both the disclaimer and the hint belong to the room's
- * voice, not the system's voice. The opacity gap
- * (FAZ8_SON_EKRAN_RESTART_HINT_OPACITY = 0.4 vs FAZ8_DISCLAIMER_OPACITY_MAX
- * = 0.9) does the hierarchy work; color stays unified.
+ * Restart-hint text color. kirli-kâğıt #7a6a4e — the hint belongs to
+ * the room's voice, not the system's voice. The low restart-hint
+ * opacity (FAZ8_SON_EKRAN_RESTART_HINT_OPACITY = 0.4) does the
+ * hierarchy work; color stays unified.
  */
 export const FAZ8_RESTART_HINT_COLOR = '#7a6a4e' as const;
 
@@ -1681,12 +1556,6 @@ export const GENERIC_IS_VISIBLE_CLASS = 'is-visible' as const;
  * or Sprint 8 may refactor the call site to reference this constant.
  */
 export const FAZ8_REVEAL_OVERLAY_FADING_OUT_CLASS = 'is-fading-out' as const;
-
-/**
- * Sprint 6 retroactive — CSS class toggled on the Faz 8 disclaimer
- * to drive fade-in. Current call site: faz8-son-ekran.ts line 263.
- */
-export const FAZ8_DISCLAIMER_VISIBLE_CLASS = 'is-visible' as const;
 
 /**
  * Sprint 6 retroactive — CSS class toggled on the Faz 8 restart-hint
