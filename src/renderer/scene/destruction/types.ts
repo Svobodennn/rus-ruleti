@@ -86,6 +86,7 @@ export type DestructionPhase =
   | 'faz0'
   | 'faz1'
   | 'faz2'
+  | 'faz2b-explorer'
   | 'faz3'
   | 'faz4'
   | 'faz5'
@@ -148,6 +149,7 @@ export type DestructionState =
   | { kind: 'faz0'; startedAtMs: number }
   | { kind: 'faz1'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz2'; os: OsVariant; startedAtMs: number }
+  | { kind: 'faz2b-explorer'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz3'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz4'; os: OsVariant; startedAtMs: number }
   | { kind: 'faz5'; os: OsVariant; startedAtMs: number }
@@ -683,4 +685,82 @@ export interface RevealJingleOptions {
    * explicit dispose() call from the director.
    */
   readonly signal: AbortSignal;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Faz 2B — Windows Explorer + ghost cursor handles                         */
+/*                                                                          */
+/* Windows-only theatrical phase between faz2 (takeover) and faz3           */
+/* (terminal). A ghost cursor drives a fake File Explorer through C:\ →    */
+/* C:\Windows → right-click System32 → Delete → fake "Access denied"        */
+/* dialog → System32 row vanishes. 100% DOM theatre; zero real fs work.    */
+/*                                                                          */
+/* TH-S5-04 carries forward: each handle carries a `kind` discriminator so  */
+/* callers narrow via `handle.kind === '<x>'` instead of `as`-casting.     */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Faz 2B Windows File Explorer chrome handle.
+ *
+ * Owns the fake Win11 File Explorer window DOM: titlebar (`_ □ ✕` caption
+ * buttons, visual only), address breadcrumb, left navigation pane, and the
+ * content area whose body swaps between the drive view ("This PC"), the
+ * `C:\` folder grid, and the `C:\Windows` folder grid. The runner
+ * (faz2b-explorer.ts) drives the storyboard by calling the view methods in
+ * sequence; the ghost cursor (separate handle) supplies the cursor motion.
+ *
+ * View methods are pure DOM patches — each swaps the content body / mounts
+ * a transient overlay (context menu, access-denied dialog) and returns the
+ * relevant element so the runner can hand it to the ghost cursor for a
+ * `moveTo()` target. Defensive: every getter returns `null` when the named
+ * row / item is absent so the runner can no-op rather than throw.
+ */
+export interface WinExplorerHandle extends ChromeHandle {
+  readonly kind: 'win-explorer';
+  readonly element: HTMLElement;
+  /** Render the "This PC" drive view (C: + D: capacity bars). */
+  readonly showDrives: () => void;
+  /** Enter C:\ — swap the content body to the C-root folder grid. */
+  readonly enterC: () => void;
+  /** Enter C:\Windows — swap the content body to the Windows folder grid. */
+  readonly enterWindows: () => void;
+  /** Resolve a folder/drive row element by its display name (or null). */
+  readonly rowEl: (name: string) => HTMLElement | null;
+  /**
+   * Open the right-click context menu anchored at the named row. Returns
+   * the "Delete" item element (so the runner can target it with the
+   * cursor) or null if the row is absent.
+   */
+  readonly openContextMenuOn: (name: string) => HTMLElement | null;
+  /** Delete a row (shimmer + remove). No-op when the row is absent. */
+  readonly deleteRow: (name: string) => void;
+  /** Mount the fake "Access denied" error dialog. Returns the dialog element. */
+  readonly showAccessDeniedDialog: () => HTMLElement;
+  /** Dismiss the access-denied dialog if mounted. No-op otherwise. */
+  readonly dismissAccessDeniedDialog: () => void;
+}
+
+/**
+ * Faz 2B ghost-cursor handle.
+ *
+ * Owns a single fake animated cursor `<div>` plus a transient ripple layer.
+ * The cursor glides between targets via a requestAnimationFrame tween
+ * (FAZ2B_GHOST_CURSOR_RAF_OWNER decree). Under prefers-reduced-motion every
+ * `moveTo()` teleports (no tween) and ripples are suppressed.
+ *
+ * All motion methods resolve a Promise when the gesture completes so the
+ * runner can `await` them inside the storyboard sequence; each respects the
+ * runner's AbortSignal (mid-tween abort resolves immediately).
+ */
+export interface GhostCursorHandle extends ChromeHandle {
+  readonly kind: 'faz2b-ghost-cursor';
+  readonly element: HTMLElement;
+  /** Glide the cursor to the centre of `target` over `durationMs`. */
+  readonly moveTo: (target: HTMLElement, durationMs: number) => Promise<void>;
+  /** Play a single-click ripple at the cursor's current position. */
+  readonly click: () => void;
+  /** Play a double-click ripple at the cursor's current position. */
+  readonly doubleClick: () => void;
+  /** Play a right-click ripple at the cursor's current position. */
+  readonly rightClick: () => void;
 }

@@ -35,6 +35,20 @@ const FINALE_VIDEO_URL = 'https://www.youtube.com/watch?v=xnMSySs7HSA';
 
 /** Returns 'mac' for darwin, 'win' for win32. Other platforms reject. */
 function getOsFamily(): OsFamily {
+  // Dev-only override: `FORCE_OS=win npm run dev` lets a macOS developer
+  // preview the WINDOWS destruction variant (the faz2b File Explorer / system32
+  // scene is win-only). Guarded by `!app.isPackaged` so it can NEVER alter
+  // shipped behaviour — a packaged .exe/.app always reflects the real platform.
+  if (!app.isPackaged) {
+    const forced = process.env['FORCE_OS'];
+    logger.info('getOsFamily (dev)', {
+      forceOs: forced ?? null,
+      platform: process.platform,
+    });
+    if (forced === 'win' || forced === 'mac') {
+      return forced;
+    }
+  }
   if (process.platform === 'darwin') {
     return 'mac';
   }

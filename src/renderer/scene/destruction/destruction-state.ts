@@ -61,6 +61,7 @@ export function onBangFired(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -96,6 +97,7 @@ export function onFaz0Complete(
     case 'idle':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -126,6 +128,7 @@ export function onFaz1Complete(
     case 'idle':
     case 'faz0':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -141,11 +144,17 @@ export function onFaz1Complete(
 }
 
 /**
- * Transition: Faz 2 Takeover complete (faz2 → faz3).
+ * Transition: Faz 2 Takeover complete (faz2 → faz2b-explorer).
  *
- * OS preserved. Called by: destruction-director.ts after faz2-takeover.runFaz2
- * resolves. (Phase 2B kraken-faz2-3 fills the runner; this transition function
- * lives in Lane A because the FSM contract is shared.)
+ * Faz 2B (Windows Gezgini & "system32 sil" sahnesi) inserts a new FSM
+ * phase between the takeover and the terminal: the takeover now hands off
+ * to the fake File Explorer scene rather than straight to faz3. On Windows
+ * the explorer storyboard plays; on Mac the runner is a no-op pass-through
+ * (the FSM still steps through faz2b-explorer so the chain stays single-
+ * path, mirroring the runner-gated mac/win split elsewhere).
+ *
+ * OS preserved. Called by: destruction-director.ts after
+ * faz2-takeover.runFaz2 resolves.
  */
 export function onFaz2Complete(
   state: DestructionState,
@@ -153,10 +162,47 @@ export function onFaz2Complete(
 ): DestructionState {
   switch (state.kind) {
     case 'faz2':
+      return { kind: 'faz2b-explorer', os: state.os, startedAtMs: nowMs };
+    case 'idle':
+    case 'faz0':
+    case 'faz1':
+    case 'faz2b-explorer':
+    case 'faz3':
+    case 'faz4':
+    case 'faz5':
+    case 'faz6':
+    case 'faz7':
+    case 'faz8-reveal':
+    case 'faz8-son-ekran':
+    case 'aborted':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+/**
+ * Transition: Faz 2B Explorer complete (faz2b-explorer → faz3).
+ *
+ * The fake File Explorer scene finished (System32 "deleted" → access-denied
+ * dialog dismissed → dread beat). The FSM now continues to faz3 (terminal),
+ * where the rm -rf cascade reads as the consequence of System32 being gone.
+ * OS preserved from the faz2b-explorer variant.
+ *
+ * Called by: destruction-director.ts after faz2b-explorer.runFaz2bExplorer
+ * resolves (Windows) or returns immediately (Mac pass-through).
+ */
+export function onFaz2bExplorerComplete(
+  state: DestructionState,
+  nowMs: number,
+): DestructionState {
+  switch (state.kind) {
+    case 'faz2b-explorer':
       return { kind: 'faz3', os: state.os, startedAtMs: nowMs };
     case 'idle':
     case 'faz0':
     case 'faz1':
+    case 'faz2':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -191,6 +237,7 @@ export function onFaz3Complete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz4':
     case 'faz5':
     case 'faz6':
@@ -221,6 +268,7 @@ export function onFaz4Complete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz5':
     case 'faz6':
@@ -251,6 +299,7 @@ export function onFaz5Complete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz6':
@@ -282,6 +331,7 @@ export function onFaz6Complete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -320,6 +370,7 @@ export function onFaz7CycleAdvance(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -356,6 +407,7 @@ export function onFaz7Complete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -390,6 +442,7 @@ export function onFaz8RevealComplete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -425,6 +478,7 @@ export function onFaz8SonEkranComplete(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -469,6 +523,7 @@ export function onFaz8RestartRequested(
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':
@@ -495,6 +550,7 @@ export function onEscHold(state: DestructionState): DestructionState {
     case 'faz0':
     case 'faz1':
     case 'faz2':
+    case 'faz2b-explorer':
     case 'faz3':
     case 'faz4':
     case 'faz5':

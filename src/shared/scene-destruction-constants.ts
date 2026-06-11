@@ -2026,3 +2026,15 @@ export const FRAME_BUDGET_MS = 16.67 as const;
  * flush before scene teardown.
  */
 export const PERF_STATS_FLUSH_INTERVAL_MS = 5000 as const;
+
+/* ========================================================================== */
+/* FAZ 2B — Windows Gezgini & "system32 sil" sahnesi (Windows-only)          */
+/*                                                                            */
+/* The full FAZ_2B_* / FAZ2B_* cluster (storyboard timing, drive/folder       */
+/* lists, ghost-cursor knobs, owner decrees, z-index ladder, visual tokens)   */
+/* lives in ./scene-faz2b-constants.ts and is re-exported here so every       */
+/* existing consumer keeps importing from scene-destruction-constants.js      */
+/* unchanged. Split out to keep this file under the 400-line ESLint cap.      */
+/* ========================================================================== */
+
+export * from './scene-faz2b-constants.js';

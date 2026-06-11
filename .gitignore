@@ -9,6 +9,11 @@ dist/
 thoughts/
 .claude/
 
+# Local-only scratch + planning docs (NOT for the public repo — they spoil the
+# joke mechanics; kept out so an automated `git add -A` can't sweep them in).
+RESUME.md
+FAZ2B-EXPLORER-PLAN.md
+
 # Sprint 7 Phase 1 — Playwright (TH-S6-01)
 # Run artefacts are local-only; baseline screenshots under
 # tests/e2e/faz-screenshots/baseline/ ARE committed (committed post-Phase-3

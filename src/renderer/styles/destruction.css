@@ -1476,3 +1476,39 @@
     transition: none;
   }
 }
+
+/* ========================================================================== */
+/* Faz 2B — Windows Gezgini & "system32 sil" sahnesi                         */
+/*                                                                            */
+/* The fake File Explorer window (chrome/win-explorer.ts) + ghost cursor      */
+/* (chrome/_shared/ghost-cursor.ts) are inline-styled at build time (same     */
+/* discipline as win-progress-dialog.ts — per-element style objects). This    */
+/* block carries only the root marker class + the reduced-motion guard so     */
+/* the "every animated surface has a @media override" convention stays        */
+/* legible in code review.                                                    */
+/*                                                                            */
+/* z-index (C2): the window root uses a LOCAL const (9300) set inline in      */
+/* win-explorer.ts — NOT DESTRUCTION_OVERLAY_Z_INDEX (10000). It lives inside */
+/* the .destruction-overlay (9100) host, below the CRT (9999).                */
+/* ========================================================================== */
+
+.win-explorer-root {
+  /* Marker only — geometry + stacking are inline (see win-explorer.ts). The
+   * class exists so QA/e2e selectors + this reduced-motion gate can hook a
+   * stable name without depending on the data-role attribute. */
+  font-family: system-ui, 'Segoe UI Variable', 'Segoe UI', sans-serif;
+}
+
+/* Reduced-motion gate — the ghost cursor teleports (no glide tween) and
+ * ripples are suppressed in JS (ghost-cursor.ts matchMedia branch); the
+ * System32 row removal skips its shimmer (win-explorer.ts reduceMotion
+ * branch). This CSS guard is the belt-and-braces companion: any inline
+ * `transition` on faz2b surfaces is forced off so a motion-sensitive user
+ * sees instant state changes even if a future inline tween is added. */
+@media (prefers-reduced-motion: reduce) {
+  .win-explorer-root [data-role='faz2b-cursor-ripple'],
+  .win-explorer-root [data-role='win-explorer-folder'],
+  .win-explorer-root [data-role='win-explorer-access-denied'] {
+    transition: none;
+  }
+}

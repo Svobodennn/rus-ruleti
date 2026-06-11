@@ -83,6 +83,7 @@ import {
 import { runFaz0 } from './faz0-bang.js';
 import { runFaz1 } from './faz1-critical-dialog.js';
 import { runFaz2 } from './faz2-takeover.js';
+import { runFaz2bExplorer } from './faz2b-explorer.js';
 import { runFaz3 } from './faz3-terminal.js';
 import { startFaz4FileWipe } from './faz4-file-wipe.js';
 import { startFaz5DiskFormat } from './faz5-disk-format.js';
@@ -102,6 +103,7 @@ import {
   onFaz0Complete,
   onFaz1Complete,
   onFaz2Complete,
+  onFaz2bExplorerComplete,
   onFaz3Complete,
   onFaz4Complete,
   onFaz5Complete,
@@ -412,8 +414,11 @@ async function runFazSequence(
 }
 
 /**
- * Run faz2 (Takeover with bleed #1) then faz3 (Terminal with bleed #2).
- * Extracted because the parent runFazSequence was edging 50 lines.
+ * Run faz2 (Takeover with bleed #1) → faz2b-explorer (Windows Gezgini &
+ * "system32 sil" — Windows-only theatre; Mac runner no-ops but the FSM still
+ * steps through) → faz3 (Terminal with bleed #2). Extracted because
+ * runFazSequence was edging 50 lines; stays well under the cap with the
+ * faz2b beat folded in (single-line runner calls keep it compact).
  */
 async function runFazTakeoverAndTerminal(
   runtime: DirectorRuntime,
@@ -422,23 +427,17 @@ async function runFazTakeoverAndTerminal(
   username: string,
 ): Promise<void> {
   const signal = runtime.abortCtrl.signal;
+  const container = nonNull(runtime.overlay);
   const apartmentBleed = nonNull(runtime.apartmentBleed);
   await runFaz2({
-    os,
-    container: nonNull(runtime.overlay),
-    lobbySnapshotDataUrl: deps.lobbySnapshotGetter(),
-    apartmentBleed,
-    signal,
+    os, container, lobbySnapshotDataUrl: deps.lobbySnapshotGetter(), apartmentBleed, signal,
   });
   if (signal.aborted) return;
   runtime.fsmState = onFaz2Complete(runtime.fsmState, performance.now());
-  await runFaz3({
-    os,
-    username,
-    container: nonNull(runtime.overlay),
-    apartmentBleed,
-    signal,
-  });
+  await runFaz2bExplorer({ os, container, signal });
+  if (signal.aborted) return;
+  runtime.fsmState = onFaz2bExplorerComplete(runtime.fsmState, performance.now());
+  await runFaz3({ os, username, container, apartmentBleed, signal });
   if (signal.aborted) return;
   runtime.fsmState = onFaz3Complete(runtime.fsmState, performance.now());
   await runFaz4Through7(runtime, deps, os, username);

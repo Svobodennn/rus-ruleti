@@ -41,6 +41,8 @@ export type {
   WinBsodHandle,
   WinProgressDialogHandle,
   WinBiosBootloopHandle,
+  WinExplorerHandle,
+  GhostCursorHandle,
   Faz8RestartHintHandle,
   Faz8VolumetricSmokeHandle,
   Faz8TekrarButtonHandle,
@@ -51,6 +53,12 @@ export type {
   RevealJingleHandle,
   RevealJingleOptions,
 } from './types.js';
+
+/* Faz 2B — Windows Gezgini & "system32 sil" runner + chrome mounts
+ * (Windows-only theatrical phase inserted between faz2 and faz3). */
+export { runFaz2bExplorer } from './faz2b-explorer.js';
+export { mountWinExplorer } from './chrome/win-explorer.js';
+export { mountGhostCursor } from './chrome/_shared/ghost-cursor.js';
 
 /* Sprint 5 Phase 1 — Faz 4-7 lane runners + chrome mounts. */
 export { startFaz4FileWipe } from './faz4-file-wipe.js';
